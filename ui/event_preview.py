@@ -9,6 +9,7 @@ from typing import Optional, Dict, Any, Tuple
 import re
 
 from models.event_models import ParsedEvent, Event, ValidationResult
+from ui.safe_input import safe_input, is_non_interactive, confirm_action
 
 
 class EventPreviewInterface:
@@ -99,15 +100,29 @@ class EventPreviewInterface:
         if not self.current_event:
             raise ValueError("No event to edit. Call display_event_preview first.")
         
+        # In non-interactive mode, auto-accept the event if it's valid
+        if is_non_interactive():
+            return self._handle_non_interactive_confirmation()
+        
         print("\nYou can edit any field by entering its number, or:")
         print("  'c' or 'confirm' - Confirm and create event")
         print("  'q' or 'cancel'  - Cancel without creating event")
         print("  'r' or 'refresh' - Refresh the preview display")
         print("  'h' or 'help'    - Show detailed help")
         
-        while True:
+        retry_count = 0
+        max_retries = 3
+        
+        while retry_count < max_retries:
             try:
-                choice = input("\nEnter your choice: ").strip().lower()
+                choice = safe_input("\nEnter your choice: ", "c").strip().lower()
+                
+                if not choice:
+                    retry_count += 1
+                    if retry_count >= max_retries:
+                        print("No input received. Auto-confirming event.")
+                        return self._handle_confirmation()
+                    continue
                 
                 if choice in ['c', 'confirm']:
                     return self._handle_confirmation()
@@ -118,10 +133,12 @@ class EventPreviewInterface:
                 
                 elif choice in ['r', 'refresh']:
                     self.display_event_preview(self.current_event, self.validation_result)
+                    retry_count = 0  # Reset retry count on valid action
                     continue
                 
                 elif choice in ['h', 'help']:
                     self._show_detailed_help()
+                    retry_count = 0  # Reset retry count on valid action
                     continue
                 
                 elif choice.isdigit():
@@ -131,17 +148,25 @@ class EventPreviewInterface:
                         # Re-validate after editing
                         self.validation_result = self._validate_current_event()
                         self.display_event_preview(self.current_event, self.validation_result)
+                        retry_count = 0  # Reset retry count on valid action
                     else:
                         print("Invalid field number. Please enter 1-7.")
+                        retry_count += 1
                 
                 else:
                     print("Invalid choice. Enter a field number (1-7), 'c' to confirm, 'q' to cancel, or 'h' for help.")
+                    retry_count += 1
             
             except KeyboardInterrupt:
                 print("\nEvent creation cancelled.")
                 return False, None
             except Exception as e:
-                print(f"Error: {e}")
+                print(f"Input error: {type(e).__name__}: {e}", file=sys.stderr)
+                retry_count += 1
+        
+        # Max retries reached, auto-confirm
+        print("Maximum input attempts reached. Auto-confirming event.")
+        return self._handle_confirmation()
     
     def _edit_field(self, field_num: int) -> None:
         """
@@ -164,10 +189,13 @@ class EventPreviewInterface:
     
     def _edit_title(self) -> None:
         """Edit the event title."""
+        if is_non_interactive():
+            return  # Skip editing in non-interactive mode
+            
         current = self.current_event.title or ""
         print(f"\nCurrent title: {current or '(not specified)'}")
         
-        new_title = input("Enter new title (or press Enter to keep current): ").strip()
+        new_title = safe_input("Enter new title (or press Enter to keep current): ", "").strip()
         if new_title:
             self.current_event.title = new_title
             print(f"Title updated to: {new_title}")
@@ -176,11 +204,14 @@ class EventPreviewInterface:
     
     def _edit_start_date(self) -> None:
         """Edit the start date."""
+        if is_non_interactive():
+            return  # Skip editing in non-interactive mode
+            
         current = self.current_event.start_datetime
         print(f"\nCurrent start date: {self._format_date(current)}")
         print("Enter new date in format YYYY-MM-DD (e.g., 2024-03-15)")
         
-        new_date_str = input("New start date (or press Enter to keep current): ").strip()
+        new_date_str = safe_input("New start date (or press Enter to keep current): ", "").strip()
         if new_date_str:
             try:
                 new_date = datetime.strptime(new_date_str, "%Y-%m-%d").date()
@@ -208,11 +239,14 @@ class EventPreviewInterface:
     
     def _edit_start_time(self) -> None:
         """Edit the start time."""
+        if is_non_interactive():
+            return  # Skip editing in non-interactive mode
+            
         current = self.current_event.start_datetime
         print(f"\nCurrent start time: {self._format_time(current)}")
         print("Enter new time in format HH:MM (24-hour) or HH:MM AM/PM")
         
-        new_time_str = input("New start time (or press Enter to keep current): ").strip()
+        new_time_str = safe_input("New start time (or press Enter to keep current): ", "").strip()
         if new_time_str:
             try:
                 new_time = self._parse_time_input(new_time_str)
@@ -242,11 +276,14 @@ class EventPreviewInterface:
     
     def _edit_end_date(self) -> None:
         """Edit the end date."""
+        if is_non_interactive():
+            return  # Skip editing in non-interactive mode
+            
         current = self.current_event.end_datetime
         print(f"\nCurrent end date: {self._format_date(current)}")
         print("Enter new date in format YYYY-MM-DD (e.g., 2024-03-15)")
         
-        new_date_str = input("New end date (or press Enter to keep current): ").strip()
+        new_date_str = safe_input("New end date (or press Enter to keep current): ", "").strip()
         if new_date_str:
             try:
                 new_date = datetime.strptime(new_date_str, "%Y-%m-%d").date()
@@ -273,11 +310,14 @@ class EventPreviewInterface:
     
     def _edit_end_time(self) -> None:
         """Edit the end time."""
+        if is_non_interactive():
+            return  # Skip editing in non-interactive mode
+            
         current = self.current_event.end_datetime
         print(f"\nCurrent end time: {self._format_time(current)}")
         print("Enter new time in format HH:MM (24-hour) or HH:MM AM/PM")
         
-        new_time_str = input("New end time (or press Enter to keep current): ").strip()
+        new_time_str = safe_input("New end time (or press Enter to keep current): ", "").strip()
         if new_time_str:
             try:
                 new_time = self._parse_time_input(new_time_str)
@@ -307,17 +347,19 @@ class EventPreviewInterface:
     
     def _edit_location(self) -> None:
         """Edit the event location."""
+        if is_non_interactive():
+            return  # Skip editing in non-interactive mode
+            
         current = self.current_event.location or ""
         print(f"\nCurrent location: {current or '(not specified)'}")
         
-        new_location = input("Enter new location (or press Enter to keep current): ").strip()
+        new_location = safe_input("Enter new location (or press Enter to keep current): ", "").strip()
         if new_location:
             self.current_event.location = new_location
             print(f"Location updated to: {new_location}")
         elif new_location == "" and current:
             # Allow clearing the location
-            confirm = input("Clear the location? (y/N): ").strip().lower()
-            if confirm in ['y', 'yes']:
+            if confirm_action("Clear the location?", default_yes=False):
                 self.current_event.location = None
                 print("Location cleared.")
         else:
@@ -325,17 +367,19 @@ class EventPreviewInterface:
     
     def _edit_description(self) -> None:
         """Edit the event description."""
+        if is_non_interactive():
+            return  # Skip editing in non-interactive mode
+            
         current = self.current_event.description or ""
         print(f"\nCurrent description: {current or '(not specified)'}")
         
-        new_description = input("Enter new description (or press Enter to keep current): ").strip()
+        new_description = safe_input("Enter new description (or press Enter to keep current): ", "").strip()
         if new_description:
             self.current_event.description = new_description
             print(f"Description updated to: {new_description}")
         elif new_description == "" and current:
             # Allow clearing the description
-            confirm = input("Clear the description? (y/N): ").strip().lower()
-            if confirm in ['y', 'yes']:
+            if confirm_action("Clear the description?", default_yes=False):
                 self.current_event.description = ""
                 print("Description cleared.")
         else:
@@ -416,6 +460,57 @@ class EventPreviewInterface:
         
         return result
     
+    def _handle_non_interactive_confirmation(self) -> Tuple[bool, Optional[Event]]:
+        """
+        Handle confirmation in non-interactive mode.
+        
+        Returns:
+            Tuple of (confirmed, finalized_event)
+        """
+        # Ensure we have minimum required fields
+        if not self.current_event.start_datetime:
+            # Set default start time if missing
+            from datetime import datetime
+            self.current_event.start_datetime = datetime.now().replace(hour=9, minute=0, second=0, microsecond=0)
+        
+        if not self.current_event.end_datetime and self.current_event.start_datetime:
+            # Set default 60-minute duration if end time is missing
+            self.current_event.end_datetime = self.current_event.start_datetime + timedelta(minutes=60)
+        
+        if not self.current_event.title:
+            # Set default title if missing
+            self.current_event.title = "Event"
+        
+        # Validate the event
+        validation_result = self._validate_current_event()
+        
+        if not validation_result.is_valid:
+            # In non-interactive mode, try to fix basic issues
+            if not self.current_event.title:
+                self.current_event.title = "Untitled Event"
+            
+            # Re-validate
+            validation_result = self._validate_current_event()
+            
+            if not validation_result.is_valid:
+                return False, None
+        
+        try:
+            # Convert ParsedEvent to Event
+            finalized_event = Event(
+                title=self.current_event.title,
+                start_datetime=self.current_event.start_datetime,
+                end_datetime=self.current_event.end_datetime,
+                location=self.current_event.location,
+                description=self.current_event.description or ""
+            )
+            
+            return True, finalized_event
+            
+        except ValueError as e:
+            print(f"Error creating event in non-interactive mode: {e}", file=sys.stderr)
+            return False, None
+    
     def _handle_confirmation(self) -> Tuple[bool, Optional[Event]]:
         """
         Handle event confirmation and creation.
@@ -438,8 +533,7 @@ class EventPreviewInterface:
         print("=" * 60)
         self.display_event_preview(self.current_event, validation_result)
         
-        confirm = input("\nCreate this event? (Y/n): ").strip().lower()
-        if confirm in ['', 'y', 'yes']:
+        if confirm_action("\nCreate this event?", default_yes=True):
             try:
                 # Convert ParsedEvent to Event
                 finalized_event = Event(

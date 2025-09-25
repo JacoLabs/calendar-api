@@ -76,13 +76,20 @@ class EventParser:
             best_datetime = datetime_matches[0]
             parsed_event.start_datetime = best_datetime.value
             
-            # Calculate end time
-            end_time = self._calculate_end_time(
-                parsed_event.start_datetime, 
-                duration_matches, 
-                config['default_event_duration_minutes']
-            )
-            parsed_event.end_datetime = end_time
+            # Check if we have an explicit end time from a time range
+            end_time = self._find_explicit_end_time(datetime_matches, best_datetime)
+            
+            if end_time:
+                # Use explicit end time from time range
+                parsed_event.end_datetime = end_time
+            else:
+                # Calculate end time from duration or use default
+                end_time = self._calculate_end_time(
+                    parsed_event.start_datetime, 
+                    duration_matches, 
+                    config['default_event_duration_minutes']
+                )
+                parsed_event.end_datetime = end_time
         
         # Set location (highest confidence match)
         if location_matches:
@@ -221,6 +228,35 @@ class EventParser:
             suggestions.append('No clear title found - consider starting with the event name')
         
         return suggestions
+    
+    def _find_explicit_end_time(self, datetime_matches: List[DateTimeMatch], start_match: DateTimeMatch) -> Optional[datetime]:
+        """
+        Find explicit end time from time range patterns.
+        
+        Args:
+            datetime_matches: All datetime matches found
+            start_match: The selected start time match
+            
+        Returns:
+            End datetime if found, None otherwise
+        """
+        # Look for a corresponding end time match from the same time range
+        for match in datetime_matches:
+            # Check if this is an end time match from the same time range
+            if (match.pattern_type.startswith('time_range_end_') and
+                match.start_pos == start_match.start_pos and
+                match.end_pos == start_match.end_pos and
+                match.matched_text == start_match.matched_text):
+                return match.value
+            
+            # Also check for combined date+time_range_end patterns
+            if (match.pattern_type.endswith('+time_range_end_from_to_12hour') or
+                match.pattern_type.endswith('+time_range_end_from_to_24hour') or
+                match.pattern_type.endswith('+time_range_end_from_to_mixed')):
+                # This is a combined date+end_time match
+                return match.value
+        
+        return None
     
     def _calculate_end_time(self, start_datetime: datetime, duration_matches: List, default_duration_minutes: int) -> datetime:
         """Calculate end time based on duration information or default duration."""

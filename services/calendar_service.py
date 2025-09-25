@@ -9,6 +9,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 from models.event_models import Event, ValidationResult
+from ui.safe_input import safe_input, is_non_interactive, confirm_action, get_choice
 
 
 class CalendarServiceError(Exception):
@@ -370,8 +371,7 @@ class CalendarService:
                     print(f"\n❌ Event creation failed (attempt {attempt + 1}/{self.max_retries})")
                     print(f"Error: {last_error}")
                     
-                    retry_choice = input(f"\nWould you like to retry? (Y/n): ").strip().lower()
-                    if retry_choice in ['n', 'no']:
+                    if not confirm_action(f"\nWould you like to retry?", default_yes=True):
                         break
                     
                     print("Retrying event creation...")
@@ -408,19 +408,22 @@ class CalendarService:
             print(f"  Location: {event.location}")
         print("=" * 50)
         
-        print("\nOptions:")
-        print("  1. Retry with the same event")
-        print("  2. Edit the event and retry")
-        print("  3. Cancel event creation")
+        if is_non_interactive():
+            # In non-interactive mode, just return failure
+            return False, None
         
-        while True:
-            try:
-                choice = input("\nEnter your choice (1-3): ").strip()
-                
-                if choice == '1':
-                    return True, event
-                
-                elif choice == '2':
+        choices = [
+            "Retry with the same event",
+            "Edit the event and retry", 
+            "Cancel event creation"
+        ]
+        
+        choice_index = get_choice("\nOptions:", choices, default_index=0)
+        
+        if choice_index == 0:
+            return True, event
+        
+        elif choice_index == 1:
                     # Allow user to edit the event
                     from ui.event_preview import EventPreviewInterface
                     from models.event_models import ParsedEvent
@@ -446,13 +449,6 @@ class CalendarService:
                         print("Event editing cancelled.")
                         return False, None
                 
-                elif choice == '3':
-                    print("Event creation cancelled.")
-                    return False, None
-                
-                else:
-                    print("Invalid choice. Please enter 1, 2, or 3.")
-                    
-            except KeyboardInterrupt:
-                print("\nEvent creation cancelled.")
-                return False, None
+        else:  # choice_index == 2
+            print("Event creation cancelled.")
+            return False, None

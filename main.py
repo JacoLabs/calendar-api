@@ -15,6 +15,7 @@ from services.calendar_service import CalendarService
 from services.event_feedback import create_event_with_comprehensive_feedback
 from ui.event_preview import EventPreviewInterface
 from models.event_models import ParsedEvent, Event
+from ui.safe_input import safe_input, is_non_interactive
 
 
 class TextToCalendarApp:
@@ -179,13 +180,26 @@ class TextToCalendarApp:
         print("  'quit' - Exit the application")
         print("=" * 60)
         
-        while True:
+        retry_count = 0
+        max_retries = 3
+        
+        while retry_count < max_retries:
             try:
-                text = input("\n📝 Enter event text: ").strip()
+                text = safe_input("\n📝 Enter event text: ", "").strip()
                 
                 if not text:
+                    if is_non_interactive():
+                        print("No input in non-interactive mode. Exiting.")
+                        break
+                    retry_count += 1
+                    if retry_count >= max_retries:
+                        print("No input received. Exiting.")
+                        break
                     print("Please enter some text to parse.")
                     continue
+                
+                # Reset retry count on valid input
+                retry_count = 0
                 
                 # Handle commands
                 if text.lower() in ['quit', 'exit', 'q']:
@@ -324,12 +338,27 @@ TIPS:
         
         texts = []
         try:
-            while True:
-                text = input(f"Event {len(texts) + 1}: ").strip()
+            retry_count = 0
+            max_retries = 3
+            
+            while retry_count < max_retries:
+                text = safe_input(f"Event {len(texts) + 1}: ", "").strip()
+                
+                if not text:
+                    if is_non_interactive():
+                        break
+                    retry_count += 1
+                    if retry_count >= max_retries:
+                        print("No input received. Ending batch input.")
+                        break
+                    continue
+                
                 if text.upper() == 'END':
                     break
-                if text:
-                    texts.append(text)
+                    
+                texts.append(text)
+                retry_count = 0  # Reset on successful input
+                
         except KeyboardInterrupt:
             print("\nBatch input cancelled.")
             return

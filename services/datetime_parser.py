@@ -156,6 +156,22 @@ class DateTimeParser:
             )
         }
         
+        # Time range patterns (from X to Y)
+        self.time_range_patterns = {
+            'from_to_12hour': re.compile(
+                r'\bfrom\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)\s+to\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b',
+                re.IGNORECASE
+            ),
+            'from_to_24hour': re.compile(
+                r'\bfrom\s+(\d{1,2}):(\d{2})\s+to\s+(\d{1,2}):(\d{2})\b',
+                re.IGNORECASE
+            ),
+            'from_to_mixed': re.compile(
+                r'\bfrom\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\s+to\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b',
+                re.IGNORECASE
+            )
+        }
+        
         # Weekday name to number mapping (Monday = 0)
         self.weekday_names = {
             'monday': 0, 'tuesday': 1, 'wednesday': 2, 'thursday': 3,
@@ -175,6 +191,10 @@ class DateTimeParser:
         """
         matches = []
         
+        # First, check for time ranges (from X to Y) - these have highest priority
+        time_range_matches = self._extract_time_ranges(text)
+        matches.extend(time_range_matches)
+        
         # Extract absolute dates and times separately
         date_matches = self._extract_dates(text, prefer_dd_mm)
         time_matches = self._extract_times(text)
@@ -182,14 +202,19 @@ class DateTimeParser:
         # Extract relative dates
         relative_matches = self._extract_relative_dates(text)
         
-        # Combine dates with times when they appear close together
+        # Combine dates with time ranges first (highest priority)
+        if time_range_matches:
+            combined_range_matches = self._combine_date_time_range_matches(text, date_matches + relative_matches, time_range_matches)
+            matches.extend(combined_range_matches)
+        
+        # Combine dates with regular times when they appear close together
         combined_matches = self._combine_date_time_matches(text, date_matches + relative_matches, time_matches)
         matches.extend(combined_matches)
         
         # Add standalone dates (with default time)
         all_date_matches = date_matches + relative_matches
         for date_match in all_date_matches:
-            if not any(abs(date_match.start_pos - match.start_pos) < 50 for match in combined_matches):
+            if not any(abs(date_match.start_pos - match.start_pos) < 50 for match in combined_matches + time_range_matches):
                 # Create datetime with default time (9:00 AM)
                 dt = datetime.combine(date_match.value.date(), time(9, 0))
                 matches.append(DateTimeMatch(
@@ -203,7 +228,7 @@ class DateTimeParser:
         
         # Add standalone times (with today's date)
         for time_match in time_matches:
-            if not any(abs(time_match.start_pos - match.start_pos) < 50 for match in combined_matches):
+            if not any(abs(time_match.start_pos - match.start_pos) < 50 for match in combined_matches + time_range_matches):
                 matches.append(time_match)  # Time matches already have today's date
         
         # Sort by confidence (highest first)
@@ -352,6 +377,218 @@ class DateTimeParser:
                     continue
         
         return matches
+    
+    def _extract_time_ranges(self, text: str) -> List[DateTimeMatch]:
+        """Extract time range patterns (from X to Y) from text."""
+        matches = []
+        
+        for pattern_name, pattern in self.time_range_patterns.items():
+            for match in pattern.finditer(text):
+                try:
+                    start_time = None
+                    end_time = None
+                    confidence = 0.95  # High confidence for explicit time ranges
+                    
+                    if pattern_name == 'from_to_12hour':
+                        # from 10:00 AM to 11:30 AM
+                        start_hour = int(match.group(1))
+                        start_minute = int(match.group(2)) if match.group(2) else 0
+                        start_ampm = match.group(3).lower()
+                        
+                        end_hour = int(match.group(4))
+                        end_minute = int(match.group(5)) if match.group(5) else 0
+                        end_ampm = match.group(6).lower()
+                        
+                        # Convert to 24-hour format
+                        if 1 <= start_hour <= 12 and 1 <= end_hour <= 12:
+                            if start_ampm == 'pm' and start_hour != 12:
+                                start_hour += 12
+                            elif start_ampm == 'am' and start_hour == 12:
+                                start_hour = 0
+                                
+                            if end_ampm == 'pm' and end_hour != 12:
+                                end_hour += 12
+                            elif end_ampm == 'am' and end_hour == 12:
+                                end_hour = 0
+                            
+                            start_time = time(start_hour, start_minute)
+                            end_time = time(end_hour, end_minute)
+                    
+                    elif pattern_name == 'from_to_24hour':
+                        # from 10:00 to 11:30
+                        start_hour = int(match.group(1))
+                        start_minute = int(match.group(2))
+                        end_hour = int(match.group(3))
+                        end_minute = int(match.group(4))
+                        
+                        if (0 <= start_hour <= 23 and 0 <= start_minute <= 59 and
+                            0 <= end_hour <= 23 and 0 <= end_minute <= 59):
+                            start_time = time(start_hour, start_minute)
+                            end_time = time(end_hour, end_minute)
+                    
+                    elif pattern_name == 'from_to_mixed':
+                        # More flexible pattern - handles various combinations
+                        start_hour = int(match.group(1))
+                        start_minute = int(match.group(2)) if match.group(2) else 0
+                        start_ampm = match.group(3).lower() if match.group(3) else None
+                        
+                        end_hour = int(match.group(4))
+                        end_minute = int(match.group(5)) if match.group(5) else 0
+                        end_ampm = match.group(6).lower() if match.group(6) else None
+                        
+                        # Apply AM/PM conversion if specified
+                        if start_ampm and 1 <= start_hour <= 12:
+                            if start_ampm == 'pm' and start_hour != 12:
+                                start_hour += 12
+                            elif start_ampm == 'am' and start_hour == 12:
+                                start_hour = 0
+                        
+                        if end_ampm and 1 <= end_hour <= 12:
+                            if end_ampm == 'pm' and end_hour != 12:
+                                end_hour += 12
+                            elif end_ampm == 'am' and end_hour == 12:
+                                end_hour = 0
+                        
+                        # If no AM/PM specified, use context or assume reasonable defaults
+                        if not start_ampm and not end_ampm:
+                            # If both times are in 24-hour format range, use as-is
+                            if 0 <= start_hour <= 23 and 0 <= end_hour <= 23:
+                                pass  # Use as-is
+                            # If in 12-hour range, make reasonable assumptions
+                            elif 1 <= start_hour <= 12 and 1 <= end_hour <= 12:
+                                # Assume business hours context
+                                if start_hour >= 8 and end_hour >= 8:
+                                    # Likely AM for early hours, PM for later
+                                    if start_hour <= 11:
+                                        pass  # Keep as AM (or early 24-hour)
+                                    else:
+                                        start_hour += 12 if start_hour != 12 else 0
+                                        end_hour += 12 if end_hour != 12 else 0
+                                confidence = 0.8  # Lower confidence due to assumption
+                        
+                        if (0 <= start_hour <= 23 and 0 <= start_minute <= 59 and
+                            0 <= end_hour <= 23 and 0 <= end_minute <= 59):
+                            start_time = time(start_hour, start_minute)
+                            end_time = time(end_hour, end_minute)
+                    
+                    if start_time and end_time:
+                        # Validate that end time is after start time
+                        today = date.today()
+                        start_dt = datetime.combine(today, start_time)
+                        end_dt = datetime.combine(today, end_time)
+                        
+                        if end_dt <= start_dt:
+                            # End time might be next day, or invalid range
+                            if end_dt.time() < start_dt.time():
+                                # Assume end time is next day
+                                end_dt = end_dt + timedelta(days=1)
+                            else:
+                                # Invalid range, skip
+                                continue
+                        
+                        # Create a match for the start time (the main datetime)
+                        # Store end time information in a special way that can be retrieved
+                        matches.append(DateTimeMatch(
+                            value=start_dt,
+                            confidence=confidence,
+                            start_pos=match.start(),
+                            end_pos=match.end(),
+                            matched_text=match.group(0),
+                            pattern_type=f"time_range_{pattern_name}"
+                        ))
+                        
+                        # Also create a special end time match that can be identified
+                        matches.append(DateTimeMatch(
+                            value=end_dt,
+                            confidence=confidence,
+                            start_pos=match.start(),
+                            end_pos=match.end(),
+                            matched_text=match.group(0),
+                            pattern_type=f"time_range_end_{pattern_name}"
+                        ))
+                
+                except (ValueError, IndexError):
+                    # Invalid time range, skip
+                    continue
+        
+        return matches
+    
+    def _combine_date_time_range_matches(self, text: str, date_matches: List[DateTimeMatch], 
+                                       time_range_matches: List[DateTimeMatch]) -> List[DateTimeMatch]:
+        """Combine date matches with time range matches."""
+        combined = []
+        
+        # Group time range matches by their matched text (start and end times from same range)
+        range_groups = {}
+        for time_match in time_range_matches:
+            key = (time_match.start_pos, time_match.end_pos, time_match.matched_text)
+            if key not in range_groups:
+                range_groups[key] = []
+            range_groups[key].append(time_match)
+        
+        for date_match in date_matches:
+            best_range_group = None
+            min_distance = float('inf')
+            
+            # Find the closest time range group
+            for key, range_group in range_groups.items():
+                start_pos, end_pos, matched_text = key
+                distance = min(abs(date_match.start_pos - start_pos), abs(date_match.start_pos - end_pos))
+                if distance < 150 and distance < min_distance:  # Within 150 characters
+                    min_distance = distance
+                    best_range_group = range_group
+            
+            if best_range_group and len(best_range_group) == 2:
+                # Should have start and end time matches
+                start_match = None
+                end_match = None
+                
+                for time_match in best_range_group:
+                    if time_match.pattern_type.startswith('time_range_end_'):
+                        end_match = time_match
+                    else:
+                        start_match = time_match
+                
+                if start_match and end_match:
+                    # Combine date with start time
+                    start_dt = datetime.combine(date_match.value.date(), start_match.value.time())
+                    
+                    # Combine date with end time
+                    end_dt = datetime.combine(date_match.value.date(), end_match.value.time())
+                    
+                    # If end time is before start time, assume it's next day
+                    if end_dt <= start_dt:
+                        end_dt = end_dt + timedelta(days=1)
+                    
+                    # Calculate combined confidence
+                    combined_confidence = (date_match.confidence + start_match.confidence) / 2
+                    
+                    # Determine text span
+                    start_pos = min(date_match.start_pos, start_match.start_pos)
+                    end_pos = max(date_match.end_pos, start_match.end_pos)
+                    matched_text = text[start_pos:end_pos]
+                    
+                    # Create start time match
+                    combined.append(DateTimeMatch(
+                        value=start_dt,
+                        confidence=combined_confidence,
+                        start_pos=start_pos,
+                        end_pos=end_pos,
+                        matched_text=matched_text,
+                        pattern_type=f"{date_match.pattern_type}+{start_match.pattern_type}"
+                    ))
+                    
+                    # Create end time match
+                    combined.append(DateTimeMatch(
+                        value=end_dt,
+                        confidence=combined_confidence,
+                        start_pos=start_pos,
+                        end_pos=end_pos,
+                        matched_text=matched_text,
+                        pattern_type=f"{date_match.pattern_type}+{end_match.pattern_type}"
+                    ))
+        
+        return combined
     
     def _combine_date_time_matches(self, text: str, date_matches: List[DateTimeMatch], 
                                  time_matches: List[DateTimeMatch]) -> List[DateTimeMatch]:

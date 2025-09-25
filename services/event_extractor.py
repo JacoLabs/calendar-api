@@ -66,7 +66,7 @@ class EventInformationExtractor:
         
         # Title extraction patterns
         self.title_indicators = {
-            'meeting': re.compile(r'\b(?:meeting|meet)\s+(?:with|about|for|on)\s+([^,\n!?]+?)(?:\s+(?:tomorrow|today|yesterday|at\s+\d+(?::\d+)?(?:am|pm)?|on\s+\w+)|\s*$)', re.IGNORECASE),
+            'meeting': re.compile(r'\b((?:meeting|meet)\s+(?:with|about|for|on)\s+[^,\n!?]+?)(?=\s+(?:at\s+\d+(?::\d+)?(?:am|pm)?|on\s+(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))|[.!?]|\s*$)', re.IGNORECASE),
             'simple_meet': re.compile(r'\b(meet)\s+(?:at|in)\s+', re.IGNORECASE),
             'call': re.compile(r'\b(?:call|phone call|video call)\s+(?:with|about|for|on)\s+([^,\n!?]+?)(?:\s+(?:tomorrow|today|yesterday|at\s+\d+:\d+|on\s+\w+)|[.!?]|\s*$)', re.IGNORECASE),
             'appointment': re.compile(r'\b(?:appointment|appt)\s+(?:with|for|at)\s+([^,\n!?]+?)(?:\s+(?:tomorrow|today|yesterday|at\s+\d+(?::\d+)?(?:am|pm)?|on\s+\w+)|\s*$)', re.IGNORECASE),
@@ -121,6 +121,8 @@ class EventInformationExtractor:
         for event_type, pattern in self.title_indicators.items():
             for match in pattern.finditer(text):
                 title = match.group(1).strip()
+                # Clean up temporal words from the end of titles
+                title = self._clean_title(title)
                 if self._is_valid_title(title):
                     confidence = self._calculate_title_confidence(title, event_type, text)
                     matches.append(ExtractionMatch(
@@ -382,6 +384,21 @@ class EventInformationExtractor:
             total_score *= 0.5  # 50% penalty for missing datetime
         
         return min(1.0, max(0.0, total_score))
+    
+    def _clean_title(self, title: str) -> str:
+        """Clean up extracted title by removing temporal and location indicators."""
+        if not title:
+            return title
+        
+        # Remove temporal words from the end
+        temporal_pattern = re.compile(r'\s+(?:tomorrow|today|yesterday|next\s+\w+|this\s+\w+|on\s+\w+)$', re.IGNORECASE)
+        title = temporal_pattern.sub('', title)
+        
+        # Remove location indicators from the end
+        location_pattern = re.compile(r'\s+(?:at|in)\s+[^,\n!?]+$', re.IGNORECASE)
+        title = location_pattern.sub('', title)
+        
+        return title.strip()
     
     def _is_valid_title(self, title: str) -> bool:
         """Check if extracted text is a valid title candidate."""

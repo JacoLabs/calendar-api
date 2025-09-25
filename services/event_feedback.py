@@ -9,6 +9,7 @@ from enum import Enum
 
 from models.event_models import Event
 from services.calendar_service import CalendarService, EventCreationError, EventValidationError
+from ui.safe_input import safe_input, is_non_interactive, get_choice
 
 
 class FeedbackType(Enum):
@@ -124,28 +125,26 @@ class EventCreationFeedback:
         """
         print(f"\n{message}")
         
-        # Additional success actions
-        print("\n🎉 What's next?")
-        print("  • Your event has been saved to your calendar")
-        print("  • You can view it in your calendar application")
-        print(f"  • Event ID: {event_id} (for reference)")
-        
-        # Offer additional actions
-        print("\nAdditional options:")
-        print("  • Press Enter to continue")
-        print("  • Type 'details' to see full event information")
-        print("  • Type 'copy' to copy event details to clipboard")
-        
-        try:
-            choice = input("\nYour choice: ").strip().lower()
+        # Only show additional actions in interactive mode
+        if not is_non_interactive():
+            # Additional success actions
+            print("\n🎉 What's next?")
+            print("  • Your event has been saved to your calendar")
+            print("  • You can view it in your calendar application")
+            print(f"  • Event ID: {event_id} (for reference)")
             
-            if choice == 'details':
+            choices = [
+                "Continue",
+                "See full event information", 
+                "Copy event details to clipboard"
+            ]
+            
+            choice_index = get_choice("\nAdditional options:", choices, default_index=0)
+            
+            if choice_index == 1:
                 self._show_detailed_event_info(event, event_id)
-            elif choice == 'copy':
+            elif choice_index == 2:
                 self._copy_event_to_clipboard(event, event_id)
-            
-        except KeyboardInterrupt:
-            pass  # User pressed Ctrl+C, just continue
     
     def _display_validation_error(self, event: Event, error_message: str):
         """

@@ -12,6 +12,7 @@ from datetime import datetime
 
 from services.event_parser import EventParser
 from models.event_models import ParsedEvent, ValidationResult
+from ui.safe_input import safe_input, is_non_interactive
 
 
 class EventParserCLI:
@@ -267,9 +268,26 @@ Examples:
         print("Enter text to parse (or 'quit' to exit, 'help' for commands)")
         print("-" * 50)
         
-        while True:
+        retry_count = 0
+        max_retries = 3
+        
+        while retry_count < max_retries:
             try:
-                text = input("\n> ").strip()
+                text = safe_input("\n> ", "").strip()
+                
+                if not text:
+                    if is_non_interactive():
+                        print("No input in non-interactive mode. Exiting.")
+                        break
+                    retry_count += 1
+                    if retry_count >= max_retries:
+                        print("No input received. Exiting.")
+                        break
+                    print("Please enter some text to parse.")
+                    continue
+                
+                # Reset retry count on valid input
+                retry_count = 0
                 
                 if text.lower() in ['quit', 'exit', 'q']:
                     print("Goodbye!")

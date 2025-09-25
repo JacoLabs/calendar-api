@@ -109,9 +109,11 @@ class TestIntegrationWorkflow(unittest.TestCase):
         self.assertFalse(success)
         self.assertIsNone(event)
         
-        # Test with None text (should handle gracefully)
-        with self.assertRaises(TypeError):
-            self.app.run_complete_workflow(None)
+        # Test with None text (should handle gracefully now)
+        success, event, message = self.app.run_complete_workflow(None)
+        self.assertFalse(success)
+        self.assertIsNone(event)
+        self.assertIn("validation", message.lower())
     
     def test_configuration_integration(self):
         """Test that configuration changes affect the workflow."""
@@ -176,11 +178,15 @@ class TestIntegrationWorkflow(unittest.TestCase):
         self.assertTrue(success)
         self.assertIsNotNone(event)
     
-    @patch('builtins.input')
-    def test_interactive_preview_cancellation(self, mock_input):
+    @patch('ui.event_preview.safe_input')
+    @patch('ui.event_preview.is_non_interactive')
+    def test_interactive_preview_cancellation(self, mock_is_non_interactive, mock_safe_input):
         """Test cancellation in interactive preview."""
+        # Force interactive mode for this test
+        mock_is_non_interactive.return_value = False
+        
         # Mock user cancelling the event
-        mock_input.side_effect = ['q']  # 'q' for quit/cancel
+        mock_safe_input.side_effect = ['q']  # 'q' for quit/cancel
         
         # Enable preview for this test
         self.app.set_config(auto_preview=True)
