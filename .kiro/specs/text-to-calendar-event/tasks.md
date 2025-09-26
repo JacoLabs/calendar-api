@@ -194,7 +194,7 @@
   - Create test_android_flow.py to simulate end-to-end text selection workflow
   - _Requirements: 1.1, 1.4, 5.1, 5.2_
 
-- [-] 14. Milestone F: iOS App Development  
+- [x] 14. Milestone F: iOS App Development  
 
 
 - [x] 14.1 Create basic iOS app with text input interface
@@ -209,7 +209,7 @@
   - Create test_ios_basic.py to verify API integration
   - _Requirements: 1.1, 1.2, 1.3_
 
-- [x] 14.2 Implement iOS Share Extension
+- [ ] 14.2 Implement iOS Share Extension
 
 
 
@@ -226,9 +226,9 @@
 - [ ] 15. Milestone G: Browser Extension Development
 - [ ] 15.1 Update browser extension with live API integration
   - Update existing browser-extension scaffold to use https://calendar-api-wrxz.onrender.com
-  - Implement context menu "Create calendar event" on text selection
+  - Implement context menu "Create calendar event" on text selection in background.js
   - Add API service to call POST /parse with selected text
-  - Handle API responses and error states in extension
+  - Update popup.js to handle API responses and error states
   - Create test_browser_extension.py to verify API integration
   - _Requirements: 1.1, 1.2, 1.3_
 
@@ -266,3 +266,43 @@
   - Write comprehensive user guides for each platform
   - Create automated integration tests across all platforms
   - _Requirements: All requirements validation_
+
+## Additional Implementation Tasks
+
+- [ ] 17. Complete iOS Share Extension Implementation
+- [ ] 17.1 Implement iOS Share Extension target
+  - Create Share Extension target in Xcode project
+  - Add ShareViewController.swift with text processing capability
+  - Implement API integration within the extension
+  - Add EventKit integration to create calendar events
+  - Configure Info.plist for text sharing support
+  - Test share extension with various apps (Safari, Mail, Messages)
+  - _Requirements: 1.1, 1.4, 5.1, 5.2_
+
+- [x] 17.2 Add Android text selection integration
+
+
+  - Implement ACTION_PROCESS_TEXT intent handler in MainActivity
+  - Add text selection context menu integration
+  - Create background service for API calls from text selection
+  - Implement CalendarContract integration for event creation
+  - Add proper permissions for calendar access
+  - Test text selection workflow across different Android apps
+  - _Requirements: 1.1, 1.4, 5.1, 5.2_
+
+- [ ] 18. Browser Extension API Integration
+- [ ] 18.1 Complete browser extension background script
+  - Implement context menu creation in background.js
+  - Add API service for calling https://calendar-api-wrxz.onrender.com/parse
+  - Handle text selection and API response processing
+  - Implement error handling and user feedback
+  - Add extension options for API configuration
+  - _Requirements: 1.1, 1.2, 1.3_
+
+- [ ] 18.2 Implement browser extension popup interface
+  - Update popup.html with event display interface
+  - Implement popup.js for showing parsed event results
+  - Add calendar integration buttons (Google Calendar, Outlook)
+  - Create URL generation for web calendar interfaces
+  - Add user preferences and settings management
+  - _Requirements: 1.4, 5.1, 5.2_

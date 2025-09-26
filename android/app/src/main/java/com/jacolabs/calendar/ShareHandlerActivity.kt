@@ -1,162 +1,163 @@
 package com.jacolabs.calendar
 
-import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
 import android.provider.CalendarContract
 import android.widget.Toast
+import androidx.activity.ComponentActivity
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
 
 /**
- * Activity that handles ACTION_SEND intent for shared text.
- * Appears in share menu as "Create calendar event".
+ * Activity that handles ACTION_SEND intents for shared text.
+ * This appears in the share menu as "Create calendar event".
  */
-class ShareHandlerActivity : Activity() {
-
+class ShareHandlerActivity : ComponentActivity() {
+    
     private lateinit var apiService: ApiService
-
+    
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
         apiService = ApiService()
         
-        // Get the shared text from the intent
-        val sharedText = when {
-            intent?.action == Intent.ACTION_SEND -> {
-                if ("text/plain" == intent.type) {
-                    intent.getStringExtra(Intent.EXTRA_TEXT)
-                } else null
+        // Handle the shared text
+        when (intent.action) {
+            Intent.ACTION_SEND -> {
+                if (intent.type == "text/plain") {
+                    val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)
+                    if (!sharedText.isNullOrBlank()) {
+                        processSharedText(sharedText)
+                    } else {
+                        showError("No text was shared")
+                        finish()
+                    }
+                } else {
+                    showError("Only text sharing is supported")
+                    finish()
+                }
             }
-            else -> null
+            else -> {
+                showError("Unsupported action")
+                finish()
+            }
         }
-        
-        if (sharedText.isNullOrBlank()) {
-            Toast.makeText(this, "No text shared", Toast.LENGTH_SHORT).show()
-            finish()
-            return
-        }
-
-        // Process the shared text
-        processText(sharedText)
     }
-
-    private fun processText(text: String) {
+    
+    private fun processSharedText(text: String) {
+        // Show loading toast
+        Toast.makeText(this, "Processing shared text...", Toast.LENGTH_SHORT).show()
+        
         lifecycleScope.launch {
             try {
-                // Show loading toast
-                Toast.makeText(this@ShareHandlerActivity, "Processing shared text...", Toast.LENGTH_SHORT).show()
-                
                 // Get current timezone and locale
                 val timezone = TimeZone.getDefault().id
                 val locale = Locale.getDefault().toString()
                 val now = Date()
                 
-                // Call API to parse text
-                val parseResult = apiService.parseText(
-                    text = text,
-                    timezone = timezone,
-                    locale = locale,
-                    now = now
-                )
+                // Call API to parse the text
+                val result = apiService.parseText(text, timezone, locale, now)
                 
-                // Create calendar intent with parsed data
-                createCalendarEvent(parseResult)
+                // Check if we got useful results
+                if (result.title.isNullOrBlank() && result.startDateTime.isNullOrBlank()) {
+                    showError("Could not find event information in the shared text")
+                    finish()
+                    return@launch
+                }
                 
+                // Create calendar event intent
+                createCalendarEvent(result)
+                
+            } catch (e: ApiException) {
+                showError(e.message ?: "Failed to process text")
+                finish()
             } catch (e: Exception) {
-                Toast.makeText(
-                    this@ShareHandlerActivity, 
-                    "Failed to process text: ${e.message}", 
-                    Toast.LENGTH_LONG
-                ).show()
+                showError("An unexpected error occurred")
                 finish()
             }
         }
     }
-
-    private fun createCalendarEvent(parseResult: ParseResult) {
-        val intent = Intent(Intent.ACTION_INSERT).apply {
-            data = CalendarContract.Events.CONTENT_URI
-            
-            // Set title
-            parseResult.title?.let { title ->
-                putExtra(CalendarContract.Events.TITLE, title)
-            }
-            
-            // Set start time
-            parseResult.startDateTime?.let { startDateTime ->
-                val startMillis = parseIsoDateTime(startDateTime)
-                putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, startMillis)
-            }
-            
-            // Set end time (default to +30 minutes if not provided)
-            val endMillis = parseResult.endDateTime?.let { endDateTime ->
-                parseIsoDateTime(endDateTime)
-            } ?: run {
-                // Default to 30 minutes after start time
-                parseResult.startDateTime?.let { startDateTime ->
-                    parseIsoDateTime(startDateTime) + (30 * 60 * 1000) // +30 minutes
+    
+    private fun createCalendarEvent(result: ParseResult) {
+        try {
+            val intent = Intent(Intent.ACTION_INSERT).apply {
+                data = CalendarContract.Events.CONTENT_URI
+                
+                // Set title
+                result.title?.let { title ->
+                    putExtra(CalendarContract.Events.TITLE, title)
+                }
+                
+                // Set description (original text)
+                result.description?.let { description ->
+                    putExtra(CalendarContract.Events.DESCRIPTION, description)
+                }
+                
+                // Set location
+                result.location?.let { location ->
+                    putExtra(CalendarContract.Events.EVENT_LOCATION, location)
+                }
+                
+                // Set start time
+                result.startDateTime?.let { startDateTime ->
+                    val startTime = parseIsoDateTime(startDateTime)
+                    if (startTime != null) {
+                        putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, startTime)
+                        
+                        // Set end time if available, otherwise default to 1 hour later
+                        val endTime = result.endDateTime?.let { parseIsoDateTime(it) }
+                            ?: (startTime + 60 * 60 * 1000) // 1 hour later
+                        
+                        putExtra(CalendarContract.EXTRA_EVENT_END_TIME, endTime)
+                    }
+                }
+                
+                // Set all day if detected
+                if (result.allDay) {
+                    putExtra(CalendarContract.Events.ALL_DAY, true)
                 }
             }
             
-            endMillis?.let { 
-                putExtra(CalendarContract.EXTRA_EVENT_END_TIME, it)
+            // Launch calendar app
+            if (intent.resolveActivity(packageManager) != null) {
+                startActivity(intent)
+                
+                // Show success message
+                Toast.makeText(
+                    this,
+                    "Opening calendar app with event details...",
+                    Toast.LENGTH_SHORT
+                ).show()
+            } else {
+                showError("No calendar app found")
             }
             
-            // Set location
-            parseResult.location?.let { location ->
-                putExtra(CalendarContract.Events.EVENT_LOCATION, location)
-            }
-            
-            // Set description
-            parseResult.description?.let { description ->
-                putExtra(CalendarContract.Events.DESCRIPTION, description)
-            }
-            
-            // Set all day if applicable
-            if (parseResult.allDay) {
-                putExtra(CalendarContract.EXTRA_EVENT_ALL_DAY, true)
-            }
+        } catch (e: Exception) {
+            showError("Failed to create calendar event")
         }
         
-        try {
-            // Launch native calendar app with pre-filled data
-            startActivity(intent)
-            
-            // Show success message
-            Toast.makeText(
-                this, 
-                "Opening calendar with event details...", 
-                Toast.LENGTH_SHORT
-            ).show()
-            
-        } catch (e: Exception) {
-            Toast.makeText(
-                this, 
-                "No calendar app found", 
-                Toast.LENGTH_LONG
-            ).show()
-        } finally {
-            finish()
-        }
+        finish()
     }
-
-    private fun parseIsoDateTime(isoDateTime: String): Long {
+    
+    private fun parseIsoDateTime(isoDateTime: String): Long? {
         return try {
-            // Parse ISO 8601 datetime string to milliseconds
+            // Try parsing ISO 8601 format with timezone
             val format = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.US)
-            format.parse(isoDateTime)?.time ?: System.currentTimeMillis()
+            format.parse(isoDateTime)?.time
         } catch (e: Exception) {
-            // Fallback parsing for different ISO formats
             try {
-                val format = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US)
-                format.timeZone = TimeZone.getTimeZone("UTC")
-                format.parse(isoDateTime)?.time ?: System.currentTimeMillis()
+                // Fallback: try without timezone
+                val format = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US)
+                format.parse(isoDateTime)?.time
             } catch (e2: Exception) {
-                System.currentTimeMillis()
+                null
             }
         }
+    }
+    
+    private fun showError(message: String) {
+        Toast.makeText(this, message, Toast.LENGTH_LONG).show()
     }
 }

@@ -2,14 +2,14 @@ package com.jacolabs.calendar
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.*
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
-import java.io.BufferedReader
-import java.io.InputStreamReader
-import java.io.OutputStreamWriter
-import java.net.HttpURLConnection
-import java.net.URL
+import java.io.IOException
 import java.text.SimpleDateFormat
 import java.util.*
+import java.util.concurrent.TimeUnit
 
 /**
  * Service for calling the text-to-calendar API.
@@ -19,8 +19,14 @@ class ApiService {
     companion object {
         private const val API_BASE_URL = "https://calendar-api-wrxz.onrender.com"
         private const val PARSE_ENDPOINT = "$API_BASE_URL/parse"
-        private const val TIMEOUT_MS = 10000 // 10 seconds
+        private const val TIMEOUT_SECONDS = 15L
     }
+
+    private val client = OkHttpClient.Builder()
+        .connectTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        .readTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        .writeTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        .build()
 
     /**
      * Parse text using the remote API.
@@ -32,68 +38,61 @@ class ApiService {
         now: Date
     ): ParseResult = withContext(Dispatchers.IO) {
         
-        val url = URL(PARSE_ENDPOINT)
-        val connection = url.openConnection() as HttpURLConnection
+        // Create request body
+        val requestBody = JSONObject().apply {
+            put("text", text)
+            put("timezone", timezone)
+            put("locale", locale)
+            put("now", formatDateTimeForApi(now))
+        }
+        
+        val mediaType = "application/json; charset=utf-8".toMediaType()
+        val body = requestBody.toString().toRequestBody(mediaType)
+        
+        val request = Request.Builder()
+            .url(PARSE_ENDPOINT)
+            .post(body)
+            .addHeader("Content-Type", "application/json")
+            .addHeader("Accept", "application/json")
+            .addHeader("User-Agent", "CalendarEventApp-Android/1.0")
+            .build()
         
         try {
-            // Configure connection
-            connection.requestMethod = "POST"
-            connection.setRequestProperty("Content-Type", "application/json")
-            connection.setRequestProperty("Accept", "application/json")
-            connection.setRequestProperty("User-Agent", "CalendarEventApp-Android/1.0")
-            connection.connectTimeout = TIMEOUT_MS
-            connection.readTimeout = TIMEOUT_MS
-            connection.doOutput = true
+            val response = client.newCall(request).execute()
             
-            // Create request body
-            val requestBody = JSONObject().apply {
-                put("text", text)
-                put("timezone", timezone)
-                put("locale", locale)
-                put("now", formatDateTimeForApi(now))
-            }
-            
-            // Send request
-            OutputStreamWriter(connection.outputStream).use { writer ->
-                writer.write(requestBody.toString())
-                writer.flush()
-            }
-            
-            // Read response
-            val responseCode = connection.responseCode
-            
-            if (responseCode == HttpURLConnection.HTTP_OK) {
-                val response = BufferedReader(InputStreamReader(connection.inputStream)).use { reader ->
-                    reader.readText()
-                }
+            response.use { resp ->
+                val responseBody = resp.body?.string() ?: ""
                 
-                parseApiResponse(response)
-                
-            } else {
-                val errorResponse = try {
-                    BufferedReader(InputStreamReader(connection.errorStream)).use { reader ->
-                        reader.readText()
-                    }
-                } catch (e: Exception) {
-                    "Unknown error"
-                }
-                
-                when (responseCode) {
+                when (resp.code) {
+                    200 -> parseApiResponse(responseBody)
                     422 -> throw ApiException("The selected text does not contain valid event information")
                     429 -> throw ApiException("Too many requests. Please try again later")
                     500 -> throw ApiException("Server error. Please try again later")
-                    else -> throw ApiException("Request failed (code $responseCode): $errorResponse")
+                    else -> {
+                        val errorMsg = try {
+                            val errorJson = JSONObject(responseBody)
+                            errorJson.optString("detail", "Unknown error")
+                        } catch (e: Exception) {
+                            "Request failed (code ${resp.code})"
+                        }
+                        throw ApiException(errorMsg)
+                    }
                 }
             }
             
-        } catch (e: java.net.SocketTimeoutException) {
-            throw ApiException("Request timed out. Please check your internet connection")
-        } catch (e: java.net.UnknownHostException) {
-            throw ApiException("Unable to connect to server. Please check your internet connection")
-        } catch (e: java.io.IOException) {
-            throw ApiException("Network error occurred. Please try again")
-        } finally {
-            connection.disconnect()
+        } catch (e: IOException) {
+            when {
+                e.message?.contains("timeout") == true -> 
+                    throw ApiException("Request timed out. Please check your internet connection")
+                e.message?.contains("Unable to resolve host") == true -> 
+                    throw ApiException("Unable to connect to server. Please check your internet connection")
+                else -> 
+                    throw ApiException("Network error occurred. Please try again")
+            }
+        } catch (e: ApiException) {
+            throw e
+        } catch (e: Exception) {
+            throw ApiException("An unexpected error occurred: ${e.message}")
         }
     }
 

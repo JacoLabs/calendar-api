@@ -1,4 +1,44 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Calendar Event Creator</string>
+    <string name="app_description">Create calendar events from natural language text</string>
+    
+    <!-- Main Activity -->
+    <string name="main_title">Calendar Event Creator</string>
+    <string name="main_subtitle">Create calendar events from natural language text</string>
+    <string name="text_input_label">Enter event text</string>
+    <string name="text_input_placeholder">e.g., Meeting with John tomorrow at 2pm</string>
+    <string name="parse_button">Parse Event</string>
+    <string name="parse_button_loading">Processing...</string>
+    <string name="create_event_button">Create Calendar Event</string>
+    
+    <!-- Results -->
+    <string name="parsed_event_title">Parsed Event Details</string>
+    <string name="confidence_label">Confidence: %d%%</string>
+    
+    <!-- Instructions -->
+    <string name="how_to_use_title">How to Use</string>
+    <string name="how_to_use_text">1. Type or paste text containing event information\n2. Tap \'Parse Event\' to extract details\n3. Review the results and tap \'Create Calendar Event\'\n\nYou can also:\n• Select text in any app and choose \'Create calendar event\'\n• Share text to this app from other apps</string>
+    
+    <!-- Examples -->
+    <string name="examples_text">Examples:\n• \"Meeting with John tomorrow at 2pm\"\n• \"Lunch at The Keg next Friday 12:30\"\n• \"Conference call Monday 10am for 1 hour\"\n• \"Doctor appointment on January 15th at 3:30 PM\"</string>
+    
+    <!-- Text Processing -->
+    <string name="processing_selected_text">Processing selected text...</string>
+    <string name="processing_shared_text">Processing shared text...</string>
+    <string name="opening_calendar">Opening calendar app with event details...</string>
+    
+    <!-- Error Messages -->
+    <string name="error_no_text_selected">No text was selected</string>
+    <string name="error_no_text_shared">No text was shared</string>
+    <string name="error_only_text_supported">Only text sharing is supported</string>
+    <string name="error_unsupported_action">Unsupported action</string>
+    <string name="error_no_event_info">Could not find event information in the text</string>
+    <string name="error_no_calendar_app">No calendar app found</string>
+    <string name="error_create_event_failed">Failed to create calendar event</string>
+    <string name="error_open_calendar_failed">Failed to open calendar app</string>
+    <string name="error_unexpected">An unexpected error occurred</string>
+    
+    <!-- Context Menu -->
+    <string name="context_menu_create_event">Create calendar event</string>
 </resources>
