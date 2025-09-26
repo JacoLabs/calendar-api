@@ -1,0 +1,53 @@
+# Byte-compiled / cache files
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Virtual environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE & editor settings
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Build / distribution
+*.egg-info/
+dist/
+build/
+*.egg
+.eggs/
+
+# Test / coverage
+htmlcov/
+.tox/
+.nox/
+.coverage
+coverage.xml
+*.cover
+*.py,cover
+
+# Logs & outputs
+*.log
+*.out
+*.tmp
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Render & deployment extras
+.renderignore
+runtime.txt
+
+# Project-specific (safe to ignore, regenerated automatically)
+.kiro/
+.pytest_cache/

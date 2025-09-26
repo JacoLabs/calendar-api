@@ -1,0 +1,44 @@
+# Python cache & build artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pdb
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# Virtual environments
+.env
+.venv
+env/
+venv/
+
+# Tests (not needed in production image)
+tests/
+.pytest_cache/
+
+# Local tools & configs
+.kiro/
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs & temp files
+*.log
+*.tmp
+*.out
+
+# OS cruft
+.DS_Store
+Thumbs.db
+
+# Docs & guides (not needed in container runtime)
+deployment_guide.md
+project_structure.md
+
+# Git / VCS
+.git
+.gitignore
