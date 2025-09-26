@@ -14,8 +14,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 import uvicorn
 
-# Add parent directory to path to import existing services
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
+# Add parent directories to path to import existing services
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(os.path.dirname(current_dir))
+sys.path.insert(0, parent_dir)
 
 from services.event_parser import EventParser
 from models.event_models import ParsedEvent
@@ -82,6 +84,31 @@ class HealthResponse(BaseModel):
     status: str
     timestamp: datetime
     version: str
+
+
+@app.get("/")
+async def root():
+    """Root endpoint with API information."""
+    return {
+        "name": "Text-to-Calendar Event Parser API",
+        "version": "1.0.0",
+        "status": "running",
+        "endpoints": {
+            "health": "/healthz",
+            "parse": "/parse (POST)",
+            "docs": "/docs",
+            "openapi": "/openapi.json"
+        },
+        "example_usage": {
+            "method": "POST",
+            "url": "/parse",
+            "body": {
+                "text": "Meeting with John tomorrow at 2pm",
+                "timezone": "America/New_York",
+                "locale": "en_US"
+            }
+        }
+    }
 
 
 @app.get("/healthz", response_model=HealthResponse)

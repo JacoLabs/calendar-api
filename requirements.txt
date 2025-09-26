@@ -19,7 +19,7 @@ regex==2024.5.15         # Enhanced regex engine (needed for parsing logic)
 httpx~=0.27
 
 # --- Optional deployment extras ---
-python-multipart==0.0.6  # Handle form-data if POST endpoints need uploads
+python-multipart>=0.0.18  # Handle form-data if POST endpoints need uploads
 
 # ================================
 # Developer / local testing (not needed in production)
