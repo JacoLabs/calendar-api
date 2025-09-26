@@ -1,0 +1,42 @@
+# Render deployment ignore file
+
+# Development files
+test_*.py
+tests/
+.pytest_cache/
+__pycache__/
+*.pyc
+*.pyo
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+*.md
+docs/
+
+# Mobile app directories (not needed for API)
+android/
+ios/
+browser-extension/
+
+# Local development
+.env
+.env.local
+calendar_events.json
+debug_*.py
+demo_*.py
+
+# Kiro IDE
+.kiro/
