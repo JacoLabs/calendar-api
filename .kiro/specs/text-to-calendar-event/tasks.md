@@ -194,8 +194,13 @@
   - Create test_android_flow.py to simulate end-to-end text selection workflow
   - _Requirements: 1.1, 1.4, 5.1, 5.2_
 
-- [ ] 14. Milestone F: iOS App Development  
-- [ ] 14.1 Create basic iOS app with text input interface
+- [-] 14. Milestone F: iOS App Development  
+
+
+- [x] 14.1 Create basic iOS app with text input interface
+
+
+
   - Set up iOS project with Swift and SwiftUI
   - Implement simple UI with text input field and submit button
   - Add API service to call POST /parse endpoint at https://calendar-api-wrxz.onrender.com
@@ -204,7 +209,12 @@
   - Create test_ios_basic.py to verify API integration
   - _Requirements: 1.1, 1.2, 1.3_
 
-- [ ] 14.2 Implement iOS Share Extension
+- [x] 14.2 Implement iOS Share Extension
+
+
+
+
+
   - Create iOS Share Extension target for text sharing
   - Add extension to handle selected text from other apps via Share Sheet
   - Implement API call from extension to parse selected text

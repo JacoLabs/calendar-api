@@ -68,7 +68,7 @@
         <false/>
         <key>NSExceptionDomains</key>
         <dict>
-            <key>api.jacolabs.com</key>
+            <key>calendar-api-wrxz.onrender.com</key>
             <dict>
                 <key>NSExceptionRequiresForwardSecrecy</key>
                 <false/>
