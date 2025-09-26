@@ -3,13 +3,14 @@ Unified event parser service that integrates DateTimeParser and EventInformation
 to provide complete event parsing functionality from natural language text.
 """
 
-from typing import Optional, List, Dict, Any, Tuple
+from typing import Optional, List, Dict, Any, Tuple, Union
 from datetime import datetime, timedelta
 import re
 
 from models.event_models import ParsedEvent, ValidationResult
 from services.datetime_parser import DateTimeParser, DateTimeMatch
 from services.event_extractor import EventInformationExtractor, ExtractionMatch
+from ui.safe_input import safe_input, confirm_action, get_choice, is_non_interactive
 
 
 class EventParser:
@@ -394,3 +395,504 @@ class EventParser:
     def get_config(self) -> Dict[str, Any]:
         """Get current parser configuration."""
         return self.config.copy()
+    
+    def parse_with_clarification(self, text: str, **kwargs) -> ParsedEvent:
+        """
+        Parse text with user clarification for ambiguous information.
+        
+        Args:
+            text: Input text containing event information
+            **kwargs: Optional configuration overrides
+            
+        Returns:
+            ParsedEvent object with clarified information
+        """
+        # First, try normal parsing
+        parsed_event = self.parse_text(text, **kwargs)
+        
+        # Check for ambiguities that need clarification
+        ambiguities = self._detect_ambiguities(text, parsed_event)
+        
+        if ambiguities and not is_non_interactive():
+            print(f"\n🤔 Found some ambiguous information in: '{text}'")
+            parsed_event = self._handle_ambiguities(text, parsed_event, ambiguities)
+        
+        return parsed_event
+    
+    def parse_multiple_with_detection(self, text: str, **kwargs) -> List[ParsedEvent]:
+        """
+        Enhanced multiple event parsing with better detection and user confirmation.
+        
+        Args:
+            text: Input text that may contain multiple events
+            **kwargs: Optional configuration overrides
+            
+        Returns:
+            List of ParsedEvent objects with user confirmation for multiple events
+        """
+        # Try to detect multiple events more intelligently
+        potential_events = self._detect_multiple_events(text)
+        
+        if len(potential_events) > 1 and not is_non_interactive():
+            print(f"\n📅 Detected {len(potential_events)} potential events in the text:")
+            for i, event_text in enumerate(potential_events, 1):
+                print(f"  {i}. '{event_text.strip()}'")
+            
+            if confirm_action("Parse as separate events?", default_yes=True):
+                events = []
+                for event_text in potential_events:
+                    if event_text.strip():
+                        parsed = self.parse_with_clarification(event_text, **kwargs)
+                        if parsed.confidence_score >= self.config['min_confidence_threshold']:
+                            events.append(parsed)
+                return events
+            else:
+                # Parse as single event
+                return [self.parse_with_clarification(text, **kwargs)]
+        
+        # Fall back to original multiple parsing logic
+        return self.parse_multiple_events(text, **kwargs)
+    
+    def parse_with_fallback(self, text: str, **kwargs) -> ParsedEvent:
+        """
+        Parse text with fallback mechanisms for failed parsing.
+        
+        Args:
+            text: Input text containing event information
+            **kwargs: Optional configuration overrides
+            
+        Returns:
+            ParsedEvent object, potentially with manual input for missing information
+        """
+        # Try normal parsing first
+        parsed_event = self.parse_text(text, **kwargs)
+        
+        # Check if parsing was successful enough
+        if parsed_event.confidence_score < 0.2 or not parsed_event.title:
+            if not is_non_interactive():
+                print(f"\n⚠️  Having trouble parsing: '{text}'")
+                print("Let me help you create this event manually.")
+                
+                # Offer manual input for missing critical information
+                parsed_event = self._manual_input_fallback(text, parsed_event)
+            else:
+                # In non-interactive mode, try to extract what we can
+                parsed_event = self._auto_fallback(text, parsed_event)
+        
+        return parsed_event
+    
+    def _detect_ambiguities(self, text: str, parsed_event: ParsedEvent) -> List[Dict[str, Any]]:
+        """
+        Detect ambiguous information in the parsed event.
+        
+        Args:
+            text: Original input text
+            parsed_event: Parsed event to check for ambiguities
+            
+        Returns:
+            List of ambiguity descriptions
+        """
+        ambiguities = []
+        metadata = parsed_event.extraction_metadata
+        
+        # Check for multiple datetime matches
+        if metadata.get('multiple_datetime_matches', 0) > 1:
+            all_matches = metadata.get('all_datetime_matches', [])
+            if len(all_matches) > 1:
+                ambiguities.append({
+                    'type': 'datetime',
+                    'message': 'Multiple possible dates/times found',
+                    'options': all_matches,
+                    'current_choice': 0  # Currently using first match
+                })
+        
+        # Check for multiple title matches
+        if metadata.get('multiple_title_matches', 0) > 1:
+            all_matches = metadata.get('all_title_matches', [])
+            if len(all_matches) > 1:
+                ambiguities.append({
+                    'type': 'title',
+                    'message': 'Multiple possible titles found',
+                    'options': all_matches,
+                    'current_choice': 0
+                })
+        
+        # Check for multiple location matches
+        if metadata.get('multiple_location_matches', 0) > 1:
+            all_matches = metadata.get('all_location_matches', [])
+            if len(all_matches) > 1:
+                ambiguities.append({
+                    'type': 'location',
+                    'message': 'Multiple possible locations found',
+                    'options': all_matches,
+                    'current_choice': 0
+                })
+        
+        # Check for low confidence extractions
+        if metadata.get('datetime_confidence', 1.0) < 0.6 and parsed_event.start_datetime:
+            ambiguities.append({
+                'type': 'datetime_confidence',
+                'message': f"Date/time extraction has low confidence ({metadata.get('datetime_confidence', 0)*100:.0f}%)",
+                'current_value': parsed_event.start_datetime,
+                'suggestion': 'Please verify the date and time'
+            })
+        
+        if metadata.get('title_confidence', 1.0) < 0.6 and parsed_event.title:
+            ambiguities.append({
+                'type': 'title_confidence',
+                'message': f"Title extraction has low confidence ({metadata.get('title_confidence', 0)*100:.0f}%)",
+                'current_value': parsed_event.title,
+                'suggestion': 'Please verify the event title'
+            })
+        
+        return ambiguities
+    
+    def _handle_ambiguities(self, text: str, parsed_event: ParsedEvent, ambiguities: List[Dict[str, Any]]) -> ParsedEvent:
+        """
+        Handle ambiguities through user interaction.
+        
+        Args:
+            text: Original input text
+            parsed_event: Current parsed event
+            ambiguities: List of detected ambiguities
+            
+        Returns:
+            ParsedEvent with resolved ambiguities
+        """
+        for ambiguity in ambiguities:
+            if ambiguity['type'] == 'datetime' and 'options' in ambiguity:
+                options = ambiguity['options']
+                if len(options) > 1:
+                    print(f"\n{ambiguity['message']}:")
+                    choice_texts = []
+                    for i, option in enumerate(options):
+                        dt_str = option['datetime']
+                        pattern = option.get('pattern_type', 'unknown')
+                        confidence = option.get('confidence', 0) * 100
+                        choice_texts.append(f"{dt_str} (from {pattern}, {confidence:.0f}% confidence)")
+                    
+                    choice_idx = get_choice("Which date/time did you mean?", choice_texts, 0)
+                    if 0 <= choice_idx < len(options):
+                        selected_option = options[choice_idx]
+                        parsed_event.start_datetime = datetime.fromisoformat(selected_option['datetime'])
+                        # Update end time if it exists
+                        if parsed_event.end_datetime:
+                            duration = parsed_event.end_datetime - datetime.fromisoformat(ambiguity['options'][0]['datetime'])
+                            parsed_event.end_datetime = parsed_event.start_datetime + duration
+            
+            elif ambiguity['type'] == 'title' and 'options' in ambiguity:
+                options = ambiguity['options']
+                if len(options) > 1:
+                    print(f"\n{ambiguity['message']}:")
+                    choice_texts = []
+                    for option in options:
+                        title = option['title']
+                        extraction_type = option.get('extraction_type', 'unknown')
+                        confidence = option.get('confidence', 0) * 100
+                        choice_texts.append(f"'{title}' (from {extraction_type}, {confidence:.0f}% confidence)")
+                    
+                    choice_idx = get_choice("Which title did you mean?", choice_texts, 0)
+                    if 0 <= choice_idx < len(options):
+                        parsed_event.title = options[choice_idx]['title']
+            
+            elif ambiguity['type'] == 'location' and 'options' in ambiguity:
+                options = ambiguity['options']
+                if len(options) > 1:
+                    print(f"\n{ambiguity['message']}:")
+                    choice_texts = []
+                    for option in options:
+                        location = option['location']
+                        extraction_type = option.get('extraction_type', 'unknown')
+                        confidence = option.get('confidence', 0) * 100
+                        choice_texts.append(f"'{location}' (from {extraction_type}, {confidence:.0f}% confidence)")
+                    
+                    choice_idx = get_choice("Which location did you mean?", choice_texts, 0)
+                    if 0 <= choice_idx < len(options):
+                        parsed_event.location = options[choice_idx]['location']
+            
+            elif ambiguity['type'] in ['datetime_confidence', 'title_confidence']:
+                print(f"\n⚠️  {ambiguity['message']}")
+                print(f"Current value: {ambiguity['current_value']}")
+                if ambiguity.get('suggestion'):
+                    print(f"Suggestion: {ambiguity['suggestion']}")
+                
+                if confirm_action("Would you like to manually correct this?", default_yes=False):
+                    if ambiguity['type'] == 'datetime_confidence':
+                        new_datetime = self._prompt_for_datetime()
+                        if new_datetime:
+                            parsed_event.start_datetime = new_datetime
+                            # Adjust end time to maintain duration
+                            if parsed_event.end_datetime:
+                                duration = parsed_event.end_datetime - ambiguity['current_value']
+                                parsed_event.end_datetime = new_datetime + duration
+                    
+                    elif ambiguity['type'] == 'title_confidence':
+                        new_title = safe_input("Enter the correct title: ", str(ambiguity['current_value']))
+                        if new_title.strip():
+                            parsed_event.title = new_title.strip()
+        
+        return parsed_event
+    
+    def _detect_multiple_events(self, text: str) -> List[str]:
+        """
+        Detect multiple events in text using improved heuristics.
+        
+        Args:
+            text: Input text to analyze
+            
+        Returns:
+            List of text segments, each potentially containing one event
+        """
+        # Enhanced event detection patterns
+        event_separators = [
+            r'\b(?:then|next|after that|also|and then|followed by)\b',
+            r'\b(?:another|second|third|fourth|fifth)\s+(?:meeting|event|appointment|call)\b',
+            r'\n\s*[-*•]\s*',  # Bullet points
+            r'\n\s*\d+\.\s*',  # Numbered lists
+            r'\n\s*\w+\)\s*',  # Letter lists (a), b), etc.
+            r'\band\s+(?:at\s+\d+(?::\d+)?(?:am|pm)?|on\s+(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))',  # "and at 2pm" or "and on Friday"
+            r'(?<=\.)[\s\n]+(?=\w+.*(?:meeting|appointment|call|lunch|dinner|event))',  # Sentence boundaries followed by event words
+        ]
+        
+        # First try splitting on clear separators
+        segments = [text]
+        
+        for separator_pattern in event_separators:
+            new_segments = []
+            for segment in segments:
+                parts = re.split(separator_pattern, segment, flags=re.IGNORECASE)
+                # Filter out very short segments (likely not complete events)
+                parts = [part.strip() for part in parts if len(part.strip()) > 10]
+                new_segments.extend(parts)
+            segments = new_segments
+        
+        # If we found multiple segments, validate they look like events
+        if len(segments) > 1:
+            valid_segments = []
+            for segment in segments:
+                # Check if segment contains event-like content
+                if self._looks_like_event(segment):
+                    valid_segments.append(segment)
+            
+            if len(valid_segments) > 1:
+                return valid_segments
+        
+        # Fall back to original segmentation logic
+        return self._split_into_event_segments(text)
+    
+    def _looks_like_event(self, text: str) -> bool:
+        """
+        Check if a text segment looks like it contains event information.
+        
+        Args:
+            text: Text segment to check
+            
+        Returns:
+            True if the text looks like an event
+        """
+        text_lower = text.lower()
+        
+        # Must be reasonably long first
+        if len(text.strip()) <= 5:
+            return False
+        
+        # Check for event keywords
+        event_keywords = [
+            'meeting', 'call', 'appointment', 'lunch', 'dinner', 'breakfast',
+            'interview', 'presentation', 'demo', 'training', 'workshop',
+            'conference', 'seminar', 'review', 'standup', 'sync', 'event'
+        ]
+        
+        has_event_keyword = any(keyword in text_lower for keyword in event_keywords)
+        
+        # Check for time indicators
+        time_patterns = [
+            r'\b\d{1,2}(?::\d{2})?\s*(?:am|pm)\b',
+            r'\b\d{1,2}:\d{2}\b',
+            r'\b(?:tomorrow|today|yesterday|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b',
+            r'\b(?:at|on|from|until)\s+\d',
+        ]
+        
+        has_time_indicator = any(re.search(pattern, text_lower) for pattern in time_patterns)
+        
+        # Must have either event keyword or time indicator
+        # Additional check: avoid false positives on generic text
+        if not (has_event_keyword or has_time_indicator):
+            return False
+        
+        # Avoid false positives on text that's just describing events generically
+        generic_phrases = ['event indicators', 'without event', 'random text']
+        if any(phrase in text_lower for phrase in generic_phrases):
+            return False
+        
+        return True
+    
+    def _manual_input_fallback(self, original_text: str, parsed_event: ParsedEvent) -> ParsedEvent:
+        """
+        Fallback to manual input for missing information.
+        
+        Args:
+            original_text: Original input text
+            parsed_event: Current parsed event (may be incomplete)
+            
+        Returns:
+            ParsedEvent with manually entered information
+        """
+        print(f"Original text: '{original_text}'")
+        print("Let's fill in the missing information:")
+        
+        # Get title if missing or low confidence
+        if not parsed_event.title or parsed_event.extraction_metadata.get('title_confidence', 0) < 0.3:
+            title = safe_input("Event title: ", parsed_event.title or "")
+            if title and title.strip():
+                parsed_event.title = title.strip()
+        
+        # Get datetime if missing or low confidence
+        if not parsed_event.start_datetime or parsed_event.extraction_metadata.get('datetime_confidence', 0) < 0.3:
+            new_datetime = self._prompt_for_datetime()
+            if new_datetime:
+                parsed_event.start_datetime = new_datetime
+        
+        # Get end time if missing
+        if not parsed_event.end_datetime and parsed_event.start_datetime:
+            duration_str = safe_input("Event duration (e.g., '1 hour', '30 minutes'): ", "1 hour")
+            if duration_str:
+                duration = self._parse_duration_string(duration_str)
+                parsed_event.end_datetime = parsed_event.start_datetime + duration
+        
+        # Get location if missing
+        if not parsed_event.location:
+            location = safe_input("Location (optional): ", "")
+            if location and location.strip():
+                parsed_event.location = location.strip()
+        
+        # Update confidence score since we have manual input
+        parsed_event.confidence_score = 0.9  # High confidence for manual input
+        
+        return parsed_event
+    
+    def _auto_fallback(self, original_text: str, parsed_event: ParsedEvent) -> ParsedEvent:
+        """
+        Automatic fallback for non-interactive mode.
+        
+        Args:
+            original_text: Original input text
+            parsed_event: Current parsed event
+            
+        Returns:
+            ParsedEvent with reasonable defaults
+        """
+        # Set default title if missing
+        if not parsed_event.title:
+            # Try to extract first few words as title
+            words = original_text.strip().split()[:5]
+            parsed_event.title = ' '.join(words) if words else "Event"
+        
+        # Set default datetime if missing
+        if not parsed_event.start_datetime:
+            # Default to tomorrow at 9 AM
+            from datetime import datetime, timedelta
+            tomorrow = datetime.now() + timedelta(days=1)
+            parsed_event.start_datetime = tomorrow.replace(hour=9, minute=0, second=0, microsecond=0)
+        
+        # Set default end time if missing
+        if not parsed_event.end_datetime and parsed_event.start_datetime:
+            parsed_event.end_datetime = parsed_event.start_datetime + timedelta(hours=1)
+        
+        # Set reasonable confidence for auto-fallback
+        parsed_event.confidence_score = 0.4
+        
+        return parsed_event
+    
+    def _prompt_for_datetime(self) -> Optional[datetime]:
+        """
+        Prompt user for date and time input.
+        
+        Returns:
+            datetime object or None if input failed
+        """
+        try:
+            date_str = safe_input("Date (YYYY-MM-DD or 'today', 'tomorrow'): ", "")
+            if not date_str:
+                return None
+            
+            # Parse date
+            if date_str.lower() == 'today':
+                from datetime import date
+                event_date = date.today()
+            elif date_str.lower() == 'tomorrow':
+                from datetime import date, timedelta
+                event_date = date.today() + timedelta(days=1)
+            else:
+                event_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+            
+            time_str = safe_input("Time (HH:MM or HH:MM AM/PM): ", "09:00")
+            if not time_str:
+                time_str = "09:00"
+            
+            # Parse time
+            event_time = self._parse_time_string(time_str)
+            
+            return datetime.combine(event_date, event_time)
+            
+        except ValueError as e:
+            print(f"Invalid date/time format: {e}")
+            return None
+    
+    def _parse_time_string(self, time_str: str) -> datetime.time:
+        """
+        Parse time string in various formats.
+        
+        Args:
+            time_str: Time string to parse
+            
+        Returns:
+            time object
+        """
+        time_str = time_str.strip().upper()
+        
+        # Try different time formats
+        formats = [
+            "%H:%M",      # 24-hour
+            "%I:%M %p",   # 12-hour with AM/PM
+            "%I %p",      # Hour only with AM/PM
+            "%H",         # Hour only 24-hour
+        ]
+        
+        for fmt in formats:
+            try:
+                return datetime.strptime(time_str, fmt).time()
+            except ValueError:
+                continue
+        
+        raise ValueError(f"Could not parse time: {time_str}")
+    
+    def _parse_duration_string(self, duration_str: str) -> timedelta:
+        """
+        Parse duration string into timedelta.
+        
+        Args:
+            duration_str: Duration string like "1 hour", "30 minutes"
+            
+        Returns:
+            timedelta object
+        """
+        duration_str = duration_str.lower().strip()
+        
+        # Extract number and unit
+        import re
+        match = re.search(r'(\d+(?:\.\d+)?)\s*(hour|hr|minute|min|day)s?', duration_str)
+        
+        if match:
+            value = float(match.group(1))
+            unit = match.group(2)
+            
+            if unit in ['hour', 'hr']:
+                return timedelta(hours=value)
+            elif unit in ['minute', 'min']:
+                return timedelta(minutes=value)
+            elif unit == 'day':
+                return timedelta(days=value)
+        
+        # Default to 1 hour if parsing fails
+        return timedelta(hours=1)
