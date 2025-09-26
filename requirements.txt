@@ -1,0 +1,40 @@
+# Text-to-Calendar Event System - Production Dependencies
+# Pinned to recent stable releases for deployment
+
+# FastAPI and ASGI server
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+
+# Data validation and serialization
+pydantic==2.5.0
+
+# Regular expressions (built-in, but explicit for clarity)
+regex==2023.10.3
+
+# Date and time utilities
+python-dateutil==2.8.2
+
+# Timezone support
+pytz==2023.3
+
+# HTTP client for testing and external API calls
+httpx==0.25.2
+
+# Testing framework
+pytest==7.4.3
+pytest-asyncio==0.21.1
+
+# Additional production dependencies
+# JSON handling (built-in, but explicit for API responses)
+# Standard library modules used:
+# - json (built-in)
+# - datetime (built-in) 
+# - re (built-in)
+# - typing (built-in)
+# - os (built-in)
+# - sys (built-in)
+# - logging (built-in)
+
+# Optional: For enhanced production deployment
+gunicorn==21.2.0  # Alternative WSGI server
+python-multipart==0.0.6  # For form data handling if needed
