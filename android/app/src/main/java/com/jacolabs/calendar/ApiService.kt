@@ -17,7 +17,7 @@ import java.util.*
 class ApiService {
     
     companion object {
-        private const val API_BASE_URL = "https://api.jacolabs.com"
+        private const val API_BASE_URL = "https://calendar-api-wrxz.onrender.com"
         private const val PARSE_ENDPOINT = "$API_BASE_URL/parse"
         private const val TIMEOUT_MS = 10000 // 10 seconds
     }

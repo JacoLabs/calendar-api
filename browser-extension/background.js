@@ -3,7 +3,7 @@
  * Handles context menu creation and API communication.
  */
 
-const API_BASE_URL = 'https://api.jacolabs.com';
+const API_BASE_URL = 'https://calendar-api-wrxz.onrender.com';
 
 // Create context menu when extension is installed
 chrome.runtime.onInstalled.addListener(() => {

@@ -5,7 +5,7 @@ import Foundation
  */
 class ApiService {
     
-    private let baseURL = "https://api.jacolabs.com"
+    private let baseURL = "https://calendar-api-wrxz.onrender.com"
     private let session = URLSession.shared
     
     struct ParseResult {

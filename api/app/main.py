@@ -12,6 +12,7 @@ import logging
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+import pytz
 import uvicorn
 
 # Add parent directories to path to import existing services
@@ -179,8 +180,6 @@ def _format_datetime_with_tz(dt: Optional[datetime], timezone: str) -> Optional[
         return None
     
     try:
-        import pytz
-        
         # If datetime is naive, assume it's in the requested timezone
         if dt.tzinfo is None:
             tz = pytz.timezone(timezone)
