@@ -1,40 +1,29 @@
+# ================================
 # Text-to-Calendar Event System - Production Dependencies
-# Pinned to recent stable releases for deployment
+# ================================
+# Pinned to recent stable releases with wheels available for Python 3.11+
+# so we avoid source builds (Rust/maturin issues on Render)
 
-# FastAPI and ASGI server
-fastapi==0.104.1
-uvicorn[standard]==0.24.0
+# --- Core framework ---
+fastapi~=0.115           # Main web framework (API endpoints)
+uvicorn[standard]~=0.30  # ASGI server to run FastAPI app in production
 
-# Data validation and serialization
-pydantic==2.5.0
+# --- Data modeling and validation ---
+pydantic~=2.7            # Validation, serialization, and type enforcement
 
-# Regular expressions (built-in, but explicit for clarity)
-regex==2023.10.3
+# --- Date & time utilities ---
+python-dateutil~=2.9     # Robust parsing of dates, relative deltas
+regex==2024.5.15         # Enhanced regex engine (needed for parsing logic)
 
-# Date and time utilities
-python-dateutil==2.8.2
+# --- HTTP client (optional, for API calls/testing health) ---
+httpx~=0.27
 
-# Timezone support
-pytz==2023.3
+# --- Optional deployment extras ---
+python-multipart==0.0.6  # Handle form-data if POST endpoints need uploads
 
-# HTTP client for testing and external API calls
-httpx==0.25.2
-
-# Testing framework
-pytest==7.4.3
-pytest-asyncio==0.21.1
-
-# Additional production dependencies
-# JSON handling (built-in, but explicit for API responses)
-# Standard library modules used:
-# - json (built-in)
-# - datetime (built-in) 
-# - re (built-in)
-# - typing (built-in)
-# - os (built-in)
-# - sys (built-in)
-# - logging (built-in)
-
-# Optional: For enhanced production deployment
-gunicorn==21.2.0  # Alternative WSGI server
-python-multipart==0.0.6  # For form data handling if needed
+# ================================
+# Developer / local testing (not needed in production)
+# Keep these in dev-requirements.txt, but listed here for clarity
+# pytest==8.3.4
+# pytest-asyncio==0.23.8
+# ================================

@@ -58,5 +58,35 @@
     "calendar_id": "default",
     "created_at": "2025-09-25T15:12:16.273960",
     "id": "event_20250925_151216_287961"
+  },
+  {
+    "title": "test meeting tomorrow",
+    "start_datetime": "2025-09-26T09:00:00",
+    "end_datetime": "2025-09-26T10:00:00",
+    "location": null,
+    "description": "test meeting tomorrow",
+    "calendar_id": "default",
+    "created_at": "2025-09-25T20:29:03.718796",
+    "id": "event_20250925_202903_719804"
+  },
+  {
+    "title": "test meeting tomorrow",
+    "start_datetime": "2025-09-26T09:00:00",
+    "end_datetime": "2025-09-26T10:00:00",
+    "location": null,
+    "description": "test meeting tomorrow",
+    "calendar_id": "default",
+    "created_at": "2025-09-25T20:29:24.169894",
+    "id": "event_20250925_202924_183210"
+  },
+  {
+    "title": "Meeting with John",
+    "start_datetime": "2025-09-26T14:00:00",
+    "end_datetime": "2025-09-26T15:00:00",
+    "location": "Conference Room A",
+    "description": "Meeting with John tomorrow at 2pm in Conference Room A",
+    "calendar_id": "default",
+    "created_at": "2025-09-25T20:30:45.684361",
+    "id": "event_20250925_203045_701383"
   }
 ]
