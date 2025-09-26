@@ -7,7 +7,9 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     
-    <!-- Calendar permissions (read-only for conflict detection, no write permission) -->
+    <!-- Calendar permissions -->
+    <!-- READ_CALENDAR: For potential future conflict detection -->
+    <!-- Note: WRITE_CALENDAR not needed as we use Intent.ACTION_INSERT which delegates to calendar app -->
     <uses-permission android:name="android.permission.READ_CALENDAR" />
 
     <application

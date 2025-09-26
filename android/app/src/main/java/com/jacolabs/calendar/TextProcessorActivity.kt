@@ -39,6 +39,17 @@ class TextProcessorActivity : Activity() {
     private fun processText(text: String) {
         lifecycleScope.launch {
             try {
+                // Validate text length
+                if (text.length > 1000) {
+                    Toast.makeText(
+                        this@TextProcessorActivity, 
+                        "Selected text is too long. Please select shorter text.", 
+                        Toast.LENGTH_LONG
+                    ).show()
+                    finish()
+                    return@launch
+                }
+                
                 // Show loading toast
                 Toast.makeText(this@TextProcessorActivity, "Processing text...", Toast.LENGTH_SHORT).show()
                 
@@ -55,13 +66,33 @@ class TextProcessorActivity : Activity() {
                     now = now
                 )
                 
+                // Check confidence score
+                if (parseResult.confidenceScore < 0.3) {
+                    Toast.makeText(
+                        this@TextProcessorActivity,
+                        "Could not extract event information from selected text. Please try selecting text that contains date/time information.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                    finish()
+                    return@launch
+                }
+                
                 // Create calendar intent with parsed data
                 createCalendarEvent(parseResult)
                 
-            } catch (e: Exception) {
+            } catch (e: ApiException) {
+                // Handle API-specific errors
                 Toast.makeText(
                     this@TextProcessorActivity, 
-                    "Failed to process text: ${e.message}", 
+                    "Unable to process text: ${e.message}", 
+                    Toast.LENGTH_LONG
+                ).show()
+                finish()
+            } catch (e: Exception) {
+                // Handle general errors
+                Toast.makeText(
+                    this@TextProcessorActivity, 
+                    "An error occurred while processing the text. Please try again.", 
                     Toast.LENGTH_LONG
                 ).show()
                 finish()

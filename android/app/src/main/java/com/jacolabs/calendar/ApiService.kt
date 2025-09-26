@@ -70,12 +70,28 @@ class ApiService {
                 parseApiResponse(response)
                 
             } else {
-                val errorResponse = BufferedReader(InputStreamReader(connection.errorStream)).use { reader ->
-                    reader.readText()
+                val errorResponse = try {
+                    BufferedReader(InputStreamReader(connection.errorStream)).use { reader ->
+                        reader.readText()
+                    }
+                } catch (e: Exception) {
+                    "Unknown error"
                 }
-                throw ApiException("API request failed with code $responseCode: $errorResponse")
+                
+                when (responseCode) {
+                    422 -> throw ApiException("The selected text does not contain valid event information")
+                    429 -> throw ApiException("Too many requests. Please try again later")
+                    500 -> throw ApiException("Server error. Please try again later")
+                    else -> throw ApiException("Request failed (code $responseCode): $errorResponse")
+                }
             }
             
+        } catch (e: java.net.SocketTimeoutException) {
+            throw ApiException("Request timed out. Please check your internet connection")
+        } catch (e: java.net.UnknownHostException) {
+            throw ApiException("Unable to connect to server. Please check your internet connection")
+        } catch (e: java.io.IOException) {
+            throw ApiException("Network error occurred. Please try again")
         } finally {
             connection.disconnect()
         }

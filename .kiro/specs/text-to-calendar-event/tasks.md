@@ -166,3 +166,93 @@
   - Create test data sets with various text formats and scenarios
   - Validate all requirements are met through automated testing
   - _Requirements: All requirements validation_
+
+## Frontend Development Milestones
+
+- [ ] 13. Milestone E: Android App Development
+- [x] 13.1 Create basic Android app with text input interface
+
+
+  - Set up Android project structure with Kotlin
+  - Implement simple UI with text input field and submit button
+  - Add API service to call POST /parse endpoint at https://calendar-api-wrxz.onrender.com
+  - Display parsed event results (title, start_datetime, location, confidence_score)
+  - Create test_android_basic.py to verify API integration
+  - _Requirements: 1.1, 1.2, 1.3_
+
+- [x] 13.2 Implement Android text selection integration
+
+
+
+
+
+  - Add ACTION_PROCESS_TEXT intent handler for text selection context menu
+  - Create "Create Calendar Event" option in text selection menu
+  - Implement background API call when text is selected
+  - Launch native Android calendar app with pre-filled event data using CalendarContract
+  - Add proper permissions and error handling for calendar integration
+  - Create test_android_flow.py to simulate end-to-end text selection workflow
+  - _Requirements: 1.1, 1.4, 5.1, 5.2_
+
+- [ ] 14. Milestone F: iOS App Development  
+- [ ] 14.1 Create basic iOS app with text input interface
+  - Set up iOS project with Swift and SwiftUI
+  - Implement simple UI with text input field and submit button
+  - Add API service to call POST /parse endpoint at https://calendar-api-wrxz.onrender.com
+  - Display parsed event results in native iOS interface
+  - Handle JSON parsing and error states gracefully
+  - Create test_ios_basic.py to verify API integration
+  - _Requirements: 1.1, 1.2, 1.3_
+
+- [ ] 14.2 Implement iOS Share Extension
+  - Create iOS Share Extension target for text sharing
+  - Add extension to handle selected text from other apps via Share Sheet
+  - Implement API call from extension to parse selected text
+  - Launch native iOS EventKit calendar editor with pre-filled data
+  - Add proper Info.plist configuration and calendar permissions
+  - Create test_ios_flow.py to simulate end-to-end share workflow
+  - _Requirements: 1.1, 1.4, 5.1, 5.2_
+
+- [ ] 15. Milestone G: Browser Extension Development
+- [ ] 15.1 Update browser extension with live API integration
+  - Update existing browser-extension scaffold to use https://calendar-api-wrxz.onrender.com
+  - Implement context menu "Create calendar event" on text selection
+  - Add API service to call POST /parse with selected text
+  - Handle API responses and error states in extension
+  - Create test_browser_extension.py to verify API integration
+  - _Requirements: 1.1, 1.2, 1.3_
+
+- [ ] 15.2 Implement calendar integration for browser extension
+  - Add support for Google Calendar web interface pre-population
+  - Implement Outlook Calendar web interface integration
+  - Create calendar service selection in extension options
+  - Add URL generation for calendar web apps with parsed event data
+  - Test cross-browser compatibility (Chrome, Firefox, Edge)
+  - Create comprehensive test suite for browser extension functionality
+  - _Requirements: 1.4, 5.1, 5.2_
+
+- [ ] 16. Milestone H: Integration & Polish
+- [ ] 16.1 Enhance API CORS and error handling
+  - Verify CORS middleware configuration in FastAPI allows all client origins
+  - Add proper error responses and status codes for client applications
+  - Implement API rate limiting and basic security measures
+  - Add API health check endpoint monitoring
+  - Create API documentation for mobile and browser clients
+  - _Requirements: 5.3_
+
+- [ ] 16.2 Add comprehensive error handling to all clients
+  - Implement offline/API unavailable handling in Android app
+  - Add network error recovery in iOS app and extension
+  - Create user-friendly error messages for parsing failures
+  - Add retry mechanisms for temporary API failures
+  - Implement fallback behavior when calendar integration fails
+  - _Requirements: 5.3_
+
+- [ ] 16.3 Create end-to-end documentation and testing
+  - Document complete user workflows: highlight → API → event created
+  - Create video demonstrations of Android text selection flow
+  - Create video demonstrations of iOS share extension flow  
+  - Create video demonstrations of browser extension usage
+  - Write comprehensive user guides for each platform
+  - Create automated integration tests across all platforms
+  - _Requirements: All requirements validation_
