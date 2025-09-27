@@ -11,7 +11,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -98,8 +97,8 @@ fun MainScreen(apiService: ApiService, lifecycleScope: androidx.lifecycle.Lifecy
         // Text input field
         OutlinedTextField(
             value = textInput,
-            onValueChange = { 
-                textInput = it
+            onValueChange = { newValue ->
+                textInput = newValue
                 // Clear previous results when user starts typing
                 if (parseResult != null || errorMessage != null) {
                     parseResult = null
@@ -109,7 +108,6 @@ fun MainScreen(apiService: ApiService, lifecycleScope: androidx.lifecycle.Lifecy
             label = { Text("Enter event text") },
             placeholder = { Text("e.g., Meeting with John tomorrow at 2pm") },
             modifier = Modifier.fillMaxWidth(),
-            minLines = 3,
             maxLines = 5,
             enabled = !isLoading
         )
