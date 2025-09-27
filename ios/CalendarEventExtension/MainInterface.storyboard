@@ -16,40 +16,28 @@
                         <rect key="frame" x="0.0" y="0.0" width="393" height="852"/>
                         <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                         <subviews>
-                            <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Processing selected text..." textAlignment="center" lineBreakMode="tailTruncation" numberOfLines="0" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="eQg-Mn-Jup">
-                                <rect key="frame" x="20" y="396" width="353" height="60"/>
-                                <constraints>
-                                    <constraint firstAttribute="height" constant="60" id="Kqy-gH-fQe"/>
-                                </constraints>
+                            <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Processing..." textAlignment="center" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="8SX-mq-bOx">
+                                <rect key="frame" x="20" y="415.66666666666669" width="353" height="20.666666666666686"/>
                                 <fontDescription key="fontDescription" type="system" pointSize="17"/>
-                                <color key="textColor" systemColor="secondaryLabelColor"/>
+                                <nil key="textColor"/>
                                 <nil key="highlightedColor"/>
                             </label>
-                            <activityIndicatorView opaque="NO" contentMode="scaleToFill" horizontalHuggingPriority="750" verticalHuggingPriority="750" animating="YES" style="medium" translatesAutoresizingMaskIntoConstraints="NO" id="Whe-kZ-whX">
-                                <rect key="frame" x="186.66666666666666" y="356" width="20" height="20"/>
-                            </activityIndicatorView>
                         </subviews>
-                        <viewLayoutMarginsGuide key="safeArea" id="0Mn-Qd-6tV"/>
+                        <viewLayoutGuide key="safeArea" id="VVe-Uw-JpX"/>
                         <color key="backgroundColor" systemColor="systemBackgroundColor"/>
                         <constraints>
-                            <constraint firstItem="eQg-Mn-Jup" firstAttribute="leading" secondItem="0Mn-Qd-6tV" secondAttribute="leading" id="2Ub-8W-g5L"/>
-                            <constraint firstItem="Whe-kZ-whX" firstAttribute="centerX" secondItem="zMn-AG-sqS" secondAttribute="centerX" id="6jy-gJ-Znh"/>
-                            <constraint firstItem="eQg-Mn-Jup" firstAttribute="centerY" secondItem="zMn-AG-sqS" secondAttribute="centerY" id="Jcg-cv-4mL"/>
-                            <constraint firstItem="eQg-Mn-Jup" firstAttribute="centerX" secondItem="zMn-AG-sqS" secondAttribute="centerX" id="Lhc-eB-Znd"/>
-                            <constraint firstItem="0Mn-Qd-6tV" firstAttribute="trailing" secondItem="eQg-Mn-Jup" secondAttribute="trailing" id="Mhx-Nh-dQh"/>
-                            <constraint firstItem="eQg-Mn-Jup" firstAttribute="top" secondItem="Whe-kZ-whX" secondAttribute="bottom" constant="20" id="eFh-Nh-8Qd"/>
+                            <constraint firstItem="8SX-mq-bOx" firstAttribute="centerY" secondItem="zMn-AG-sqS" secondAttribute="centerY" id="4Mk-tg-6Nq"/>
+                            <constraint firstItem="VVe-Uw-JpX" firstAttribute="trailing" secondItem="8SX-mq-bOx" secondAttribute="trailing" constant="20" id="HuX-Nz-Tcx"/>
+                            <constraint firstItem="8SX-mq-bOx" firstAttribute="leading" secondItem="VVe-Uw-JpX" secondAttribute="leading" constant="20" id="eQg-cl-GmH"/>
                         </constraints>
                     </view>
                 </viewController>
                 <placeholder placeholderIdentifier="IBFirstResponder" id="X47-rx-isc" userLabel="First Responder" sceneMemberID="firstResponder"/>
             </objects>
-            <point key="canvasLocation" x="132" y="154"/>
+            <point key="canvasLocation" x="32.824427480916029" y="-2.1126760563380285"/>
         </scene>
     </scenes>
     <resources>
-        <systemColor name="secondaryLabelColor">
-            <color red="0.23529411764705882" green="0.23529411764705882" blue="0.2627450980392157" alpha="0.59999999999999998" colorSpace="custom" customColorSpace="sRGB"/>
-        </systemColor>
         <systemColor name="systemBackgroundColor">
             <color white="1" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
         </systemColor>

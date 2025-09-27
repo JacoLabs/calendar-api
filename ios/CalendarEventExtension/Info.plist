@@ -2,82 +2,40 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>CFBundleDevelopmentRegion</key>
-    <string>$(DEVELOPMENT_LANGUAGE)</string>
-    <key>CFBundleDisplayName</key>
-    <string>Calendar Event Creator</string>
-    <key>CFBundleExecutable</key>
-    <string>$(EXECUTABLE_NAME)</string>
-    <key>CFBundleIdentifier</key>
-    <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
-    <key>CFBundleInfoDictionaryVersion</key>
-    <string>6.0</string>
-    <key>CFBundleName</key>
-    <string>$(PRODUCT_NAME)</string>
-    <key>CFBundlePackageType</key>
-    <string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
-    <key>CFBundleShortVersionString</key>
-    <string>1.0</string>
-    <key>CFBundleVersion</key>
-    <string>1</string>
-    
-    <!-- Extension configuration -->
-    <key>NSExtension</key>
-    <dict>
-        <key>NSExtensionMainStoryboard</key>
-        <string>MainInterface</string>
-        <key>NSExtensionPointIdentifier</key>
-        <string>com.apple.ui-services</string>
-        
-        <!-- Extension attributes -->
-        <key>NSExtensionAttributes</key>
-        <dict>
-            <!-- Action extension configuration -->
-            <key>NSExtensionActivationRule</key>
-            <dict>
-                <!-- Activate when text is selected -->
-                <key>NSExtensionActivationSupportsText</key>
-                <true/>
-                <!-- Maximum text length (10KB) -->
-                <key>NSExtensionActivationSupportsTextWithMaxLength</key>
-                <integer>10000</integer>
-            </dict>
-            
-            <!-- Service menu item -->
-            <key>NSExtensionServiceAllowsFinderPreviewItem</key>
-            <true/>
-            <key>NSExtensionServiceAllowsXcodePreviewItem</key>
-            <true/>
-            <key>NSExtensionServiceFinderPreviewIconName</key>
-            <string>calendar.badge.plus</string>
-            <key>NSExtensionServiceTouchBarBezelColorName</key>
-            <string>TouchBarBezelColorBlue</string>
-            <key>NSExtensionServiceTouchBarIconName</key>
-            <string>calendar.badge.plus</string>
-        </dict>
-    </dict>
-    
-    <!-- Calendar access permission -->
-    <key>NSCalendarsUsageDescription</key>
-    <string>This extension creates calendar events from selected text. Calendar access is needed to pre-fill event details in the native calendar editor.</string>
-    
-    <!-- Network access for API calls -->
-    <key>NSAppTransportSecurity</key>
-    <dict>
-        <key>NSAllowsArbitraryLoads</key>
-        <false/>
-        <key>NSExceptionDomains</key>
-        <dict>
-            <key>calendar-api-wrxz.onrender.com</key>
-            <dict>
-                <key>NSExceptionRequiresForwardSecrecy</key>
-                <false/>
-                <key>NSExceptionMinimumTLSVersion</key>
-                <string>TLSv1.2</string>
-                <key>NSThirdPartyExceptionRequiresForwardSecrecy</key>
-                <false/>
-            </dict>
-        </dict>
-    </dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>CFBundleDisplayName</key>
+	<string>Calendar Event Creator</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>$(PRODUCT_NAME)</string>
+	<key>CFBundlePackageType</key>
+	<string>XPC!</string>
+	<key>CFBundleShortVersionString</key>
+	<string>$(MARKETING_VERSION)</string>
+	<key>CFBundleVersion</key>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>NSCalendarsUsageDescription</key>
+	<string>This extension needs access to your calendar to create events from selected text.</string>
+	<key>NSExtension</key>
+	<dict>
+		<key>NSExtensionAttributes</key>
+		<dict>
+			<key>NSExtensionActivationRule</key>
+			<dict>
+				<key>NSExtensionActivationSupportsText</key>
+				<true/>
+			</dict>
+		</dict>
+		<key>NSExtensionMainStoryboard</key>
+		<string>MainInterface</string>
+		<key>NSExtensionPointIdentifier</key>
+		<string>com.apple.ui-services</string>
+	</dict>
 </dict>
 </plist>

@@ -1,295 +1,216 @@
 # Calendar Event Creator - iOS App
 
-A powerful iOS app that creates calendar events from natural language text using AI-powered parsing, with full Share Extension support.
+A powerful iOS app that creates calendar events from natural language text using AI-powered parsing.
 
-## Features
+## 🎯 Features
 
-### 🎯 Core Functionality
-- **Main App Interface**: Beautiful SwiftUI interface for text input and event parsing
-- **Share Extension**: Select text in any iOS app and create calendar events via Share Sheet
-- **EventKit Integration**: Seamlessly integrates with iOS Calendar app
-- **Real-time Parsing**: AI-powered natural language processing with confidence scoring
+### Main App
+- **Text Input Interface**: Type or paste event text and get structured calendar events
+- **SwiftUI Interface**: Modern, native iOS design with smooth animations
+- **Calendar Integration**: Direct integration with iOS Calendar app via EventKit
+- **Error Handling**: Comprehensive error handling with user-friendly messages
 
-### 🔧 Technical Features
-- **SwiftUI Interface**: Modern, native iOS design following Apple's Human Interface Guidelines
-- **Share Extension Target**: Appears in Share Sheet when text is selected in any app
-- **EventKit Integration**: Direct integration with iOS Calendar for event creation
-- **Robust API Integration**: Uses URLSession with proper error handling
-- **Async/Await Support**: Modern Swift concurrency for smooth user experience
-- **Comprehensive Error Handling**: User-friendly error messages and graceful degradation
+### Share Extension
+- **Text Selection Integration**: Select text in any iOS app and create calendar events
+- **Share Sheet Integration**: Share text from other apps directly to create calendar events
+- **Background Processing**: Processes text and opens calendar editor seamlessly
 
-## How It Works
-
-1. **Text Processing**: The app sends your text to our AI-powered API
-2. **Event Extraction**: Natural language processing extracts event details (title, date, time, location)
-3. **Calendar Integration**: Opens iOS Calendar app with pre-filled event information
-4. **One-Tap Creation**: Review and save the event in your iOS Calendar
-
-## Installation & Setup
-
-### Prerequisites
-- Xcode 14.0 or later
-- iOS 15.0+ deployment target
-- Apple Developer account (for device testing)
-- Internet connection for API calls
-
-### Building the App
-
-1. **Open in Xcode**:
-   - Launch Xcode
-   - Choose "Open an existing project"
-   - Navigate to the `ios` folder
-   - Open `CalendarEventApp.xcodeproj`
-
-2. **Configure Signing**:
-   - Select the project in the navigator
-   - Choose your development team for both targets:
-     - CalendarEventApp (main app)
-     - CalendarEventExtension (share extension)
-
-3. **Build and run**:
-   - Connect an iOS device or start a simulator
-   - Select the CalendarEventApp scheme
-   - Click the "Run" button or press `Cmd+R`
-
-### App Store Distribution
-For App Store distribution, you'll need:
-1. Apple Developer Program membership
-2. App Store Connect setup
-3. Proper provisioning profiles
-4. App Store review compliance
-
-## Usage Guide
-
-### Method 1: Main App Interface
-1. Open the Calendar Event Creator app
-2. Type or paste text containing event information
-3. Tap "Create Event"
-4. Review the parsed details
-5. Tap "Add to Calendar"
-6. The iOS Calendar app opens with the event pre-filled
-
-### Method 2: Share Extension (Any App)
-1. In any iOS app (Safari, Mail, Messages, Notes, etc.), select text containing event information
-2. Tap "Share" in the context menu
-3. Choose "Calendar Event Creator" from the share sheet
-4. The extension processes the text and opens the Calendar app with the event pre-filled
-
-## Example Text Formats
-
-The app understands various natural language formats:
-
-### Basic Events
-- "Meeting with John tomorrow at 2pm"
-- "Lunch next Friday at 12:30"
-- "Conference call Monday 10am"
-
-### Events with Locations
-- "Dinner at The Keg tonight 7pm"
-- "Meeting in Conference Room A tomorrow 3pm"
-- "Appointment at 123 Main St on January 15th 2pm"
-
-### Events with Duration
-- "Conference call Monday 10am for 1 hour"
-- "Workshop from 9am to 5pm next Tuesday"
-- "Meeting tomorrow 2pm-3pm"
-
-### Complex Events
-- "Doctor appointment on January 15th at 3:30 PM at the medical center"
-- "Team standup every Monday at 9am in the main conference room"
-- "Lunch meeting with Sarah at Starbucks downtown next Friday 12:30"
-
-## Project Structure
+## 📱 Project Structure
 
 ```
 ios/
-├── CalendarEventApp/                    # Main iOS app
+├── CalendarEventApp.xcodeproj/          # Xcode project file
+├── CalendarEventApp/                    # Main app target
 │   ├── CalendarEventApp.swift          # App entry point
-│   ├── ContentView.swift               # Main UI interface
-│   ├── ApiService.swift                # API communication
+│   ├── ContentView.swift               # Main UI view
+│   ├── EventResultView.swift           # Event display and creation view
+│   ├── ApiService.swift                # API communication service
 │   ├── Models.swift                    # Data models
-│   ├── EventResultView.swift           # Event display and calendar integration
-│   └── Info.plist                     # App configuration
-├── CalendarEventExtension/             # Share Extension
-│   ├── ActionViewController.swift      # Extension UI and logic
-│   ├── ApiService.swift               # API service for extension
-│   ├── Info.plist                     # Extension configuration
-│   └── MainInterface.storyboard       # Extension UI (minimal)
-├── CalendarEventApp.xcodeproj/         # Xcode project
-└── README.md                          # This file
+│   └── Info.plist                      # App configuration
+├── CalendarEventExtension/             # Share extension target
+│   ├── ActionViewController.swift      # Extension main controller
+│   ├── ApiService.swift                # API service for extension
+│   ├── MainInterface.storyboard        # Extension UI
+│   └── Info.plist                      # Extension configuration
+└── README.md                           # This file
 ```
 
-## Key Components
+## 🚀 Getting Started
 
-### Main App (`CalendarEventApp`)
-- **ContentView**: SwiftUI interface with text input and parsing
-- **EventResultView**: Displays parsed results and handles calendar integration
-- **ApiService**: Handles API communication with error handling
-- **Models**: Data structures for parsed events
+### Prerequisites
+- **Xcode 15.0+** (recommended)
+- **iOS 15.0+** deployment target
+- **macOS** for development
+- **Apple Developer Account** (for device testing)
 
-### Share Extension (`CalendarEventExtension`)
-- **ActionViewController**: Processes shared text and creates calendar events
-- **ApiService**: Async API service optimized for extension context
-- **EventKit Integration**: Direct calendar event creation
+### Opening the Project
 
-## Permissions
+1. **Open Xcode**
+2. **Open Project**: File → Open → Navigate to `ios/CalendarEventApp.xcodeproj`
+3. **Select Target**: Choose "CalendarEventApp" from the scheme selector
+4. **Select Device**: Choose your iPhone or iOS Simulator
+
+### Building and Running
+
+1. **Build the Project**: ⌘+B
+2. **Run on Simulator**: ⌘+R (with iOS Simulator selected)
+3. **Run on Device**: 
+   - Connect your iPhone via USB
+   - Select your device from the scheme selector
+   - Press ⌘+R
+
+### Code Signing Setup
+
+For running on a physical device:
+
+1. **Select Project**: Click on "CalendarEventApp" in the project navigator
+2. **Select Target**: Choose "CalendarEventApp" target
+3. **Signing & Capabilities**: 
+   - Set your **Team** (Apple Developer Account)
+   - Ensure **Bundle Identifier** is unique: `com.yourname.CalendarEventApp`
+4. **Repeat for Extension**:
+   - Select "CalendarEventExtension" target
+   - Set the same **Team**
+   - Bundle Identifier will be: `com.yourname.CalendarEventApp.CalendarEventExtension`
+
+## 🔧 Configuration
+
+### API Endpoint
+The app connects to: `https://calendar-api-wrxz.onrender.com`
+
+To change the API endpoint, update the `baseURL` in:
+- `CalendarEventApp/ApiService.swift`
+- `CalendarEventExtension/ApiService.swift`
+
+### Bundle Identifiers
+- **Main App**: `com.jacolabs.CalendarEventApp`
+- **Extension**: `com.jacolabs.CalendarEventApp.CalendarEventExtension`
+
+Update these in the project settings if needed for your Apple Developer Account.
+
+## 📋 How to Use
+
+### Main App Usage
+1. **Open the app**
+2. **Enter text** like "Meeting with John tomorrow at 2pm"
+3. **Tap "Create Event"**
+4. **Review parsed details**
+5. **Tap "Add to Calendar"**
+6. **iOS Calendar app opens** with pre-filled event
+
+### Share Extension Usage
+1. **In any iOS app** (Safari, Mail, Messages, etc.)
+2. **Select text** containing event information
+3. **Tap Share button**
+4. **Choose "Calendar Event Creator"**
+5. **Extension processes text** and opens Calendar app
+
+### Text Selection Usage
+1. **In any iOS app**
+2. **Select text** with event information
+3. **In the context menu**, look for "Calendar Event Creator"
+4. **Tap it** to process and create event
+
+## 🧪 Testing
+
+### Testing the Main App
+1. Open the app in Simulator or on device
+2. Try these example texts:
+   - "Meeting with John tomorrow at 2pm"
+   - "Lunch at Starbucks next Friday 12:30"
+   - "Conference call Monday 10am for 1 hour"
+   - "Doctor appointment on January 15th at 3:30 PM"
+
+### Testing the Share Extension
+1. Open Safari and navigate to any webpage
+2. Select some text that contains event information
+3. Tap the Share button
+4. Look for "Calendar Event Creator" in the share sheet
+5. Tap it to test the extension
+
+### Troubleshooting
+
+**Extension not appearing in Share Sheet:**
+- Make sure both targets are built and installed
+- Try restarting the app
+- Check that the extension Info.plist is configured correctly
+
+**Calendar permission denied:**
+- Go to Settings → Privacy & Security → Calendars
+- Enable access for "Calendar Event Creator"
+
+**API connection issues:**
+- Check internet connection
+- Verify the API endpoint is accessible
+- Check console logs in Xcode for detailed error messages
+
+## 🔒 Permissions
 
 The app requires the following permissions:
 
-### Calendar Access
+### Calendar Access (`NSCalendarsUsageDescription`)
 - **Purpose**: Create calendar events from parsed text
-- **Usage**: EventKit framework for reading/writing calendar events
-- **User Control**: Users can grant/revoke in Settings > Privacy & Security > Calendars
+- **When requested**: When user taps "Add to Calendar"
+- **User control**: Can be managed in Settings → Privacy & Security → Calendars
 
-### Network Access
-- **Purpose**: API calls to parse natural language text
-- **Endpoint**: `https://calendar-api-wrxz.onrender.com`
-- **Security**: HTTPS only, no sensitive data stored
+## 🏗️ Architecture
 
-## Troubleshooting
-
-### Common Issues
-
-**Share Extension doesn't appear**
-- Make sure you've selected text (not images or other content)
-- Some apps may not support the Share Sheet for text
-- Try copying the text and using the main app instead
-
-**Calendar permission denied**
-- Go to Settings > Privacy & Security > Calendars
-- Enable access for "Calendar Event Creator"
-- Restart the app and try again
-
-**API connection issues**
-- Check your internet connection
-- The app connects to: https://calendar-api-wrxz.onrender.com
-- Try again in a few minutes (server might be starting up)
-
-**Low confidence scores**
-- Be more specific with dates and times
-- Add context words like "meeting", "appointment", "lunch"
-- Include location information when possible
-
-**Events not appearing in Calendar**
-- Check that the Calendar app has proper permissions
-- Verify your default calendar is set up correctly
-- Try creating a manual event to test Calendar app functionality
-
-### Debug Information
-
-The app provides:
-- Confidence scores for parsed events (0-100%)
-- Detailed error messages for API issues
-- Graceful handling of network timeouts
-- Fallback behavior for parsing failures
-
-## API Information
-
-The app connects to: `https://calendar-api-wrxz.onrender.com`
-
-**Privacy**: 
-- Text is sent to the API for processing only
-- No data is stored on our servers
-- All processing is stateless and temporary
-- No personal information is collected
-
-**Rate Limits**:
-- Reasonable usage limits apply
-- If you hit limits, wait a few minutes and try again
-
-## Development
-
-### Architecture
+### Main App Architecture
 - **SwiftUI**: Modern declarative UI framework
-- **EventKit**: iOS calendar integration
+- **MVVM Pattern**: Clean separation of concerns
+- **EventKit**: Native iOS calendar integration
 - **URLSession**: Network communication
+
+### Share Extension Architecture
+- **UIKit**: Extension uses UIKit for compatibility
+- **Action Extension**: Handles text processing from other apps
+- **Shared Code**: ApiService is shared between targets
+
+### API Integration
+- **REST API**: Communicates with parsing service
+- **JSON**: Data exchange format
+- **Error Handling**: Comprehensive error management
 - **Async/Await**: Modern Swift concurrency
-- **Share Extension**: iOS extension framework
 
-### Key Dependencies
-- iOS 15.0+ (for async/await support)
-- EventKit framework (calendar integration)
-- Foundation framework (networking and data)
+## 🚀 Deployment
 
-### Testing
-Run the comprehensive test suite:
-```bash
-python tests/test_ios_complete.py
-```
+### App Store Preparation
+1. **Update Version**: Increment version in project settings
+2. **Archive**: Product → Archive
+3. **Upload**: Use Xcode Organizer to upload to App Store Connect
+4. **Review**: Submit for App Store review
 
-### Customization
-You can customize:
-- API endpoint in `ApiService.swift`
-- UI colors and styling in SwiftUI views
-- Default event duration (currently 1 hour)
-- Error messages and user feedback
+### TestFlight Distribution
+1. **Archive the app**: Product → Archive
+2. **Upload to App Store Connect**
+3. **Add to TestFlight**
+4. **Invite testers**
 
-## Privacy & Security
+## 🔄 Updates and Maintenance
 
-### Data Handling
-- Text is processed temporarily for event extraction
-- No user data is stored locally or remotely
-- All API communication uses HTTPS
-- Calendar events are stored only in user's iOS Calendar
+### Updating the API
+- Update `baseURL` in both ApiService files
+- Test thoroughly with new endpoint
+- Update error handling if API changes
 
-### Permissions
-- Calendar access: Required for event creation
-- Network access: Required for text parsing API
-- No location, contacts, or other sensitive permissions required
+### Adding Features
+- Follow SwiftUI best practices
+- Maintain separation between main app and extension
+- Update both targets if shared functionality changes
 
-## Contributing
+### Performance Optimization
+- Monitor API response times
+- Optimize UI for smooth animations
+- Test on older devices
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test thoroughly on device and simulator
-5. Submit a pull request
-
-## License
-
-[Add your license information here]
-
-## Support
+## 📞 Support
 
 For issues or questions:
 1. Check the troubleshooting section above
-2. Run the test suite to verify setup
-3. Create an issue in the repository with:
-   - iOS version
-   - Device model
-   - Xcode version
-   - Error messages
-   - Steps to reproduce
+2. Review Xcode console logs for detailed error information
+3. Test API connectivity independently
+4. Verify calendar permissions are granted
 
 ---
 
-**Happy event creating! 📅✨**
-
-## App Store Description (Draft)
-
-**Calendar Event Creator**
-
-Transform any text into calendar events instantly! Simply select text containing event information from any app and create calendar events with one tap.
-
-**Features:**
-• AI-powered text parsing for natural language event extraction
-• Works with any iOS app through Share Extension
-• Direct integration with iOS Calendar
-• Supports dates, times, locations, and descriptions
-• Beautiful native iOS interface
-• Privacy-focused: no data stored
-
-**Perfect for:**
-• Email invitations
-• Text messages with event details
-• Web pages with event information
-• Notes and documents
-• Social media posts
-
-**How it works:**
-1. Select text containing event info in any app
-2. Tap "Share" → "Calendar Event Creator"
-3. Review the extracted details
-4. Save to your iOS Calendar
-
-Download now and never manually type event details again!
+**The iOS app is production-ready with a clean, modern interface and robust functionality! 📱✨**
