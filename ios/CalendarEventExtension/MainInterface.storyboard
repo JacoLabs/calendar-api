@@ -19,52 +19,52 @@
                             <view contentMode="scaleToFill" translatesAutoresizingMaskIntoConstraints="NO" id="eVH-Rw-L4v">
                                 <rect key="frame" x="20" y="79" width="353" height="739"/>
                                 <subviews>
-                                    <imageView clipsSubviews="YES" userInteractionEnabled="NO" contentMode="scaleAspectFit" horizontalHuggingPriority="251" verticalHuggingPriority="251" image="calendar.badge.plus" catalog="system" translatesAutoresizingMaskIntoConstraints="NO" id="Xhd-0Q-9fH">
+                                    <imageView clipsSubviews="YES" userInteractionEnabled="NO" contentMode="scaleAspectFit" horizontalHuggingPriority="251" verticalHuggingPriority="251" image="calendar.badge.plus" catalog="system" translatesAutoresizingMaskIntoConstraints="NO" id="calendar-icon">
                                         <rect key="frame" x="151.66666666666666" y="50" width="50" height="48.333333333333336"/>
                                         <color key="tintColor" systemColor="systemBlueColor"/>
                                         <constraints>
-                                            <constraint firstAttribute="width" constant="50" id="8gK-Nh-fhd"/>
-                                            <constraint firstAttribute="height" constant="50" id="Qxd-Ub-Kcg"/>
+                                            <constraint firstAttribute="width" constant="50" id="icon-width"/>
+                                            <constraint firstAttribute="height" constant="50" id="icon-height"/>
                                         </constraints>
                                     </imageView>
-                                    <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Creating Calendar Event..." textAlignment="center" lineBreakMode="tailTruncation" numberOfLines="0" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="09C-qF-Q0t">
+                                    <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Creating Calendar Event..." textAlignment="center" lineBreakMode="tailTruncation" numberOfLines="0" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="title-label">
                                         <rect key="frame" x="20" y="118.33333333333334" width="313" height="28.666666666666657"/>
                                         <fontDescription key="fontDescription" type="system" pointSize="24"/>
                                         <nil key="textColor"/>
                                         <nil key="highlightedColor"/>
                                     </label>
-                                    <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Processing your selected text to create a calendar event. This may take a moment..." textAlignment="center" lineBreakMode="tailTruncation" numberOfLines="0" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="lbl-description">
+                                    <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Processing your selected text to create a calendar event. This may take a moment..." textAlignment="center" lineBreakMode="tailTruncation" numberOfLines="0" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="description-label">
                                         <rect key="frame" x="20" y="167" width="313" height="41"/>
                                         <fontDescription key="fontDescription" type="system" pointSize="17"/>
                                         <color key="textColor" systemColor="secondaryLabelColor"/>
                                         <nil key="highlightedColor"/>
                                     </label>
-                                    <activityIndicatorView opaque="NO" contentMode="scaleToFill" horizontalHuggingPriority="750" verticalHuggingPriority="750" animating="YES" style="large" translatesAutoresizingMaskIntoConstraints="NO" id="activity-indicator">
+                                    <activityIndicatorView opaque="NO" contentMode="scaleToFill" horizontalHuggingPriority="750" verticalHuggingPriority="750" animating="YES" style="large" translatesAutoresizingMaskIntoConstraints="NO" id="loading-indicator">
                                         <rect key="frame" x="158" y="238" width="37" height="37"/>
                                         <color key="color" systemColor="systemBlueColor"/>
                                     </activityIndicatorView>
                                 </subviews>
                                 <color key="backgroundColor" systemColor="systemBackgroundColor"/>
                                 <constraints>
-                                    <constraint firstItem="Xhd-0Q-9fH" firstAttribute="centerX" secondItem="eVH-Rw-L4v" secondAttribute="centerX" id="2Ks-Nh-8Qd"/>
-                                    <constraint firstItem="09C-qF-Q0t" firstAttribute="leading" secondItem="eVH-Rw-L4v" secondAttribute="leading" constant="20" id="4gK-Nh-fhd"/>
-                                    <constraint firstAttribute="trailing" secondItem="09C-qF-Q0t" secondAttribute="trailing" constant="20" id="6Ks-Nh-8Qd"/>
-                                    <constraint firstItem="09C-qF-Q0t" firstAttribute="top" secondItem="Xhd-0Q-9fH" secondAttribute="bottom" constant="20" id="8Ks-Nh-8Qd"/>
-                                    <constraint firstItem="lbl-description" firstAttribute="leading" secondItem="eVH-Rw-L4v" secondAttribute="leading" constant="20" id="desc-leading"/>
-                                    <constraint firstAttribute="trailing" secondItem="lbl-description" secondAttribute="trailing" constant="20" id="desc-trailing"/>
-                                    <constraint firstItem="lbl-description" firstAttribute="top" secondItem="09C-qF-Q0t" secondAttribute="bottom" constant="20" id="desc-top"/>
-                                    <constraint firstItem="activity-indicator" firstAttribute="centerX" secondItem="eVH-Rw-L4v" secondAttribute="centerX" id="activity-centerX"/>
-                                    <constraint firstItem="activity-indicator" firstAttribute="top" secondItem="lbl-description" secondAttribute="bottom" constant="30" id="activity-top"/>
-                                    <constraint firstItem="Xhd-0Q-9fH" firstAttribute="top" secondItem="eVH-Rw-L4v" secondAttribute="top" constant="50" id="Qxd-Ub-Kcg"/>
+                                    <constraint firstItem="calendar-icon" firstAttribute="centerX" secondItem="eVH-Rw-L4v" secondAttribute="centerX" id="icon-centerX"/>
+                                    <constraint firstItem="title-label" firstAttribute="leading" secondItem="eVH-Rw-L4v" secondAttribute="leading" constant="20" id="title-leading"/>
+                                    <constraint firstAttribute="trailing" secondItem="title-label" secondAttribute="trailing" constant="20" id="title-trailing"/>
+                                    <constraint firstItem="title-label" firstAttribute="top" secondItem="calendar-icon" secondAttribute="bottom" constant="20" id="title-top"/>
+                                    <constraint firstItem="description-label" firstAttribute="leading" secondItem="eVH-Rw-L4v" secondAttribute="leading" constant="20" id="desc-leading"/>
+                                    <constraint firstAttribute="trailing" secondItem="description-label" secondAttribute="trailing" constant="20" id="desc-trailing"/>
+                                    <constraint firstItem="description-label" firstAttribute="top" secondItem="title-label" secondAttribute="bottom" constant="20" id="desc-top"/>
+                                    <constraint firstItem="loading-indicator" firstAttribute="centerX" secondItem="eVH-Rw-L4v" secondAttribute="centerX" id="loading-centerX"/>
+                                    <constraint firstItem="loading-indicator" firstAttribute="top" secondItem="description-label" secondAttribute="bottom" constant="30" id="loading-top"/>
+                                    <constraint firstItem="calendar-icon" firstAttribute="top" secondItem="eVH-Rw-L4v" secondAttribute="top" constant="50" id="icon-top"/>
                                 </constraints>
                             </view>
                         </subviews>
                         <color key="backgroundColor" systemColor="systemBackgroundColor"/>
                         <constraints>
-                            <constraint firstItem="eVH-Rw-L4v" firstAttribute="leading" secondItem="VVe-Uw-JXm" secondAttribute="leading" constant="20" id="4gK-Nh-fhd"/>
-                            <constraint firstItem="VVe-Uw-JXm" firstAttribute="trailing" secondItem="eVH-Rw-L4v" secondAttribute="trailing" constant="20" id="6Ks-Nh-8Qd"/>
-                            <constraint firstItem="eVH-Rw-L4v" firstAttribute="top" secondItem="VVe-Uw-JXm" secondAttribute="top" constant="20" id="8Ks-Nh-8Qd"/>
-                            <constraint firstItem="VVe-Uw-JXm" firstAttribute="bottom" secondItem="eVH-Rw-L4v" secondAttribute="bottom" id="Qxd-Ub-Kcg"/>
+                            <constraint firstItem="eVH-Rw-L4v" firstAttribute="leading" secondItem="VVe-Uw-JXm" secondAttribute="leading" constant="20" id="container-leading"/>
+                            <constraint firstItem="VVe-Uw-JXm" firstAttribute="trailing" secondItem="eVH-Rw-L4v" secondAttribute="trailing" constant="20" id="container-trailing"/>
+                            <constraint firstItem="eVH-Rw-L4v" firstAttribute="top" secondItem="VVe-Uw-JXm" secondAttribute="top" constant="20" id="container-top"/>
+                            <constraint firstItem="VVe-Uw-JXm" firstAttribute="bottom" secondItem="eVH-Rw-L4v" secondAttribute="bottom" id="container-bottom"/>
                         </constraints>
                         <viewLayoutGuide key="safeArea" id="VVe-Uw-JXm"/>
                     </view>
