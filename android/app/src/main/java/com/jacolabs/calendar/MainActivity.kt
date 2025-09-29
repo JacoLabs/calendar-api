@@ -18,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import android.content.Context
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -55,7 +56,14 @@ fun MainScreen(apiService: ApiService, lifecycleScope: androidx.lifecycle.Lifecy
     var isLoading by remember { mutableStateOf(false) }
     var parseResult by remember { mutableStateOf<ParseResult?>(null) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    var clipboardText by remember { mutableStateOf<String?>(null) }
+    var showTimeConfirmBanner by remember { mutableStateOf(false) }
     val context = LocalContext.current
+    
+    // Check clipboard content on composition
+    LaunchedEffect(Unit) {
+        clipboardText = getClipboardText(context)
+    }
     
     Column(
         modifier = Modifier
@@ -103,6 +111,7 @@ fun MainScreen(apiService: ApiService, lifecycleScope: androidx.lifecycle.Lifecy
                 if (parseResult != null || errorMessage != null) {
                     parseResult = null
                     errorMessage = null
+                    showTimeConfirmBanner = false
                 }
             },
             label = { Text("Enter event text") },
@@ -111,6 +120,42 @@ fun MainScreen(apiService: ApiService, lifecycleScope: androidx.lifecycle.Lifecy
             maxLines = 5,
             enabled = !isLoading
         )
+        
+        // Paste from Clipboard button (visible when clipboard has text)
+        if (!clipboardText.isNullOrBlank() && clipboardText != textInput) {
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            OutlinedButton(
+                onClick = {
+                    textInput = clipboardText!!
+                    // Auto-parse clipboard content
+                    parseClipboardContent(
+                        clipboardText!!,
+                        apiService,
+                        lifecycleScope,
+                        context,
+                        onResult = { result ->
+                            parseResult = result
+                            // Check if we applied default times
+                            showTimeConfirmBanner = hasDefaultTimes(result, clipboardText!!)
+                        },
+                        onError = { error ->
+                            errorMessage = error
+                        }
+                    )
+                },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !isLoading
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Event,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Paste from Clipboard & Parse")
+            }
+        }
         
         Spacer(modifier = Modifier.height(16.dp))
         
@@ -160,6 +205,33 @@ fun MainScreen(apiService: ApiService, lifecycleScope: androidx.lifecycle.Lifecy
         
         Spacer(modifier = Modifier.height(24.dp))
         
+        // Time confirmation banner
+        if (showTimeConfirmBanner) {
+            Spacer(modifier = Modifier.height(16.dp))
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.tertiaryContainer
+                )
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp)
+                ) {
+                    Text(
+                        text = "⏰ Default Time Applied",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onTertiaryContainer
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "We found a weekday but no specific time, so we set it to 9:00-10:00 AM. You can adjust this in your calendar app.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onTertiaryContainer
+                    )
+                }
+            }
+        }
+        
         // Display results
         parseResult?.let { result ->
             Card(
@@ -201,11 +273,29 @@ fun MainScreen(apiService: ApiService, lifecycleScope: androidx.lifecycle.Lifecy
                         Spacer(modifier = Modifier.height(4.dp))
                     }
                     
+                    // Confidence score with color coding
+                    val confidence = (result.confidenceScore * 100).toInt()
+                    val confidenceColor = when {
+                        confidence >= 70 -> MaterialTheme.colorScheme.primary
+                        confidence >= 30 -> MaterialTheme.colorScheme.tertiary
+                        else -> MaterialTheme.colorScheme.error
+                    }
+                    
                     Text(
-                        "Confidence: ${(result.confidenceScore * 100).toInt()}%",
+                        "Confidence: $confidence%",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = confidenceColor
                     )
+                    
+                    // Show warning for low confidence
+                    if (confidence < 30) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            "⚠️ Low confidence - consider rephrasing with clearer date/time",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
                     
                     Spacer(modifier = Modifier.height(16.dp))
                     
@@ -325,70 +415,63 @@ private fun formatDateTime(isoDateTime: String): String {
 }
 
 private fun createCalendarEvent(context: android.content.Context, result: ParseResult) {
-    try {
-        val intent = Intent(Intent.ACTION_INSERT).apply {
-            data = CalendarContract.Events.CONTENT_URI
-            
-            // Set title
-            result.title?.let { title ->
-                putExtra(CalendarContract.Events.TITLE, title)
-            }
-            
-            // Set description (original text)
-            result.description?.let { description ->
-                putExtra(CalendarContract.Events.DESCRIPTION, description)
-            }
-            
-            // Set location
-            result.location?.let { location ->
-                putExtra(CalendarContract.Events.EVENT_LOCATION, location)
-            }
-            
-            // Set start time
-            result.startDateTime?.let { startDateTime ->
-                val startTime = parseIsoDateTime(startDateTime)
-                if (startTime != null) {
-                    putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, startTime)
-                    
-                    // Set end time if available, otherwise default to 1 hour later
-                    val endTime = result.endDateTime?.let { parseIsoDateTime(it) }
-                        ?: (startTime + 60 * 60 * 1000) // 1 hour later
-                    
-                    putExtra(CalendarContract.EXTRA_EVENT_END_TIME, endTime)
-                }
-            }
-            
-            // Set all day if detected
-            if (result.allDay) {
-                putExtra(CalendarContract.Events.ALL_DAY, true)
-            }
-        }
+    val calendarHelper = CalendarIntentHelper(context)
+    calendarHelper.createCalendarEvent(result)
+}
+
+private fun getClipboardText(context: Context): String? {
+    return try {
+        val clipboardManager = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+        val clip = clipboardManager.primaryClip
         
-        // Launch calendar app
-        context.startActivity(intent)
-        
+        if (clip != null && clip.itemCount > 0) {
+            val clipText = clip.getItemAt(0).text?.toString()
+            if (!clipText.isNullOrBlank() && clipText.length <= 500) {
+                clipText
+            } else null
+        } else null
     } catch (e: Exception) {
-        // Handle error - could show a toast or dialog
-        android.widget.Toast.makeText(
-            context,
-            "Failed to open calendar app",
-            android.widget.Toast.LENGTH_SHORT
-        ).show()
+        null
     }
 }
 
-private fun parseIsoDateTime(isoDateTime: String): Long? {
-    return try {
-        // Try parsing ISO 8601 format with timezone
-        val format = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.US)
-        format.parse(isoDateTime)?.time
-    } catch (e: Exception) {
+private fun parseClipboardContent(
+    text: String,
+    apiService: ApiService,
+    lifecycleScope: androidx.lifecycle.LifecycleCoroutineScope,
+    context: Context,
+    onResult: (ParseResult) -> Unit,
+    onError: (String) -> Unit
+) {
+    lifecycleScope.launch {
         try {
-            // Fallback: try without timezone
-            val format = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US)
-            format.parse(isoDateTime)?.time
-        } catch (e2: Exception) {
-            null
+            val timezone = TimeZone.getDefault().id
+            val locale = Locale.getDefault().toString()
+            val now = Date()
+            
+            // Use TextMergeHelper for enhanced processing
+            val textMergeHelper = TextMergeHelper(context)
+            val enhancedText = textMergeHelper.enhanceTextForParsing(text)
+            val result = apiService.parseText(enhancedText, timezone, locale, now)
+            val finalResult = textMergeHelper.applySaferDefaults(result, enhancedText)
+            
+            onResult(finalResult)
+            
+        } catch (e: ApiException) {
+            onError(e.message ?: "Failed to process clipboard text")
+        } catch (e: Exception) {
+            onError("An unexpected error occurred")
         }
     }
 }
+
+private fun hasDefaultTimes(result: ParseResult, originalText: String): Boolean {
+    // Check if we applied default 9:00 AM time
+    val hasWeekday = listOf("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
+        .any { originalText.lowercase().contains(it) }
+    
+    val hasDefaultTime = result.startDateTime?.contains("09:00:00") == true
+    
+    return hasWeekday && hasDefaultTime && !originalText.contains("9:00") && !originalText.contains("9am")
+}
+

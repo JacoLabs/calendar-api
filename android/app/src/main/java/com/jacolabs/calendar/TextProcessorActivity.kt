@@ -1,5 +1,7 @@
 package com.jacolabs.calendar
 
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.provider.CalendarContract
@@ -13,15 +15,19 @@ import java.util.*
 /**
  * Activity that handles ACTION_PROCESS_TEXT intents for selected text.
  * This appears in the text selection context menu as "Create calendar event".
+ * 
+ * Enhanced with clipboard merge logic to handle Gmail's selection limitations.
  */
 class TextProcessorActivity : ComponentActivity() {
     
     private lateinit var apiService: ApiService
+    private lateinit var textMergeHelper: TextMergeHelper
     
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
         apiService = ApiService()
+        textMergeHelper = TextMergeHelper(this)
         
         // Get the selected text from the intent
         val selectedText = intent.getCharSequenceExtra(Intent.EXTRA_PROCESS_TEXT)?.toString()
@@ -35,11 +41,11 @@ class TextProcessorActivity : ComponentActivity() {
         // Show loading toast
         Toast.makeText(this, "Processing selected text...", Toast.LENGTH_SHORT).show()
         
-        // Process the text
-        processSelectedText(selectedText)
+        // Process the text with enhanced merge logic
+        processSelectedTextWithMerge(selectedText)
     }
     
-    private fun processSelectedText(text: String) {
+    private fun processSelectedTextWithMerge(selectedText: String) {
         lifecycleScope.launch {
             try {
                 // Get current timezone and locale
@@ -47,18 +53,24 @@ class TextProcessorActivity : ComponentActivity() {
                 val locale = Locale.getDefault().toString()
                 val now = Date()
                 
-                // Call API to parse the text
-                val result = apiService.parseText(text, timezone, locale, now)
+                // Try to enhance the selected text with clipboard merge and heuristics
+                val enhancedText = textMergeHelper.enhanceTextForParsing(selectedText)
+                
+                // Call API to parse the enhanced text
+                val result = apiService.parseText(enhancedText, timezone, locale, now)
+                
+                // Apply safer defaults if we have incomplete information
+                val finalResult = textMergeHelper.applySaferDefaults(result, enhancedText)
                 
                 // Check if we got useful results
-                if (result.title.isNullOrBlank() && result.startDateTime.isNullOrBlank()) {
+                if (finalResult.title.isNullOrBlank() && finalResult.startDateTime.isNullOrBlank()) {
                     showError("Could not find event information in the selected text")
                     finish()
                     return@launch
                 }
                 
                 // Create calendar event intent
-                createCalendarEvent(result)
+                createCalendarEvent(finalResult)
                 
             } catch (e: ApiException) {
                 showError(e.message ?: "Failed to process text")
@@ -72,80 +84,21 @@ class TextProcessorActivity : ComponentActivity() {
     
     private fun createCalendarEvent(result: ParseResult) {
         try {
-            val intent = Intent(Intent.ACTION_INSERT).apply {
-                data = CalendarContract.Events.CONTENT_URI
-                
-                // Set title
-                result.title?.let { title ->
-                    putExtra(CalendarContract.Events.TITLE, title)
-                }
-                
-                // Set description (original text)
-                result.description?.let { description ->
-                    putExtra(CalendarContract.Events.DESCRIPTION, description)
-                }
-                
-                // Set location
-                result.location?.let { location ->
-                    putExtra(CalendarContract.Events.EVENT_LOCATION, location)
-                }
-                
-                // Set start time
-                result.startDateTime?.let { startDateTime ->
-                    val startTime = parseIsoDateTime(startDateTime)
-                    if (startTime != null) {
-                        putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, startTime)
-                        
-                        // Set end time if available, otherwise default to 1 hour later
-                        val endTime = result.endDateTime?.let { parseIsoDateTime(it) }
-                            ?: (startTime + 60 * 60 * 1000) // 1 hour later
-                        
-                        putExtra(CalendarContract.EXTRA_EVENT_END_TIME, endTime)
-                    }
-                }
-                
-                // Set all day if detected
-                if (result.allDay) {
-                    putExtra(CalendarContract.Events.ALL_DAY, true)
-                }
-            }
+            val calendarHelper = CalendarIntentHelper(this)
+            val success = calendarHelper.createCalendarEvent(result)
             
-            // Launch calendar app
-            if (intent.resolveActivity(packageManager) != null) {
-                startActivity(intent)
-                
-                // Show success message
-                Toast.makeText(
-                    this,
-                    "Opening calendar app with event details...",
-                    Toast.LENGTH_SHORT
-                ).show()
-            } else {
-                showError("No calendar app found")
+            if (!success) {
+                showError("Could not open calendar app")
             }
             
         } catch (e: Exception) {
-            showError("Failed to create calendar event")
+            showError("Failed to create calendar event: ${e.message}")
         }
         
         finish()
     }
     
-    private fun parseIsoDateTime(isoDateTime: String): Long? {
-        return try {
-            // Try parsing ISO 8601 format with timezone
-            val format = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.US)
-            format.parse(isoDateTime)?.time
-        } catch (e: Exception) {
-            try {
-                // Fallback: try without timezone
-                val format = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US)
-                format.parse(isoDateTime)?.time
-            } catch (e2: Exception) {
-                null
-            }
-        }
-    }
+
     
     private fun showError(message: String) {
         Toast.makeText(this, message, Toast.LENGTH_LONG).show()

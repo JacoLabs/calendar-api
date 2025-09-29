@@ -82,80 +82,21 @@ class ShareHandlerActivity : ComponentActivity() {
     
     private fun createCalendarEvent(result: ParseResult) {
         try {
-            val intent = Intent(Intent.ACTION_INSERT).apply {
-                data = CalendarContract.Events.CONTENT_URI
-                
-                // Set title
-                result.title?.let { title ->
-                    putExtra(CalendarContract.Events.TITLE, title)
-                }
-                
-                // Set description (original text)
-                result.description?.let { description ->
-                    putExtra(CalendarContract.Events.DESCRIPTION, description)
-                }
-                
-                // Set location
-                result.location?.let { location ->
-                    putExtra(CalendarContract.Events.EVENT_LOCATION, location)
-                }
-                
-                // Set start time
-                result.startDateTime?.let { startDateTime ->
-                    val startTime = parseIsoDateTime(startDateTime)
-                    if (startTime != null) {
-                        putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, startTime)
-                        
-                        // Set end time if available, otherwise default to 1 hour later
-                        val endTime = result.endDateTime?.let { parseIsoDateTime(it) }
-                            ?: (startTime + 60 * 60 * 1000) // 1 hour later
-                        
-                        putExtra(CalendarContract.EXTRA_EVENT_END_TIME, endTime)
-                    }
-                }
-                
-                // Set all day if detected
-                if (result.allDay) {
-                    putExtra(CalendarContract.Events.ALL_DAY, true)
-                }
-            }
+            val calendarHelper = CalendarIntentHelper(this)
+            val success = calendarHelper.createCalendarEvent(result)
             
-            // Launch calendar app
-            if (intent.resolveActivity(packageManager) != null) {
-                startActivity(intent)
-                
-                // Show success message
-                Toast.makeText(
-                    this,
-                    "Opening calendar app with event details...",
-                    Toast.LENGTH_SHORT
-                ).show()
-            } else {
-                showError("No calendar app found")
+            if (!success) {
+                showError("Could not open calendar app")
             }
             
         } catch (e: Exception) {
-            showError("Failed to create calendar event")
+            showError("Failed to create calendar event: ${e.message}")
         }
         
         finish()
     }
     
-    private fun parseIsoDateTime(isoDateTime: String): Long? {
-        return try {
-            // Try parsing ISO 8601 format with timezone
-            val format = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.US)
-            format.parse(isoDateTime)?.time
-        } catch (e: Exception) {
-            try {
-                // Fallback: try without timezone
-                val format = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US)
-                format.parse(isoDateTime)?.time
-            } catch (e2: Exception) {
-                null
-            }
-        }
-    }
+
     
     private fun showError(message: String) {
         Toast.makeText(this, message, Toast.LENGTH_LONG).show()

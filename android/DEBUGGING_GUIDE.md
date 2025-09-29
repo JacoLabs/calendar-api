@@ -1,5 +1,24 @@
 # Android App Debugging Guide
 
+## Fixed Issue: Calendar Intent Handling
+
+✅ **RESOLVED**: The "calendar app not found" error has been fixed with robust intent handling that works on Android 11+ devices.
+
+### What Was Fixed
+
+The app now includes a `CalendarIntentHelper` class that:
+- **Handles Android 11+ package visibility restrictions** using proper `<queries>` declarations
+- **Provides multiple fallback mechanisms** when primary calendar detection fails
+- **Supports web calendar fallback** (Google Calendar) when no native apps are found
+- **Includes robust error handling** with user-friendly messages
+
+### How It Works
+
+1. **Primary Method**: Tries native calendar apps using `Intent.ACTION_INSERT`
+2. **Specific App Detection**: Attempts to launch known calendar apps directly
+3. **Generic Intent Fallback**: Uses alternative intent actions for broader compatibility
+4. **Web Calendar Fallback**: Opens Google Calendar in browser as last resort
+
 ## Current Issue: Java Version Compatibility
 
 Your system is using **Java 8**, but modern Android development requires **Java 11 or newer**. Here are the solutions:
@@ -135,9 +154,56 @@ Once installed, the app provides:
 
 ## Troubleshooting
 
-### "No calendar app found"
-- Install Google Calendar or Samsung Calendar
-- Make sure the calendar app has necessary permissions
+### "No calendar app found" (FIXED)
+✅ This issue has been resolved with the new CalendarIntentHelper implementation.
+
+The app now:
+- Automatically detects multiple calendar apps (Google Calendar, Samsung Calendar, Outlook, etc.)
+- Falls back to web calendar if no native apps are found
+- Provides clear error messages with event details if all methods fail
+
+If you still see issues:
+- Ensure you have the latest version of the app installed
+- Try installing Google Calendar from the Play Store
+- Check that calendar apps have necessary permissions
+
+### "Create calendar event" doesn't appear in text selection (Gmail vs Chrome)
+
+**Why this happens:**
+- **Chrome**: ✅ Shows "Create calendar event" in text selection menu
+- **Gmail**: ❌ Doesn't show the option in text selection menu
+
+This is because Gmail uses a custom text selection UI that only shows Google's own services and select partners.
+
+**Solutions for Gmail users:**
+
+1. **Best Method - Screenshot Text Selection** ⭐ **NEW!**
+   - Take a screenshot of the Gmail email
+   - Open screenshot in Photos/Gallery
+   - Select text in the screenshot
+   - "Create calendar event" will appear and work perfectly!
+   - **Why this works**: Bypasses Gmail's restrictions, gives superior results
+
+2. **Alternative - Share Menu** ✅
+   - Select text in Gmail
+   - Tap the Share button (📤)
+   - Choose "Create calendar event" from share options
+   - **Note**: May give lower quality results than screenshot method
+
+3. **Background - Clipboard Monitoring** ✅
+   - Copy text containing event information
+   - Look for notification: "📅 Calendar event detected"
+   - Tap "Create Event" in the notification
+
+4. **Quick Access - Quick Settings Tile** ✅
+   - Add "Calendar Event" tile to Quick Settings
+   - Copy text from Gmail
+   - Pull down Quick Settings and tap the tile
+
+**App Compatibility Guide:**
+- **Chrome, Messages, Slack**: Text selection works ✅
+- **Gmail, WhatsApp, Twitter**: Use share menu instead ✅
+- **All apps**: Share menu always works ✅
 
 ### "Text selection menu doesn't show"
 - Some apps don't support the PROCESS_TEXT intent

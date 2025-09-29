@@ -311,3 +311,31 @@
   - Create URL generation for web calendar interfaces
   - Add user preferences and settings management
   - _Requirements: 1.4, 5.1, 5.2_
+
+- [x] 19. Fix Android Calendar Intent Handling
+
+
+
+
+
+- [ ] 19.1 Resolve "calendar app not found" error in Android app
+  - Fix intent resolution check that fails on newer Android versions due to package visibility restrictions
+  - Add proper intent flags and fallback mechanisms for calendar app detection
+  - Implement more robust calendar app discovery using PackageManager queries
+  - Add support for multiple calendar apps (Google Calendar, Samsung Calendar, Outlook, etc.)
+  - Improve error handling and user feedback when no calendar apps are available
+  - Test calendar intent handling across different Android versions and devices
+  - _Requirements: 5.1, 5.2, 5.3_
+- [ ] 19. 
+Fix Android Calendar Intent Handling
+- [x] 19.1 Resolve calendar app not found error in Android app
+
+
+  - Fix intent resolution check that fails on newer Android versions due to package visibility restrictions
+  - Add proper intent flags and fallback mechanisms for calendar app detection
+  - Implement more robust calendar app discovery using PackageManager queries
+  - Add support for multiple calendar apps (Google Calendar, Samsung Calendar, Outlook, etc.)
+  - Improve error handling and user feedback when no calendar apps are available
+  - Test calendar intent handling across different Android versions and devices
+  - _Requirements: 5.1, 5.2, 5.3_
+
