@@ -436,3 +436,69 @@
   - Create automated integration tests across all platforms
   - _Requirements: All requirements validation_
 
+## Enhanced Hybrid Parsing Pipeline
+
+- [x] 26. Implement hybrid regex-LLM parsing pipeline
+
+
+
+
+  - Create optimized parsing strategy that uses regex for high-confidence extractions and LLM for enhancement
+  - Implement confidence-based routing between parsing methods
+  - Add comprehensive golden test suite for validation
+  - _Requirements: 9.3, 9.4, 9.5, 9.6, 9.7_
+
+- [x] 26.1 Create RegexDateExtractor for absolute/relative dates, ranges, durations
+
+
+  - Implement regex patterns for explicit date formats (Oct 15, 2025, 10/15/2025, October 15th)
+  - Add relative date parsing (tomorrow, next Friday, in 2 weeks)
+  - Create time range extraction (2–3pm, 9:30-10:30, from 2pm to 4pm)
+  - Implement duration parsing (for 2 hours, 30 minutes long)
+  - Add confidence scoring based on pattern match quality
+  - _Requirements: 9.1, 9.3, 9.6_
+
+- [x] 26.2 Create TitleExtractor for label-based or fallback titles
+
+
+  - Implement regex patterns for explicit titles (Title:, Event:, Subject:)
+  - Add heuristic-based title extraction from sentence structure
+  - Create fallback title generation from context clues
+  - Implement title quality scoring and validation
+  - Add support for cleaning and normalizing extracted titles
+  - _Requirements: 9.2, 9.3_
+
+- [x] 26.3 Implement LLMEnhancer (JSON schema, polish text only)
+
+
+  - Create LLM service for polishing regex-extracted information
+  - Implement structured JSON schema for consistent LLM outputs
+  - Add LLM enhancement for titles and descriptions only when regex succeeds
+  - Create fallback LLM parsing when regex extraction fails completely
+  - Implement confidence adjustment based on LLM vs regex agreement
+  - _Requirements: 9.3, 9.4, 9.7_
+
+- [x] 26.4 Integrate hybrid pipeline into parse_event_text()
+
+
+  - Update main parsing function to use regex-first approach
+  - Implement confidence-based routing (regex ≥ 0.8, LLM enhancement; regex < 0.8, full LLM parsing)
+  - Add warning flags for low-confidence extractions (< 0.6)
+  - Create unified output format with confidence scores and parsing method tracking
+  - Implement timezone and current time context for relative date resolution
+  - _Requirements: 9.3, 9.4, 9.5, 9.6, 9.7_
+
+- [x] 26.5 Add golden tests + log parsing path and confidence
+
+
+  - Create comprehensive test suite with golden examples:
+    - "Title: COWA! Due Date: Oct 15, 2025" → all-day event
+    - "Lunch with Sarah Friday at 12pm" → timed event  
+    - "Dentist Oct 1 @ 9:30" → timed event
+    - "Pick up passport on 10/02" → all-day event, current year
+    - "Tomorrow 7am" with now=2025-09-29T17:00:00-04:00 → Sept 30 07:00
+  - Add logging for parsing path taken (regex vs LLM) and confidence scores
+  - Create test validation for confidence thresholds and warning flags
+  - Implement regression testing for parsing accuracy improvements
+  - Update files: event_parser.py, event_models.py, event_extractor.py
+  - _Requirements: 9.7, 8.4, 8.5_

@@ -11,6 +11,7 @@ from models.event_models import ParsedEvent, ValidationResult
 from services.datetime_parser import DateTimeParser, DateTimeMatch
 from services.event_extractor import EventInformationExtractor, ExtractionMatch
 from services.text_merge_helper import TextMergeHelper
+from services.hybrid_event_parser import HybridEventParser, HybridParsingResult
 from ui.safe_input import safe_input, confirm_action, get_choice, is_non_interactive
 
 
@@ -25,6 +26,9 @@ class EventParser:
         self.info_extractor = EventInformationExtractor()
         self.text_merge_helper = TextMergeHelper()
         
+        # Initialize hybrid parser for Task 26.4
+        self.hybrid_parser = HybridEventParser()
+        
         # Configuration for parsing behavior
         self.config = {
             'prefer_dd_mm_format': False,  # Can be set based on user locale
@@ -32,6 +36,8 @@ class EventParser:
             'max_datetime_distance': 100,  # Max characters between date and time for combination
             'min_confidence_threshold': 0.3,  # Minimum confidence to include in results
             'enable_ambiguity_detection': True,  # Whether to detect and flag ambiguous text
+            'use_hybrid_parsing': True,  # Enable hybrid parsing pipeline (Task 26.4)
+            'hybrid_mode': 'hybrid',  # hybrid|regex_only|llm_only
         }
     
     def parse_text_enhanced(self, text: str, clipboard_text: Optional[str] = None, **kwargs) -> ParsedEvent:
@@ -159,6 +165,96 @@ class EventParser:
         
         return parsed_event
     
+    def parse_event_text(self, text: str, **kwargs) -> ParsedEvent:
+        """
+        Parse event text using hybrid regex-LLM pipeline (Task 26.4).
+        
+        This is the new main parsing method that implements the hybrid strategy:
+        - Regex ≥ 0.8: LLM enhancement mode
+        - Regex < 0.8: Full LLM parsing with confidence ≤ 0.5 and warning
+        
+        Args:
+            text: Input text containing event information
+            **kwargs: Configuration overrides (mode, timezone_offset, current_time, etc.)
+            
+        Returns:
+            ParsedEvent object with hybrid parsing results
+        """
+        if not text or not text.strip():
+            return ParsedEvent(
+                description=text,
+                confidence_score=0.0,
+                extraction_metadata={'error': 'Empty or invalid input text'}
+            )
+        
+        # Check if hybrid parsing is enabled
+        if not self.config.get('use_hybrid_parsing', True):
+            # Fall back to legacy parsing
+            return self.parse_text(text, **kwargs)
+        
+        # Apply configuration overrides
+        config = self.config.copy()
+        config.update(kwargs)
+        
+        # Extract parsing parameters
+        mode = config.get('hybrid_mode', 'hybrid')
+        timezone_offset = config.get('timezone_offset')
+        current_time = config.get('current_time')
+        
+        # Update hybrid parser current time if provided
+        if current_time:
+            self.hybrid_parser.current_time = current_time
+        
+        # Execute hybrid parsing
+        try:
+            result = self.hybrid_parser.parse_event_text(
+                text=text,
+                mode=mode,
+                timezone_offset=timezone_offset,
+                current_time=current_time
+            )
+            
+            # Extract ParsedEvent from hybrid result
+            parsed_event = result.parsed_event
+            
+            # Add hybrid-specific metadata
+            if not parsed_event.extraction_metadata:
+                parsed_event.extraction_metadata = {}
+            
+            parsed_event.extraction_metadata.update({
+                'hybrid_parsing_used': True,
+                'parsing_path': result.parsing_path,
+                'warnings': result.warnings,
+                'processing_metadata': result.processing_metadata,
+                'hybrid_confidence': result.confidence_score
+            })
+            
+            # Collect telemetry if enabled
+            if config.get('enable_telemetry', True):
+                telemetry = self.hybrid_parser.collect_telemetry(text, result)
+                parsed_event.extraction_metadata['telemetry'] = telemetry
+            
+            return parsed_event
+            
+        except Exception as e:
+            # Fall back to legacy parsing on error
+            import logging
+            logging.error(f"Hybrid parsing failed: {e}")
+            
+            fallback_event = self.parse_text(text, **kwargs)
+            
+            # Add error metadata
+            if not fallback_event.extraction_metadata:
+                fallback_event.extraction_metadata = {}
+            
+            fallback_event.extraction_metadata.update({
+                'hybrid_parsing_used': False,
+                'hybrid_parsing_error': str(e),
+                'fallback_to_legacy': True
+            })
+            
+            return fallback_event
+    
     def parse_multiple_events(self, text: str, **kwargs) -> List[ParsedEvent]:
         """
         Parse text that may contain multiple events and return a list of ParsedEvent objects.
@@ -176,14 +272,15 @@ class EventParser:
         events = []
         for segment in event_segments:
             if segment.strip():
-                parsed_event = self.parse_text(segment, **kwargs)
+                # Use hybrid parsing for each segment
+                parsed_event = self.parse_event_text(segment, **kwargs)
                 # Only include events that meet minimum confidence threshold
                 if parsed_event.confidence_score >= self.config['min_confidence_threshold']:
                     events.append(parsed_event)
         
         # If no valid events found in segments, try parsing the entire text as one event
         if not events:
-            full_event = self.parse_text(text, **kwargs)
+            full_event = self.parse_event_text(text, **kwargs)
             if full_event.confidence_score >= self.config['min_confidence_threshold']:
                 events.append(full_event)
         
@@ -444,6 +541,13 @@ class EventParser:
     def set_config(self, **kwargs):
         """Update parser configuration."""
         self.config.update(kwargs)
+        
+        # Update hybrid parser configuration if relevant keys are present
+        hybrid_keys = ['regex_confidence_threshold', 'warning_confidence_threshold', 
+                      'default_mode', 'enable_telemetry', 'max_processing_time']
+        hybrid_config = {k: v for k, v in kwargs.items() if k in hybrid_keys}
+        if hybrid_config:
+            self.hybrid_parser.update_config(**hybrid_config)
     
     def get_config(self) -> Dict[str, Any]:
         """Get current parser configuration."""

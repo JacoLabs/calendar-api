@@ -4,12 +4,23 @@
 
 iOS development requires Xcode, which only runs on macOS. Follow these steps on your Mac:
 
+## 🖱️ **Mac Navigation Reminders**
+- **No right-click**: Use **Control+Click** or **two-finger tap** on trackpad for context menus
+- **Single click**: Select items
+- **Double-click**: Open files/applications
+- **Command+Click**: Open in new tab/window
+- **Trackpad gestures**: Two-finger scroll, pinch to zoom
+
 ## 📋 **Step-by-Step Instructions**
 
 ### Step 1: Open the Project
-1. **Navigate to the `ios` folder** on your Mac
+1. **Navigate to the `ios` folder** on your Mac (using Finder)
 2. **Double-click `CalendarEventApp.xcodeproj`** (NOT the folder, the actual .xcodeproj file)
+   - It should have a blue Xcode icon
+   - If you see a folder instead, look for the file with .xcodeproj extension
 3. **Wait for Xcode to fully load** - this may take a minute
+
+**Mac Tip**: If you need context menu options, use **Control+Click** or **two-finger tap** on trackpad
 
 ### Step 2: Check Project Navigator
 1. **Look at the left sidebar** - you should see:
@@ -107,9 +118,14 @@ Once the run button appears:
 To test the Share Extension:
 1. **Open Safari in the simulator**
 2. **Go to any webpage with text**
-3. **Select some text** (long press and drag)
-4. **Tap "Share"**
+3. **Select some text** (click and drag, or long press on touch)
+4. **Click "Share" button** (square with arrow up)
 5. **Look for "Create Calendar Event"** in the share sheet
+
+**Mac Navigation Notes:**
+- **No right-click on Mac**: Use **Control+Click** or **two-finger tap** on trackpad
+- **Simulator controls**: Click and drag to select text (like on iPhone)
+- **Share button**: Look for the square icon with arrow pointing up
 
 ## ❌ **Common Issues and Solutions**
 

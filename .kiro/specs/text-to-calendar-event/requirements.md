@@ -104,3 +104,17 @@ This feature enables users to highlight text containing event information and au
 3. WHEN an event creation fails THEN the system SHALL display an error message and allow retry
 4. WHEN an event is created THEN it SHALL include normalized output with title, startDateTime, endDateTime, location, description, and confidenceScore
 5. WHEN events are created from different sources THEN they SHALL follow the same structured format regardless of input method
+
+### Requirement 9
+
+**User Story:** As a user, I want the system to reliably convert messy, real-world text into calendar events, so that I can highlight anything (emails, reminders, receipts, tickets) and still get accurate event details.
+
+#### Acceptance Criteria
+
+1. WHEN text contains explicit dates/times (Oct 15, 2025, 2–3pm, tomorrow at noon) THEN the system SHALL extract and normalize them
+2. WHEN text contains metadata or noise (Item ID, Status, Assignee) THEN the system SHALL ignore or downweight it
+3. WHEN regex extraction succeeds THEN the system SHALL set confidence ≥ 0.8 and LLM SHALL only polish titles/description
+4. WHEN regex fails THEN the system SHALL fall back to LLM parsing, mark confidence ≤ 0.5, and add a warning
+5. WHEN extraction confidence < 0.6 THEN the system SHALL flag needs_confirmation in the response
+6. WHEN user's timezone and current time are provided THEN the system SHALL resolve relative dates/times accurately (e.g., "tomorrow 7am")
+7. WHEN event information is extracted THEN the response SHALL always include: title, start_datetime, end_datetime, all_day, description, confidence_score, warnings
