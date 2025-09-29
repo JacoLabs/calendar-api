@@ -34,14 +34,22 @@ The application follows a layered architecture pattern:
   - `handle_selection()`: Processes user's menu selection
 
 ### 2. Event Parser Service
-- **Purpose**: Extracts structured event data from natural language text with comprehensive real-world format handling
+- **Purpose**: Extracts structured event data from natural language text using LLM-first approach with regex fallbacks
 - **Key Methods**:
-  - `parse_event_text(text: str) -> ParsedEvent`: Main parsing method with confidence scoring
-  - `extract_datetime(text: str) -> DateTimeResult`: Comprehensive date/time extraction with fallbacks
-  - `extract_location(text: str) -> LocationResult`: Multi-strategy location identification
-  - `extract_title(text: str) -> TitleResult`: Intelligent title generation and extraction
+  - `parse_event_text(text: str) -> ParsedEvent`: Main parsing method using LLM with confidence scoring
+  - `llm_extract_event(text: str) -> ParsedEvent`: Primary LLM-based extraction
+  - `regex_fallback_extract(text: str) -> ParsedEvent`: Backup regex-based extraction
   - `validate_extraction(event: ParsedEvent) -> ValidationResult`: Quality assessment and completeness check
   - `normalize_output(event: ParsedEvent) -> NormalizedEvent`: Ensures consistent output format
+
+**LLM-First Parsing Strategy**:
+
+**Primary LLM Processing**:
+- **Free LLM Integration**: Use Ollama with Llama 3.2 or similar free model for local processing
+- **Structured Prompts**: Design prompts to extract title, date, time, location in JSON format
+- **Multi-paragraph Support**: LLM naturally handles text spanning multiple paragraphs as single context
+- **Confidence Assessment**: LLM provides confidence scores for each extracted field
+- **Fallback Trigger**: Switch to regex when LLM confidence is below threshold or LLM is unavailable
 
 **Comprehensive Parsing Strategy**:
 
@@ -59,23 +67,25 @@ The application follows a layered architecture pattern:
 - Time ranges: 9–10 a.m., from 3 p.m. to 5 p.m., 2:00-3:30
 - Duration calculation: "for 2 hours", "30 minutes long"
 
-**Location Parsing**:
+**Location Parsing (Optional)**:
 - Explicit addresses: Nathan Phillips Square, 123 Main Street
 - Implicit locations: at school, gym, the office, downtown
 - Direction-based: meet at the front doors, by the entrance
 - Venue keywords: Square, Park, Center, Hall, School, Building, Room
 - Context clues: "venue:", "at", "in", "@" indicators
+- Graceful handling when no location is present - events can be created without location information
 
 **Title Generation**:
 - Formal event names: Indigenous Legacy Gathering
-- Action-based: "We will leave school" → "School Departure"
 - Context-derived: Use who/what/where when no explicit title
 - Avoid truncated sentences and incomplete phrases
 - Prioritize descriptive over generic titles
+- Prompt user for title when only timing information is available
 
 **Format Handling**:
 - Bullet points in emails
 - Full paragraphs with embedded information
+- Multi-paragraph text treated as single event description
 - Multiple events in single text
 - Screenshot text vs highlighted text consistency
 - Structured vs unstructured content
@@ -143,7 +153,7 @@ class LocationResult:
 class TitleResult:
     title: Optional[str]
     confidence: float
-    generation_method: str  # "explicit", "derived", "generated"
+    generation_method: str  # "explicit", "derived", "user_prompt_required"
     alternatives: List[str]
     raw_text: str
 ```
@@ -222,11 +232,17 @@ class ValidationResult:
 
 ### Parsing Architecture
 
-**Multi-Strategy Approach**:
-- **Primary**: Regex patterns for structured formats
-- **Secondary**: Keyword-based extraction for unstructured text
-- **Tertiary**: Context-based inference for ambiguous content
-- **Libraries**: dateutil.parser, spaCy for NLP, fuzzy string matching
+**LLM-First Strategy**:
+- **Primary**: Free LLM (Ollama/Llama 3.2) for natural language understanding and extraction
+- **Fallback**: Regex patterns when LLM is unavailable or confidence is too low
+- **Emergency**: Basic keyword extraction for critical failures
+- **Libraries**: Ollama for local LLM, dateutil.parser for date normalization, regex for fallback patterns
+
+**LLM Integration Details**:
+- **Model Selection**: Llama 3.2 3B or similar lightweight model for local deployment
+- **Prompt Engineering**: Structured prompts requesting JSON output with confidence scores
+- **Error Handling**: Graceful degradation to regex when LLM fails or is slow
+- **Performance**: Local inference to avoid API costs and ensure privacy
 
 **Confidence Scoring System**:
 - **Field-level confidence**: Individual scores for title, date, time, location

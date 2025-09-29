@@ -58,15 +58,35 @@
 
   - _Requirements: 1.3, 4.4_
 
-- [x] 5. Build main event parser service
+- [x] 5. Set up LLM integration with Ollama
 
 
 
 
 
+  - Install and configure Ollama with Llama 3.2 3B model for local inference
+  - Create LLMService class for handling model communication
+  - Implement structured prompts for event extraction with JSON output
+  - Add error handling and fallback when LLM is unavailable
+  - Create unit tests for LLM service functionality
+  - _Requirements: 1.2, 6.3_
 
-  - Create unified EventParser class that integrates DateTimeParser and EventInformationExtractor
-  - Implement parse_text() method that returns complete ParsedEvent objects
+- [x] 5.2 Create LLM prompt templates for event extraction
+
+
+  - Design prompts for extracting title, date, time, and optional location
+  - Create prompts that handle multi-paragraph text as single event context
+  - Implement confidence scoring requests in prompts
+  - Add prompts for handling ambiguous or incomplete information
+  - Create fallback prompts for when initial extraction fails
+  - Test prompt effectiveness with various text formats and scenarios
+  - _Requirements: 1.3, 6.3, 7.5_
+
+- [x] 5.1. Build main event parser service with LLM-first approach
+  - Create unified EventParser class with LLM as primary parsing method
+  - Implement llm_extract_event() method for natural language processing
+  - Add regex_fallback_extract() method for when LLM fails
+  - Implement parse_text() method that orchestrates LLM-first strategy
   - Add validation and error handling for incomplete or ambiguous text
   - Create comprehensive test suite with real-world text examples
   - _Requirements: 1.2, 4.1, 4.2, 4.3_
@@ -363,7 +383,12 @@
   - _Requirements: 2.1, 7.2, 7.5_
 
 - [ ] 21. Implement Comprehensive Location Extraction
-- [ ] 21.1 Create AdvancedLocationExtractor class
+
+
+
+
+
+- [x] 21.1 Create AdvancedLocationExtractor class (Optional Enhancement)
   - Implement explicit address parsing (Nathan Phillips Square, 123 Main Street)
   - Add implicit location detection (at school, gym, the office, downtown)
   - Create directional location parsing (meet at the front doors, by the entrance)
@@ -371,10 +396,13 @@
   - Add context clue detection ("venue:", "at", "in", "@" indicators)
   - Create location type classification (address, venue, implicit, directional)
   - Implement alternative location detection for ambiguous cases
+  - Ensure events can be created successfully without location information
   - Write comprehensive unit tests for location extraction scenarios
-  - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5_
+  - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.6, 4.7_
 
-- [ ] 21.2 Create LocationResult data model with confidence scoring
+- [x] 21.2 Create LocationResult data model with confidence scoring
+
+
   - Implement LocationResult class with confidence and type tracking
   - Add alternative location storage for user selection
   - Create location validation and quality assessment
@@ -383,19 +411,28 @@
   - Write unit tests for location confidence scoring
   - _Requirements: 4.1, 7.2, 7.5_
 
-- [ ] 22. Implement Intelligent Title Generation and Extraction
-- [ ] 22.1 Create SmartTitleExtractor class
-  - Implement formal event name detection (Indigenous Legacy Gathering)
-  - Add action-based title generation ("We will leave school" → "School Departure")
-  - Create context-derived title generation using who/what/where analysis
-  - Implement truncated sentence detection and completion
-  - Add title quality assessment to avoid incomplete phrases
-  - Create multiple title candidate evaluation and selection
-  - Implement title normalization and formatting
-  - Write comprehensive unit tests for title extraction scenarios
-  - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5_
+- [-] 22. Implement Intelligent Title Generation and Extraction
 
-- [ ] 22.2 Create TitleResult data model with generation tracking
+
+
+
+
+- [x] 22.1 Create SmartTitleExtractor class (LLM Fallback Service)
+
+
+  - Implement regex-based formal event name detection as fallback when LLM fails
+  - Create context-derived title generation for LLM enhancement/validation
+  - Implement title quality assessment for LLM-generated titles
+  - Add title normalization and formatting for LLM outputs
+  - Create fallback title extraction when LLM returns low confidence results
+  - Add user prompt handling when neither LLM nor regex can generate good titles
+  - Implement title validation and alternative suggestion for LLM results
+  - Write comprehensive unit tests for fallback title extraction scenarios
+  - _Requirements: 5.1, 5.2, 5.3, 5.4_
+
+- [x] 22.2 Create TitleResult data model with generation tracking
+
+
   - Implement TitleResult class with confidence and method tracking
   - Add alternative title storage for user selection
   - Create title quality scoring based on completeness and relevance
@@ -408,13 +445,14 @@
 - [ ] 23.1 Create FormatAwareTextProcessor class
   - Implement bullet point parsing for structured email content
   - Add paragraph parsing for embedded event information
+  - Create multi-paragraph text processing as single event description
   - Create multiple event detection in single text blocks
   - Implement typo normalization (9a.m, 9am, 9:00 A M → 9:00 AM)
   - Add case-insensitive processing with proper capitalization
   - Create whitespace normalization and cleanup
   - Implement format consistency between screenshot and highlight text
   - Write comprehensive unit tests for format handling
-  - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5_
+  - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.6_
 
 - [ ] 23.2 Create TextFormatResult with processing metadata
   - Implement format detection and classification
@@ -429,10 +467,11 @@
 - [ ] 24.1 Create ComprehensiveErrorHandler class
   - Implement low confidence extraction handling (< 0.3 threshold)
   - Add multiple interpretation resolution with user selection
-  - Create graceful degradation for missing critical fields
+  - Create graceful degradation for missing critical fields (title, date/time)
+  - Handle missing optional fields (location) without preventing event creation
   - Implement "no event information found" detection and messaging
   - Add partial information handling with completion prompts
-  - Create format recognition failure fallbacks
+  - Create LLM failure fallbacks to regex-based extraction
   - Implement consistency validation between input methods
   - Write comprehensive unit tests for error scenarios
   - _Requirements: 7.1, 7.2, 7.3, 7.4_
@@ -447,14 +486,16 @@
   - _Requirements: 7.5, 8.4, 8.5_
 
 - [ ] 25. Integrate Enhanced Parser Components
-- [ ] 25.1 Create MasterEventParser orchestration class
-  - Integrate ComprehensiveDateTimeParser, AdvancedLocationExtractor, SmartTitleExtractor, and FormatAwareTextProcessor
-  - Implement proper execution order and data flow between components
+- [ ] 25.1 Create MasterEventParser orchestration class with LLM-first strategy
+  - Integrate LLMService as primary parsing method with regex fallbacks
+  - Implement FormatAwareTextProcessor for multi-paragraph text handling
+  - Add optional AdvancedLocationExtractor and SmartTitleExtractor as enhancements
+  - Implement proper execution order: LLM → regex fallback → component fallback
   - Add cross-component validation and consistency checking
-  - Create unified confidence scoring across all extraction components
-  - Implement performance optimization for multi-component processing
+  - Create unified confidence scoring across all extraction methods
+  - Implement performance optimization for LLM + fallback processing
   - Add comprehensive logging and debugging support
-  - Write integration tests for complete parsing pipeline
+  - Write integration tests for complete LLM-first parsing pipeline
   - _Requirements: 1.2, 1.3, 8.4, 8.5_
 
 - [ ] 25.2 Create comprehensive real-world testing suite

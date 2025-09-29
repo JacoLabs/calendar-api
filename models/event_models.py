@@ -167,3 +167,134 @@ class ValidationResult:
             missing_fields=missing_fields or [],
             warnings=warnings or []
         )
+
+
+@dataclass
+class TitleResult:
+    """
+    Represents the result of title extraction with confidence and method tracking.
+    Used for intelligent title generation and extraction with multiple alternatives.
+    """
+    title: Optional[str] = None
+    confidence: float = 0.0
+    generation_method: str = "unknown"  # "explicit", "derived", "generated", "action_based", "context_derived"
+    alternatives: List[str] = field(default_factory=list)
+    raw_text: str = ""
+    quality_score: float = 0.0  # Based on completeness and relevance
+    extraction_metadata: Dict[str, Any] = field(default_factory=dict)
+    
+    def __post_init__(self):
+        """Validate and normalize data after initialization."""
+        # Ensure confidence is within valid range
+        self.confidence = max(0.0, min(1.0, self.confidence))
+        self.quality_score = max(0.0, min(1.0, self.quality_score))
+        
+        # Clean up title if present
+        if self.title:
+            self.title = self.title.strip()
+            if not self.title:
+                self.title = None
+    
+    def is_high_quality(self) -> bool:
+        """Check if this is a high-quality title result."""
+        return (
+            self.title is not None and
+            self.confidence >= 0.7 and
+            self.quality_score >= 0.6 and
+            len(self.title) >= 3
+        )
+    
+    def is_complete_phrase(self) -> bool:
+        """Check if the title is a complete phrase (not truncated)."""
+        if not self.title:
+            return False
+        
+        # Check for common indicators of incomplete phrases
+        incomplete_indicators = [
+            self.title.endswith('...'),
+            self.title.endswith(' and'),
+            self.title.endswith(' or'),
+            self.title.endswith(' with'),
+            self.title.endswith(' for'),
+            self.title.endswith(' at'),
+            self.title.endswith(' in'),
+            len(self.title.split()) == 1 and self.generation_method != "action_based"
+        ]
+        
+        return not any(incomplete_indicators)
+    
+    def add_alternative(self, alternative_title: str, confidence: float = None):
+        """Add an alternative title option."""
+        if alternative_title and alternative_title.strip():
+            clean_alt = alternative_title.strip()
+            if clean_alt not in self.alternatives and clean_alt != self.title:
+                self.alternatives.append(clean_alt)
+                
+                # Update metadata with alternative confidence if provided
+                if confidence is not None:
+                    if 'alternative_confidences' not in self.extraction_metadata:
+                        self.extraction_metadata['alternative_confidences'] = {}
+                    self.extraction_metadata['alternative_confidences'][clean_alt] = confidence
+    
+    def get_best_title(self) -> Optional[str]:
+        """Get the best available title (main or alternative)."""
+        if self.title and self.is_complete_phrase():
+            return self.title
+        
+        # Look for complete alternatives
+        for alt in self.alternatives:
+            alt_result = TitleResult(title=alt, generation_method=self.generation_method)
+            if alt_result.is_complete_phrase():
+                return alt
+        
+        # Return main title even if incomplete
+        return self.title
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for serialization."""
+        return {
+            'title': self.title,
+            'confidence': self.confidence,
+            'generation_method': self.generation_method,
+            'alternatives': self.alternatives,
+            'raw_text': self.raw_text,
+            'quality_score': self.quality_score,
+            'extraction_metadata': self.extraction_metadata,
+            'is_high_quality': self.is_high_quality(),
+            'is_complete_phrase': self.is_complete_phrase()
+        }
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'TitleResult':
+        """Create TitleResult from dictionary."""
+        return cls(
+            title=data.get('title'),
+            confidence=data.get('confidence', 0.0),
+            generation_method=data.get('generation_method', 'unknown'),
+            alternatives=data.get('alternatives', []),
+            raw_text=data.get('raw_text', ''),
+            quality_score=data.get('quality_score', 0.0),
+            extraction_metadata=data.get('extraction_metadata', {})
+        )
+    
+    @classmethod
+    def empty(cls, raw_text: str = "") -> 'TitleResult':
+        """Create an empty title result."""
+        return cls(
+            title=None,
+            confidence=0.0,
+            generation_method="none",
+            raw_text=raw_text,
+            quality_score=0.0
+        )
+    
+    @classmethod
+    def from_explicit(cls, title: str, raw_text: str = "", confidence: float = 0.9) -> 'TitleResult':
+        """Create a title result from explicit title detection."""
+        return cls(
+            title=title,
+            confidence=confidence,
+            generation_method="explicit",
+            raw_text=raw_text,
+            quality_score=0.8  # High quality for explicit titles
+        )
