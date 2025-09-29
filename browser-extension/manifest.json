@@ -7,11 +7,14 @@
   "permissions": [
     "contextMenus",
     "activeTab",
-    "storage"
+    "storage",
+    "downloads"
   ],
   
   "host_permissions": [
-    "https://api.jacolabs.com/*"
+    "https://calendar-api-wrxz.onrender.com/*",
+    "https://calendar.google.com/*",
+    "https://outlook.live.com/*"
   ],
   
   "background": {
@@ -30,12 +33,7 @@
     "default_title": "Calendar Event Creator"
   },
   
-  "icons": {
-    "16": "icons/icon-16.png",
-    "32": "icons/icon-32.png",
-    "48": "icons/icon-48.png",
-    "128": "icons/icon-128.png"
-  },
+
   
   "web_accessible_resources": [
     {

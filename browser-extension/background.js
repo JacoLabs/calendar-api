@@ -78,6 +78,8 @@ async function openCalendarWithEvent(parseResult) {
     calendarUrl = buildGoogleCalendarUrl(parseResult);
   } else if (calendarService === 'outlook') {
     calendarUrl = buildOutlookCalendarUrl(parseResult);
+  } else if (calendarService === 'apple') {
+    calendarUrl = buildAppleCalendarUrl(parseResult);
   } else {
     // Default to Google Calendar
     calendarUrl = buildGoogleCalendarUrl(parseResult);
@@ -106,13 +108,15 @@ function buildGoogleCalendarUrl(parseResult) {
     const startDate = new Date(parseResult.start_datetime);
     const endDate = parseResult.end_datetime ? 
       new Date(parseResult.end_datetime) : 
-      new Date(startDate.getTime() + 30 * 60 * 1000); // +30 minutes default
+      new Date(startDate.getTime() + 60 * 60 * 1000); // +1 hour default
     
     if (parseResult.all_day) {
-      // All-day event format: YYYYMMDD
-      params.set('dates', `${formatDateForGoogle(startDate)}/${formatDateForGoogle(endDate)}`);
+      // All-day event format: YYYYMMDD/YYYYMMDD
+      const nextDay = new Date(startDate);
+      nextDay.setDate(nextDay.getDate() + 1);
+      params.set('dates', `${formatDateForGoogle(startDate)}/${formatDateForGoogle(nextDay)}`);
     } else {
-      // Timed event format: YYYYMMDDTHHMMSSZ
+      // Timed event format: YYYYMMDDTHHMMSSZ/YYYYMMDDTHHMMSSZ
       params.set('dates', `${formatDateTimeForGoogle(startDate)}/${formatDateTimeForGoogle(endDate)}`);
     }
   }
@@ -151,8 +155,8 @@ function buildOutlookCalendarUrl(parseResult) {
       const endDate = new Date(parseResult.end_datetime);
       params.set('enddt', endDate.toISOString());
     } else {
-      // Default to +30 minutes
-      const endDate = new Date(startDate.getTime() + 30 * 60 * 1000);
+      // Default to +1 hour
+      const endDate = new Date(startDate.getTime() + 60 * 60 * 1000);
       params.set('enddt', endDate.toISOString());
     }
   }
@@ -198,14 +202,177 @@ function formatDateTimeForGoogle(date) {
   return `${year}${month}${day}T${hours}${minutes}${seconds}Z`;
 }
 
+/**
+ * Build Apple Calendar URL with event data (ICS download)
+ */
+function buildAppleCalendarUrl(parseResult) {
+  // Generate ICS content and create a downloadable blob URL
+  const icsContent = generateICSContent(parseResult);
+  
+  // Create a blob and return a data URL for download
+  const blob = new Blob([icsContent], { type: 'text/calendar' });
+  const url = URL.createObjectURL(blob);
+  
+  // For Apple Calendar, we'll trigger a download
+  return url;
+}
+
+/**
+ * Generate ICS content for Apple Calendar
+ */
+function generateICSContent(parseResult) {
+  const now = new Date();
+  const uid = `${now.getTime()}@calendar-event-creator`;
+  
+  let icsContent = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//Calendar Event Creator//EN',
+    'CALSCALE:GREGORIAN',
+    'METHOD:PUBLISH',
+    'BEGIN:VEVENT',
+    `UID:${uid}`,
+    `DTSTAMP:${formatDateTimeForICS(now)}`
+  ];
+  
+  // Add title
+  if (parseResult.title) {
+    icsContent.push(`SUMMARY:${escapeICSText(parseResult.title)}`);
+  } else {
+    icsContent.push('SUMMARY:Calendar Event');
+  }
+  
+  // Add dates
+  if (parseResult.start_datetime) {
+    const startDate = new Date(parseResult.start_datetime);
+    const endDate = parseResult.end_datetime ? 
+      new Date(parseResult.end_datetime) : 
+      new Date(startDate.getTime() + 60 * 60 * 1000); // +1 hour default
+    
+    if (parseResult.all_day) {
+      icsContent.push(`DTSTART;VALUE=DATE:${formatDateForICS(startDate)}`);
+      const nextDay = new Date(startDate);
+      nextDay.setDate(nextDay.getDate() + 1);
+      icsContent.push(`DTEND;VALUE=DATE:${formatDateForICS(nextDay)}`);
+    } else {
+      icsContent.push(`DTSTART:${formatDateTimeForICS(startDate)}`);
+      icsContent.push(`DTEND:${formatDateTimeForICS(endDate)}`);
+    }
+  }
+  
+  // Add location
+  if (parseResult.location) {
+    icsContent.push(`LOCATION:${escapeICSText(parseResult.location)}`);
+  }
+  
+  // Add description
+  if (parseResult.description) {
+    icsContent.push(`DESCRIPTION:${escapeICSText(parseResult.description)}`);
+  }
+  
+  // Add creation time
+  icsContent.push(`CREATED:${formatDateTimeForICS(now)}`);
+  icsContent.push(`LAST-MODIFIED:${formatDateTimeForICS(now)}`);
+  
+  icsContent.push('END:VEVENT');
+  icsContent.push('END:VCALENDAR');
+  
+  return icsContent.join('\r\n');
+}
+
+/**
+ * Format date for ICS (YYYYMMDD)
+ */
+function formatDateForICS(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}${month}${day}`;
+}
+
+/**
+ * Format datetime for ICS (YYYYMMDDTHHMMSSZ)
+ */
+function formatDateTimeForICS(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getUTCHours()).padStart(2, '0');
+  const minutes = String(date.getUTCMinutes()).padStart(2, '0');
+  const seconds = String(date.getUTCSeconds()).padStart(2, '0');
+  return `${year}${month}${day}T${hours}${minutes}${seconds}Z`;
+}
+
+/**
+ * Escape text for ICS format
+ */
+function escapeICSText(text) {
+  if (!text) return '';
+  
+  return text
+    .replace(/\\/g, '\\\\')
+    .replace(/;/g, '\\;')
+    .replace(/,/g, '\\,')
+    .replace(/\n/g, '\\n')
+    .replace(/\r/g, '');
+}
+
+
+
 // Handle messages from content script or popup
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'parseText') {
     parseText(request.text)
-      .then(result => sendResponse({ success: true, data: result }))
+      .then(result => {
+        // Store the parsed result for potential calendar opening
+        sendResponse({ success: true, data: result });
+      })
       .catch(error => sendResponse({ success: false, error: error.message }));
     
     // Return true to indicate we'll send a response asynchronously
+    return true;
+  }
+  
+  if (request.action === 'openCalendar') {
+    try {
+      if (request.calendarService === 'apple') {
+        // Handle Apple Calendar differently - trigger download
+        const icsContent = generateICSContent(request.eventData);
+        
+        // Create download using chrome.downloads API
+        const blob = new Blob([icsContent], { type: 'text/calendar' });
+        const url = URL.createObjectURL(blob);
+        
+        chrome.downloads.download({
+          url: url,
+          filename: `${request.eventData.title || 'event'}.ics`,
+          saveAs: true
+        }, (downloadId) => {
+          if (chrome.runtime.lastError) {
+            sendResponse({ success: false, error: chrome.runtime.lastError.message });
+          } else {
+            sendResponse({ success: true });
+            // Clean up the blob URL after download
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+          }
+        });
+      } else {
+        // Handle Google Calendar and Outlook - open in new tab
+        let calendarUrl;
+        
+        if (request.calendarService === 'outlook') {
+          calendarUrl = buildOutlookCalendarUrl(request.eventData);
+        } else {
+          calendarUrl = buildGoogleCalendarUrl(request.eventData);
+        }
+        
+        chrome.tabs.create({ url: calendarUrl });
+        sendResponse({ success: true });
+      }
+    } catch (error) {
+      sendResponse({ success: false, error: error.message });
+    }
+    
     return true;
   }
 });

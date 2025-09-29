@@ -386,64 +386,109 @@ class LLMService:
     
     def _fallback_extraction(self, text: str) -> Dict[str, Any]:
         """Fallback extraction when LLM is not available."""
-        # Basic heuristic extraction
+        # Basic heuristic extraction with enhanced due date handling
         import re
         from datetime import datetime, timedelta
         
         # Try to find basic patterns
         title = None
         start_datetime = None
+        end_datetime = None
         location = None
+        all_day = False
         
-        # Simple title extraction (first few words)
-        words = text.split()
-        if len(words) >= 2:
-            title = ' '.join(words[:4])  # First 4 words as title
-        elif len(words) == 1:
-            title = words[0]
-        
-        # Enhanced date/time pattern matching
-        date_patterns = [
-            r'\b\d{1,2}/\d{1,2}/\d{4}\b',  # MM/DD/YYYY
-            r'\b\d{1,2}-\d{1,2}-\d{4}\b',  # MM-DD-YYYY
-            r'\btomorrow\b',
-            r'\btoday\b',
-            r'\bnext \w+\b',
-            r'\bmonday\b', r'\btuesday\b', r'\bwednesday\b', r'\bthursday\b',
-            r'\bfriday\b', r'\bsaturday\b', r'\bsunday\b',
-            r'\d{1,2}:\d{2}\s*(?:am|pm|a\.m|p\.m)',  # Time patterns
-            r'\d{1,2}\s*(?:am|pm|a\.m|p\.m)',  # Simple time
-            r'\bnoon\b', r'\bmidnight\b'
+        # Check for due date patterns first (highest priority)
+        due_date_patterns = [
+            r'due\s+date[:\s]+([a-z]+\s+\d{1,2},?\s+\d{4})',  # "Due Date: Oct 15, 2025"
+            r'deadline[:\s]+([a-z]+\s+\d{1,2},?\s+\d{4})',    # "Deadline: Oct 15, 2025"
+            r'expires?\s+(?:on\s+)?([a-z]+\s+\d{1,2},?\s+\d{4})',  # "Expires on Oct 15, 2025"
+            r'ends?\s+(?:on\s+)?([a-z]+\s+\d{1,2},?\s+\d{4})',     # "Ends on Oct 15, 2025"
         ]
         
-        # Check for any date/time indicators
-        has_datetime = False
-        for pattern in date_patterns:
-            if re.search(pattern, text, re.IGNORECASE):
-                has_datetime = True
-                break
+        for pattern in due_date_patterns:
+            match = re.search(pattern, text, re.IGNORECASE)
+            if match:
+                date_str = match.group(1)
+                try:
+                    # Parse the date string
+                    parsed_date = self._parse_date_string(date_str)
+                    if parsed_date:
+                        # Create all-day event (start at 00:00, end at 23:59)
+                        start_datetime = parsed_date.replace(hour=0, minute=0, second=0, microsecond=0)
+                        end_datetime = parsed_date.replace(hour=23, minute=59, second=59, microsecond=0)
+                        all_day = True
+                        
+                        # Extract title from the text (everything before the due date)
+                        title_part = text[:match.start()].strip()
+                        if title_part:
+                            # Clean up title (remove IDs and common prefixes)
+                            title_part = re.sub(r'item\s+id[:\s]*\d+', '', title_part, flags=re.IGNORECASE)
+                            title_part = re.sub(r'title[:\s]*', '', title_part, flags=re.IGNORECASE)
+                            title_part = title_part.strip(' :-')
+                            if title_part:
+                                title = title_part
+                        
+                        if not title:
+                            title = f"Due: {date_str}"
+                        
+                        break
+                except Exception:
+                    continue
         
-        if has_datetime:
-            # Use current date + reasonable time as placeholder
-            base_time = datetime.now().replace(hour=14, minute=0, second=0, microsecond=0)
+        # If no due date found, try regular date/time extraction
+        if not start_datetime:
+            # Enhanced date/time pattern matching
+            date_patterns = [
+                r'\b\d{1,2}/\d{1,2}/\d{4}\b',  # MM/DD/YYYY
+                r'\b\d{1,2}-\d{1,2}-\d{4}\b',  # MM-DD-YYYY
+                r'\btomorrow\b',
+                r'\btoday\b',
+                r'\bnext \w+\b',
+                r'\bmonday\b', r'\btuesday\b', r'\bwednesday\b', r'\bthursday\b',
+                r'\bfriday\b', r'\bsaturday\b', r'\bsunday\b',
+                r'\d{1,2}:\d{2}\s*(?:am|pm|a\.m|p\.m)',  # Time patterns
+                r'\d{1,2}\s*(?:am|pm|a\.m|p\.m)',  # Simple time
+                r'\bnoon\b', r'\bmidnight\b'
+            ]
             
-            # Try to extract specific time if present
-            time_match = re.search(r'(\d{1,2})(?::(\d{2}))?\s*(?:am|pm|a\.m|p\.m)', text, re.IGNORECASE)
-            if time_match:
-                hour = int(time_match.group(1))
-                minute = int(time_match.group(2)) if time_match.group(2) else 0
+            # Check for any date/time indicators
+            has_datetime = False
+            for pattern in date_patterns:
+                if re.search(pattern, text, re.IGNORECASE):
+                    has_datetime = True
+                    break
+            
+            if has_datetime:
+                # Use current date + reasonable time as placeholder
+                base_time = datetime.now().replace(hour=14, minute=0, second=0, microsecond=0)
                 
-                # Handle AM/PM
-                if 'pm' in text.lower() or 'p.m' in text.lower():
-                    if hour != 12:
-                        hour += 12
-                elif 'am' in text.lower() or 'a.m' in text.lower():
-                    if hour == 12:
-                        hour = 0
-                
-                start_datetime = base_time.replace(hour=hour, minute=minute)
-            else:
-                start_datetime = base_time
+                # Try to extract specific time if present
+                time_match = re.search(r'(\d{1,2})(?::(\d{2}))?\s*(?:am|pm|a\.m|p\.m)', text, re.IGNORECASE)
+                if time_match:
+                    hour = int(time_match.group(1))
+                    minute = int(time_match.group(2)) if time_match.group(2) else 0
+                    
+                    # Handle AM/PM
+                    if 'pm' in text.lower() or 'p.m' in text.lower():
+                        if hour != 12:
+                            hour += 12
+                    elif 'am' in text.lower() or 'a.m' in text.lower():
+                        if hour == 12:
+                            hour = 0
+                    
+                    start_datetime = base_time.replace(hour=hour, minute=minute)
+                    end_datetime = start_datetime + timedelta(hours=1)
+                else:
+                    start_datetime = base_time
+                    end_datetime = start_datetime + timedelta(hours=1)
+        
+        # Simple title extraction if not already set
+        if not title:
+            words = text.split()
+            if len(words) >= 2:
+                title = ' '.join(words[:4])  # First 4 words as title
+            elif len(words) == 1:
+                title = words[0]
         
         # Enhanced location extraction
         location_indicators = ['at ', 'in ', '@ ', 'room ', 'building ', 'office ']
@@ -459,18 +504,77 @@ class LLMService:
         return {
             "title": title,
             "start_datetime": start_datetime.isoformat() if start_datetime else None,
-            "end_datetime": (start_datetime + timedelta(hours=1)).isoformat() if start_datetime else None,
+            "end_datetime": end_datetime.isoformat() if end_datetime else None,
             "location": location,
             "description": text,
+            "all_day": all_day,
             "confidence": {
-                "title": 0.4 if title else 0.0,
-                "start_datetime": 0.4 if start_datetime else 0.0,
-                "end_datetime": 0.4 if start_datetime else 0.0,
+                "title": 0.7 if all_day and title else 0.4 if title else 0.0,
+                "start_datetime": 0.8 if all_day else 0.4 if start_datetime else 0.0,
+                "end_datetime": 0.8 if all_day else 0.4 if end_datetime else 0.0,
                 "location": 0.4 if location else 0.0,
-                "overall": 0.3 if (title and start_datetime) else 0.2
+                "overall": 0.7 if all_day else 0.3 if (title and start_datetime) else 0.2
             },
-            "extraction_notes": "Heuristic fallback extraction used"
+            "extraction_notes": "Heuristic fallback extraction used" + (" - Due date detected" if all_day else "")
         }
+    
+    def _parse_date_string(self, date_str: str) -> Optional[datetime]:
+        """Parse a date string like 'Oct 15, 2025' into a datetime object."""
+        import re
+        from datetime import datetime
+        
+        # Clean up the date string
+        date_str = date_str.strip()
+        
+        # Month name mapping
+        months = {
+            'jan': 1, 'january': 1,
+            'feb': 2, 'february': 2,
+            'mar': 3, 'march': 3,
+            'apr': 4, 'april': 4,
+            'may': 5,
+            'jun': 6, 'june': 6,
+            'jul': 7, 'july': 7,
+            'aug': 8, 'august': 8,
+            'sep': 9, 'september': 9,
+            'oct': 10, 'october': 10,
+            'nov': 11, 'november': 11,
+            'dec': 12, 'december': 12
+        }
+        
+        # Try to parse "Month DD, YYYY" format
+        match = re.match(r'([a-z]+)\s+(\d{1,2}),?\s+(\d{4})', date_str, re.IGNORECASE)
+        if match:
+            month_name = match.group(1).lower()
+            day = int(match.group(2))
+            year = int(match.group(3))
+            
+            if month_name in months:
+                month = months[month_name]
+                try:
+                    return datetime(year, month, day)
+                except ValueError:
+                    pass
+        
+        # Try other common formats
+        try:
+            # Try MM/DD/YYYY
+            if '/' in date_str:
+                parts = date_str.split('/')
+                if len(parts) == 3:
+                    month, day, year = map(int, parts)
+                    return datetime(year, month, day)
+            
+            # Try YYYY-MM-DD
+            if '-' in date_str:
+                parts = date_str.split('-')
+                if len(parts) == 3:
+                    year, month, day = map(int, parts)
+                    return datetime(year, month, day)
+        except ValueError:
+            pass
+        
+        return None
     
     def llm_extract_event(self, text: str, **kwargs) -> ParsedEvent:
         """
@@ -518,6 +622,9 @@ class LLMService:
                 pass
         
         parsed_event.location = data.get('location')
+        
+        # Handle all-day events
+        parsed_event.all_day = data.get('all_day', False)
         
         # Set confidence score
         confidence_data = data.get('confidence', {})

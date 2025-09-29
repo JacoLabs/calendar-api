@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Test Calendar Event Creator Popup</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        
+        .test-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+        
+        .test-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #333;
+        }
+        
+        .test-input {
+            width: 100%;
+            min-height: 80px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+        
+        .test-button {
+            background: #4285f4;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        .test-button:hover {
+            background: #3367d6;
+        }
+        
+        .result {
+            margin-top: 15px;
+            padding: 10px;
+            background: #f5f5f5;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <h1>Calendar Event Creator - Popup Test</h1>
+    
+    <div class="test-section">
+        <div class="test-title">Test Event Parsing</div>
+        <textarea class="test-input" id="testInput" placeholder="Enter test event text here...">Meeting with John tomorrow at 2pm in Conference Room A</textarea>
+        <button class="test-button" onclick="testParsing()">Test Parse Event</button>
+        <div class="result" id="parseResult"></div>
+    </div>
+    
+    <div class="test-section">
+        <div class="test-title">Test Calendar URL Generation</div>
+        <button class="test-button" onclick="testGoogleCalendar()">Test Google Calendar URL</button>
+        <button class="test-button" onclick="testOutlookCalendar()">Test Outlook Calendar URL</button>
+        <div class="result" id="calendarResult"></div>
+    </div>
+    
+    <div class="test-section">
+        <div class="test-title">Cross-Browser Compatibility</div>
+        <p>Browser: <span id="browserInfo"></span></p>
+        <p>User Agent: <span id="userAgent"></span></p>
+        <button class="test-button" onclick="testCompatibility()">Test Browser Features</button>
+        <div class="result" id="compatibilityResult"></div>
+    </div>
+
+    <script>
+        // Mock Chrome extension APIs for testing
+        if (typeof chrome === 'undefined') {
+            window.chrome = {
+                storage: {
+                    sync: {
+                        get: (keys) => Promise.resolve({}),
+                        set: (data) => Promise.resolve()
+                    }
+                },
+                runtime: {
+                    sendMessage: (message) => {
+                        console.log('Mock sendMessage:', message);
+                        return Promise.resolve({
+                            success: true,
+                            data: {
+                                title: "Meeting with John",
+                                start_datetime: "2024-01-15T14:00:00",
+                                end_datetime: "2024-01-15T15:00:00",
+                                location: "Conference Room A",
+                                description: "Meeting with John tomorrow at 2pm in Conference Room A",
+                                confidence_score: 0.85,
+                                field_confidence: {
+                                    title: 0.9,
+                                    start_datetime: 0.8,
+                                    location: 0.7
+                                }
+                            }
+                        });
+                    }
+                }
+            };
+        }
+        
+        // Display browser info
+        document.getElementById('browserInfo').textContent = navigator.userAgent.includes('Chrome') ? 'Chrome' : 
+                                                           navigator.userAgent.includes('Firefox') ? 'Firefox' : 
+                                                           navigator.userAgent.includes('Edge') ? 'Edge' : 'Other';
+        document.getElementById('userAgent').textContent = navigator.userAgent;
+        
+        async function testParsing() {
+            const input = document.getElementById('testInput').value;
+            const result = document.getElementById('parseResult');
+            
+            try {
+                result.textContent = 'Parsing...';
+                
+                const response = await chrome.runtime.sendMessage({
+                    action: 'parseText',
+                    text: input
+                });
+                
+                result.textContent = JSON.stringify(response, null, 2);
+            } catch (error) {
+                result.textContent = 'Error: ' + error.message;
+            }
+        }
+        
+        function testGoogleCalendar() {
+            const mockEvent = {
+                title: "Test Meeting",
+                start_datetime: "2024-01-15T14:00:00",
+                end_datetime: "2024-01-15T15:00:00",
+                location: "Conference Room A",
+                description: "Test event description"
+            };
+            
+            const url = buildGoogleCalendarUrl(mockEvent);
+            document.getElementById('calendarResult').textContent = 'Google Calendar URL:\n' + url;
+        }
+        
+        function testOutlookCalendar() {
+            const mockEvent = {
+                title: "Test Meeting",
+                start_datetime: "2024-01-15T14:00:00",
+                end_datetime: "2024-01-15T15:00:00",
+                location: "Conference Room A",
+                description: "Test event description"
+            };
+            
+            const url = buildOutlookCalendarUrl(mockEvent);
+            document.getElementById('calendarResult').textContent = 'Outlook Calendar URL:\n' + url;
+        }
+        
+        function testCompatibility() {
+            const result = document.getElementById('compatibilityResult');
+            const features = {
+                'Chrome Extension APIs': typeof chrome !== 'undefined',
+                'Local Storage': typeof localStorage !== 'undefined',
+                'Fetch API': typeof fetch !== 'undefined',
+                'Promises': typeof Promise !== 'undefined',
+                'Arrow Functions': true, // If this runs, arrow functions work
+                'Template Literals': true, // If this runs, template literals work
+                'Async/Await': true // If this runs, async/await works
+            };
+            
+            result.textContent = JSON.stringify(features, null, 2);
+        }
+        
+        // Copy calendar URL building functions from background.js for testing
+        function buildGoogleCalendarUrl(parseResult) {
+            const baseUrl = 'https://calendar.google.com/calendar/render';
+            const params = new URLSearchParams();
+            
+            params.set('action', 'TEMPLATE');
+            
+            if (parseResult.title) {
+                params.set('text', parseResult.title);
+            }
+            
+            if (parseResult.start_datetime) {
+                const startDate = new Date(parseResult.start_datetime);
+                const endDate = parseResult.end_datetime ? 
+                    new Date(parseResult.end_datetime) : 
+                    new Date(startDate.getTime() + 30 * 60 * 1000);
+                
+                if (parseResult.all_day) {
+                    params.set('dates', `${formatDateForGoogle(startDate)}/${formatDateForGoogle(endDate)}`);
+                } else {
+                    params.set('dates', `${formatDateTimeForGoogle(startDate)}/${formatDateTimeForGoogle(endDate)}`);
+                }
+            }
+            
+            if (parseResult.location) {
+                params.set('location', parseResult.location);
+            }
+            
+            if (parseResult.description) {
+                params.set('details', parseResult.description);
+            }
+            
+            return `${baseUrl}?${params.toString()}`;
+        }
+        
+        function buildOutlookCalendarUrl(parseResult) {
+            const baseUrl = 'https://outlook.live.com/calendar/0/deeplink/compose';
+            const params = new URLSearchParams();
+            
+            if (parseResult.title) {
+                params.set('subject', parseResult.title);
+            }
+            
+            if (parseResult.start_datetime) {
+                const startDate = new Date(parseResult.start_datetime);
+                params.set('startdt', startDate.toISOString());
+                
+                if (parseResult.end_datetime) {
+                    const endDate = new Date(parseResult.end_datetime);
+                    params.set('enddt', endDate.toISOString());
+                } else {
+                    const endDate = new Date(startDate.getTime() + 30 * 60 * 1000);
+                    params.set('enddt', endDate.toISOString());
+                }
+            }
+            
+            if (parseResult.location) {
+                params.set('location', parseResult.location);
+            }
+            
+            if (parseResult.description) {
+                params.set('body', parseResult.description);
+            }
+            
+            if (parseResult.all_day) {
+                params.set('allday', 'true');
+            }
+            
+            return `${baseUrl}?${params.toString()}`;
+        }
+        
+        function formatDateForGoogle(date) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}${month}${day}`;
+        }
+        
+        function formatDateTimeForGoogle(date) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            const hours = String(date.getUTCHours()).padStart(2, '0');
+            const minutes = String(date.getUTCMinutes()).padStart(2, '0');
+            const seconds = String(date.getUTCSeconds()).padStart(2, '0');
+            return `${year}${month}${day}T${hours}${minutes}${seconds}Z`;
+        }
+    </script>
+</body>
+</html>

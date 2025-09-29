@@ -141,6 +141,187 @@
         .examples strong {
             color: #333;
         }
+        
+        /* Event Results Styles */
+        .event-results {
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 16px;
+            background: #f9f9f9;
+        }
+        
+        .event-field {
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .event-field:last-of-type {
+            border-bottom: none;
+        }
+        
+        .field-label {
+            font-weight: 600;
+            color: #333;
+            font-size: 13px;
+            display: block;
+            margin-bottom: 4px;
+        }
+        
+        .field-value {
+            color: #555;
+            font-size: 14px;
+            min-height: 18px;
+            word-wrap: break-word;
+        }
+        
+        .field-value.empty {
+            color: #999;
+            font-style: italic;
+        }
+        
+        .confidence-score {
+            font-size: 11px;
+            color: #666;
+            margin-top: 2px;
+        }
+        
+        .confidence-high {
+            color: #137333;
+        }
+        
+        .confidence-medium {
+            color: #ea8600;
+        }
+        
+        .confidence-low {
+            color: #d93025;
+        }
+        
+        .overall-confidence {
+            margin: 16px 0;
+            padding: 12px;
+            background: white;
+            border-radius: 6px;
+            border: 1px solid #e0e0e0;
+        }
+        
+        .confidence-label {
+            font-weight: 600;
+            font-size: 13px;
+            color: #333;
+        }
+        
+        .confidence-bar {
+            width: 100%;
+            height: 8px;
+            background: #e0e0e0;
+            border-radius: 4px;
+            margin: 6px 0;
+            overflow: hidden;
+        }
+        
+        .confidence-progress {
+            height: 100%;
+            background: #4caf50;
+            border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+        
+        .confidence-text {
+            font-size: 12px;
+            color: #666;
+        }
+        
+        /* Calendar Button Styles */
+        .calendar-buttons {
+            margin: 16px 0;
+        }
+        
+        .calendar-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+        
+        .google-btn {
+            background: #4285f4;
+            border: 1px solid #4285f4;
+        }
+        
+        .google-btn:hover {
+            background: #3367d6;
+        }
+        
+        .outlook-btn {
+            background: #0078d4;
+            border: 1px solid #0078d4;
+        }
+        
+        .outlook-btn:hover {
+            background: #106ebe;
+        }
+        
+        .apple-btn {
+            background: #007aff;
+            border: 1px solid #007aff;
+        }
+        
+        .apple-btn:hover {
+            background: #0056cc;
+        }
+        
+        .btn-icon {
+            font-size: 16px;
+        }
+        
+        .action-buttons {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .action-buttons .button {
+            flex: 1;
+            margin-bottom: 0;
+        }
+        
+        /* Advanced Settings */
+        .advanced-settings {
+            margin-top: 8px;
+        }
+        
+        .advanced-toggle {
+            font-size: 12px;
+            color: #1a73e8;
+            cursor: pointer;
+            text-decoration: underline;
+        }
+        
+        .advanced-content {
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid #eee;
+        }
+        
+        /* Responsive adjustments */
+        @media (max-width: 350px) {
+            body {
+                width: 280px;
+                padding: 12px;
+            }
+            
+            .action-buttons {
+                flex-direction: column;
+            }
+            
+            .action-buttons .button {
+                margin-bottom: 8px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -160,23 +341,108 @@
     
     <div id="status" class="status" style="display: none;"></div>
     
-    <button id="createEventBtn" class="button">Create Calendar Event</button>
-    <button id="getSelectionBtn" class="button secondary-button">Use Selected Text</button>
+    <!-- Event Results Display -->
+    <div id="eventResults" class="event-results" style="display: none;">
+        <div class="section-title">Parsed Event Details</div>
+        
+        <div class="event-field">
+            <label class="field-label">Title:</label>
+            <div id="eventTitle" class="field-value"></div>
+            <div id="titleConfidence" class="confidence-score"></div>
+        </div>
+        
+        <div class="event-field">
+            <label class="field-label">Date & Time:</label>
+            <div id="eventDateTime" class="field-value"></div>
+            <div id="dateTimeConfidence" class="confidence-score"></div>
+        </div>
+        
+        <div class="event-field">
+            <label class="field-label">Location:</label>
+            <div id="eventLocation" class="field-value"></div>
+            <div id="locationConfidence" class="confidence-score"></div>
+        </div>
+        
+        <div class="event-field">
+            <label class="field-label">Description:</label>
+            <div id="eventDescription" class="field-value"></div>
+        </div>
+        
+        <div class="overall-confidence">
+            <span class="confidence-label">Overall Confidence:</span>
+            <div id="overallConfidence" class="confidence-bar">
+                <div id="confidenceProgress" class="confidence-progress"></div>
+            </div>
+            <span id="confidenceText" class="confidence-text"></span>
+        </div>
+        
+        <!-- Calendar Integration Buttons -->
+        <div class="calendar-buttons">
+            <button id="googleCalendarBtn" class="button calendar-btn google-btn">
+                <span class="btn-icon">📅</span>
+                Add to Google Calendar
+            </button>
+            <button id="outlookCalendarBtn" class="button calendar-btn outlook-btn">
+                <span class="btn-icon">📆</span>
+                Add to Outlook Calendar
+            </button>
+            <button id="appleCalendarBtn" class="button calendar-btn apple-btn">
+                <span class="btn-icon">🍎</span>
+                Add to Apple Calendar
+            </button>
+        </div>
+        
+        <div class="action-buttons">
+            <button id="editEventBtn" class="button secondary-button">Edit Details</button>
+            <button id="parseAgainBtn" class="button secondary-button">Parse Different Text</button>
+        </div>
+    </div>
+    
+    <!-- Input Section -->
+    <div id="inputSection">
+        <button id="createEventBtn" class="button">Parse Text & Create Event</button>
+        <button id="getSelectionBtn" class="button secondary-button">Use Selected Text</button>
+    </div>
     
     <div class="settings">
         <div class="section-title">Settings</div>
         
         <div class="setting-item">
-            <span class="setting-label">Calendar Service:</span>
+            <span class="setting-label">Default Calendar:</span>
             <select id="calendarService" class="select">
                 <option value="google">Google Calendar</option>
                 <option value="outlook">Outlook Calendar</option>
+                <option value="apple">Apple Calendar (iCal)</option>
             </select>
         </div>
         
         <div class="setting-item">
             <span class="setting-label">Show floating button:</span>
             <input type="checkbox" id="showFloatingButton">
+        </div>
+        
+        <div class="advanced-settings">
+            <div class="advanced-toggle" id="advancedToggle">Advanced Settings ▼</div>
+            <div class="advanced-content" id="advancedContent" style="display: none;">
+                <div class="setting-item">
+                    <span class="setting-label">Auto-parse on selection:</span>
+                    <input type="checkbox" id="autoParseSelection">
+                </div>
+                
+                <div class="setting-item">
+                    <span class="setting-label">Confidence threshold:</span>
+                    <select id="confidenceThreshold" class="select">
+                        <option value="0.3">Low (30%)</option>
+                        <option value="0.5" selected>Medium (50%)</option>
+                        <option value="0.7">High (70%)</option>
+                    </select>
+                </div>
+                
+                <div class="setting-item">
+                    <span class="setting-label">Show confidence scores:</span>
+                    <input type="checkbox" id="showConfidenceScores" checked>
+                </div>
+            </div>
         </div>
     </div>
     

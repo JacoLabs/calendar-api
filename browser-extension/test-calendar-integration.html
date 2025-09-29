@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calendar Integration Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        
+        .test-section {
+            background: #f8f9fa;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            border: 1px solid #e9ecef;
+        }
+        
+        .calendar-test {
+            display: flex;
+            gap: 15px;
+            margin: 15px 0;
+            flex-wrap: wrap;
+        }
+        
+        .calendar-btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            text-decoration: none;
+            display: inline-block;
+            color: white;
+            transition: background-color 0.2s;
+        }
+        
+        .google-btn {
+            background: #4285f4;
+        }
+        
+        .google-btn:hover {
+            background: #3367d6;
+        }
+        
+        .outlook-btn {
+            background: #0078d4;
+        }
+        
+        .outlook-btn:hover {
+            background: #106ebe;
+        }
+        
+        .apple-btn {
+            background: #007aff;
+        }
+        
+        .apple-btn:hover {
+            background: #0056cc;
+        }
+        
+        .event-details {
+            background: white;
+            padding: 15px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+            margin: 10px 0;
+            font-family: monospace;
+            font-size: 14px;
+        }
+        
+        .instructions {
+            background: #e8f5e8;
+            padding: 15px;
+            border-radius: 4px;
+            border: 1px solid #c6e7c6;
+            margin-bottom: 20px;
+        }
+        
+        .url-display {
+            background: #f1f3f4;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+            word-break: break-all;
+            margin-top: 10px;
+            border: 1px solid #dadce0;
+        }
+        
+        h3 {
+            color: #333;
+            margin-top: 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>📅 Calendar Integration Test</h1>
+    
+    <div class="instructions">
+        <h3>Testing Calendar URL Generation</h3>
+        <p>This page tests the calendar URL generation for Google Calendar, Outlook, and Apple Calendar (ICS). 
+        Click the buttons below to test each integration with sample event data.</p>
+    </div>
+    
+    <div class="test-section">
+        <h3>Test Event 1: Simple Meeting</h3>
+        <div class="event-details">
+Title: Team Standup Meeting<br>
+Start: 2024-01-16T09:00:00-05:00<br>
+End: 2024-01-16T09:30:00-05:00<br>
+Location: Conference Room A<br>
+Description: Weekly team standup meeting
+        </div>
+        
+        <div class="calendar-test">
+            <a href="#" class="calendar-btn google-btn" onclick="testGoogleCalendar(event1)">📅 Google Calendar</a>
+            <a href="#" class="calendar-btn outlook-btn" onclick="testOutlookCalendar(event1)">📆 Outlook Calendar</a>
+            <a href="#" class="calendar-btn apple-btn" onclick="testAppleCalendar(event1)">🍎 Apple Calendar (ICS)</a>
+        </div>
+        
+        <div id="urls1" class="url-display" style="display: none;"></div>
+    </div>
+    
+    <div class="test-section">
+        <h3>Test Event 2: All-Day Event</h3>
+        <div class="event-details">
+Title: Company Retreat<br>
+Start: 2024-02-15T00:00:00-05:00<br>
+End: 2024-02-16T00:00:00-05:00<br>
+Location: Mountain View Resort<br>
+Description: Annual company retreat and team building<br>
+All Day: true
+        </div>
+        
+        <div class="calendar-test">
+            <a href="#" class="calendar-btn google-btn" onclick="testGoogleCalendar(event2)">📅 Google Calendar</a>
+            <a href="#" class="calendar-btn outlook-btn" onclick="testOutlookCalendar(event2)">📆 Outlook Calendar</a>
+            <a href="#" class="calendar-btn apple-btn" onclick="testAppleCalendar(event2)">🍎 Apple Calendar (ICS)</a>
+        </div>
+        
+        <div id="urls2" class="url-display" style="display: none;"></div>
+    </div>
+    
+    <div class="test-section">
+        <h3>Test Event 3: Long Event with Complex Details</h3>
+        <div class="event-details">
+Title: Q4 Planning Workshop<br>
+Start: 2024-03-20T10:00:00-04:00<br>
+End: 2024-03-20T16:00:00-04:00<br>
+Location: Main Conference Room, Building A, 3rd Floor<br>
+Description: Quarterly planning session including budget review, goal setting, and team assignments. Please bring laptops and Q3 reports.
+        </div>
+        
+        <div class="calendar-test">
+            <a href="#" class="calendar-btn google-btn" onclick="testGoogleCalendar(event3)">📅 Google Calendar</a>
+            <a href="#" class="calendar-btn outlook-btn" onclick="testOutlookCalendar(event3)">📆 Outlook Calendar</a>
+            <a href="#" class="calendar-btn apple-btn" onclick="testAppleCalendar(event3)">🍎 Apple Calendar (ICS)</a>
+        </div>
+        
+        <div id="urls3" class="url-display" style="display: none;"></div>
+    </div>
+    
+    <div class="test-section">
+        <h3>Extension Integration Test</h3>
+        <p>If you have the Calendar Event Creator extension installed, you can test the full integration:</p>
+        <ol>
+            <li>Select any of the event text above</li>
+            <li>Right-click and choose "Create calendar event"</li>
+            <li>Or click the extension icon and paste the text</li>
+        </ol>
+        
+        <div class="event-details" style="cursor: text; user-select: text;">
+Meeting with Sarah tomorrow at 2:30 PM in the downtown office for project review
+        </div>
+    </div>
+
+    <script>
+        // Test event data
+        const event1 = {
+            title: 'Team Standup Meeting',
+            start_datetime: '2024-01-16T09:00:00-05:00',
+            end_datetime: '2024-01-16T09:30:00-05:00',
+            location: 'Conference Room A',
+            description: 'Weekly team standup meeting',
+            all_day: false
+        };
+        
+        const event2 = {
+            title: 'Company Retreat',
+            start_datetime: '2024-02-15T00:00:00-05:00',
+            end_datetime: '2024-02-16T00:00:00-05:00',
+            location: 'Mountain View Resort',
+            description: 'Annual company retreat and team building',
+            all_day: true
+        };
+        
+        const event3 = {
+            title: 'Q4 Planning Workshop',
+            start_datetime: '2024-03-20T10:00:00-04:00',
+            end_datetime: '2024-03-20T16:00:00-04:00',
+            location: 'Main Conference Room, Building A, 3rd Floor',
+            description: 'Quarterly planning session including budget review, goal setting, and team assignments. Please bring laptops and Q3 reports.',
+            all_day: false
+        };
+        
+        // Calendar URL builders (copied from extension)
+        function buildGoogleCalendarUrl(parseResult) {
+            const baseUrl = 'https://calendar.google.com/calendar/render';
+            const params = new URLSearchParams();
+            
+            params.set('action', 'TEMPLATE');
+            
+            if (parseResult.title) {
+                params.set('text', parseResult.title);
+            }
+            
+            if (parseResult.start_datetime) {
+                const startDate = new Date(parseResult.start_datetime);
+                const endDate = parseResult.end_datetime ? 
+                    new Date(parseResult.end_datetime) : 
+                    new Date(startDate.getTime() + 60 * 60 * 1000);
+                
+                if (parseResult.all_day) {
+                    const nextDay = new Date(startDate);
+                    nextDay.setDate(nextDay.getDate() + 1);
+                    params.set('dates', `${formatDateForGoogle(startDate)}/${formatDateForGoogle(nextDay)}`);
+                } else {
+                    params.set('dates', `${formatDateTimeForGoogle(startDate)}/${formatDateTimeForGoogle(endDate)}`);
+                }
+            }
+            
+            if (parseResult.location) {
+                params.set('location', parseResult.location);
+            }
+            
+            if (parseResult.description) {
+                params.set('details', parseResult.description);
+            }
+            
+            return `${baseUrl}?${params.toString()}`;
+        }
+        
+        function buildOutlookCalendarUrl(parseResult) {
+            const baseUrl = 'https://outlook.live.com/calendar/0/deeplink/compose';
+            const params = new URLSearchParams();
+            
+            if (parseResult.title) {
+                params.set('subject', parseResult.title);
+            }
+            
+            if (parseResult.start_datetime) {
+                const startDate = new Date(parseResult.start_datetime);
+                params.set('startdt', startDate.toISOString());
+                
+                if (parseResult.end_datetime) {
+                    const endDate = new Date(parseResult.end_datetime);
+                    params.set('enddt', endDate.toISOString());
+                } else {
+                    const endDate = new Date(startDate.getTime() + 60 * 60 * 1000);
+                    params.set('enddt', endDate.toISOString());
+                }
+            }
+            
+            if (parseResult.location) {
+                params.set('location', parseResult.location);
+            }
+            
+            if (parseResult.description) {
+                params.set('body', parseResult.description);
+            }
+            
+            if (parseResult.all_day) {
+                params.set('allday', 'true');
+            }
+            
+            return `${baseUrl}?${params.toString()}`;
+        }
+        
+        function generateICSContent(parseResult) {
+            const now = new Date();
+            const uid = `${now.getTime()}@calendar-event-creator`;
+            
+            let icsContent = [
+                'BEGIN:VCALENDAR',
+                'VERSION:2.0',
+                'PRODID:-//Calendar Event Creator//EN',
+                'CALSCALE:GREGORIAN',
+                'METHOD:PUBLISH',
+                'BEGIN:VEVENT',
+                `UID:${uid}`,
+                `DTSTAMP:${formatDateTimeForICS(now)}`
+            ];
+            
+            if (parseResult.title) {
+                icsContent.push(`SUMMARY:${escapeICSText(parseResult.title)}`);
+            } else {
+                icsContent.push('SUMMARY:Calendar Event');
+            }
+            
+            if (parseResult.start_datetime) {
+                const startDate = new Date(parseResult.start_datetime);
+                const endDate = parseResult.end_datetime ? 
+                    new Date(parseResult.end_datetime) : 
+                    new Date(startDate.getTime() + 60 * 60 * 1000);
+                
+                if (parseResult.all_day) {
+                    icsContent.push(`DTSTART;VALUE=DATE:${formatDateForICS(startDate)}`);
+                    const nextDay = new Date(startDate);
+                    nextDay.setDate(nextDay.getDate() + 1);
+                    icsContent.push(`DTEND;VALUE=DATE:${formatDateForICS(nextDay)}`);
+                } else {
+                    icsContent.push(`DTSTART:${formatDateTimeForICS(startDate)}`);
+                    icsContent.push(`DTEND:${formatDateTimeForICS(endDate)}`);
+                }
+            }
+            
+            if (parseResult.location) {
+                icsContent.push(`LOCATION:${escapeICSText(parseResult.location)}`);
+            }
+            
+            if (parseResult.description) {
+                icsContent.push(`DESCRIPTION:${escapeICSText(parseResult.description)}`);
+            }
+            
+            icsContent.push(`CREATED:${formatDateTimeForICS(now)}`);
+            icsContent.push(`LAST-MODIFIED:${formatDateTimeForICS(now)}`);
+            icsContent.push('END:VEVENT');
+            icsContent.push('END:VCALENDAR');
+            
+            return icsContent.join('\r\n');
+        }
+        
+        // Helper functions
+        function formatDateForGoogle(date) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}${month}${day}`;
+        }
+        
+        function formatDateTimeForGoogle(date) {
+            const utcDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+            const year = utcDate.getFullYear();
+            const month = String(utcDate.getMonth() + 1).padStart(2, '0');
+            const day = String(utcDate.getDate()).padStart(2, '0');
+            const hours = String(utcDate.getHours()).padStart(2, '0');
+            const minutes = String(utcDate.getMinutes()).padStart(2, '0');
+            const seconds = String(utcDate.getSeconds()).padStart(2, '0');
+            return `${year}${month}${day}T${hours}${minutes}${seconds}Z`;
+        }
+        
+        function formatDateForICS(date) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}${month}${day}`;
+        }
+        
+        function formatDateTimeForICS(date) {
+            const utcDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+            const year = utcDate.getFullYear();
+            const month = String(utcDate.getMonth() + 1).padStart(2, '0');
+            const day = String(utcDate.getDate()).padStart(2, '0');
+            const hours = String(utcDate.getHours()).padStart(2, '0');
+            const minutes = String(utcDate.getMinutes()).padStart(2, '0');
+            const seconds = String(utcDate.getSeconds()).padStart(2, '0');
+            return `${year}${month}${day}T${hours}${minutes}${seconds}Z`;
+        }
+        
+        function escapeICSText(text) {
+            if (!text) return '';
+            return text
+                .replace(/\\/g, '\\\\')
+                .replace(/;/g, '\\;')
+                .replace(/,/g, '\\,')
+                .replace(/\n/g, '\\n')
+                .replace(/\r/g, '');
+        }
+        
+        // Test functions
+        function testGoogleCalendar(eventData) {
+            const url = buildGoogleCalendarUrl(eventData);
+            window.open(url, '_blank');
+            showUrl(eventData, 'Google Calendar', url);
+        }
+        
+        function testOutlookCalendar(eventData) {
+            const url = buildOutlookCalendarUrl(eventData);
+            window.open(url, '_blank');
+            showUrl(eventData, 'Outlook Calendar', url);
+        }
+        
+        function testAppleCalendar(eventData) {
+            const icsContent = generateICSContent(eventData);
+            const blob = new Blob([icsContent], { type: 'text/calendar' });
+            const url = URL.createObjectURL(blob);
+            
+            // Create download link
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${eventData.title || 'event'}.ics`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            
+            // Clean up
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+            
+            showUrl(eventData, 'Apple Calendar (ICS)', 'Downloaded ICS file');
+        }
+        
+        function showUrl(eventData, service, url) {
+            // Find the right URL display div
+            let urlDiv;
+            if (eventData === event1) urlDiv = document.getElementById('urls1');
+            else if (eventData === event2) urlDiv = document.getElementById('urls2');
+            else if (eventData === event3) urlDiv = document.getElementById('urls3');
+            
+            if (urlDiv) {
+                urlDiv.innerHTML = `<strong>${service}:</strong><br>${url}`;
+                urlDiv.style.display = 'block';
+            }
+        }
+    </script>
+</body>
+</html>

@@ -47,6 +47,7 @@ Extract the following information when present:
 - end_datetime: Date and time when the event ends (if specified or can be inferred)
 - location: Where the event takes place (optional)
 - description: Additional details about the event
+- all_day: Whether this is an all-day event (boolean)
 
 IMPORTANT RULES:
 1. Always respond with valid JSON
@@ -57,6 +58,12 @@ IMPORTANT RULES:
 6. Provide confidence scores (0.0-1.0) for each extracted field
 7. Handle typos and variations in date/time formats (9a.m, 9am, 9:00 A M)
 
+CRITICAL ALL-DAY EVENT RULES:
+8. If text contains "due date", "deadline", "expires", "ends on" with ONLY a date (no time), create an ALL-DAY event on that date
+9. If text has a date but NO time context, default to ALL-DAY event rather than assuming a time
+10. For all-day events, set start_datetime to the date at 00:00:00 and end_datetime to the next day at 00:00:00
+11. Set all_day: true for events that should be all-day
+
 Response format:
 {
   "title": "string or null",
@@ -64,6 +71,7 @@ Response format:
   "end_datetime": "ISO datetime string or null",
   "location": "string or null",
   "description": "string or null",
+  "all_day": true/false,
   "confidence": {
     "title": 0.0-1.0,
     "start_datetime": 0.0-1.0,
@@ -153,6 +161,7 @@ Response format:
   "end_datetime": "most likely end time or null",
   "location": "most likely location or null", 
   "description": "string or null",
+  "all_day": true/false,
   "confidence": {
     "title": 0.0-1.0,
     "start_datetime": 0.0-1.0,

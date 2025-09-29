@@ -11,9 +11,11 @@ import logging
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
 import pytz
 import uvicorn
+from urllib.parse import unquote
 
 # Add parent directories to path to import existing services
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -89,6 +91,16 @@ class HealthResponse(BaseModel):
     version: str
 
 
+class ICSRequest(BaseModel):
+    """Request model for ICS file generation."""
+    title: Optional[str] = Field(default=None, description="Event title")
+    start: Optional[str] = Field(default=None, description="Start datetime in ISO format")
+    end: Optional[str] = Field(default=None, description="End datetime in ISO format")
+    location: Optional[str] = Field(default=None, description="Event location")
+    description: Optional[str] = Field(default=None, description="Event description")
+    allday: Optional[bool] = Field(default=False, description="All-day event flag")
+
+
 @app.get("/")
 async def root():
     """Root endpoint with API information."""
@@ -103,12 +115,18 @@ async def root():
             "openapi": "/openapi.json"
         },
         "example_usage": {
-            "method": "POST",
-            "url": "/parse",
-            "body": {
-                "text": "Meeting with John tomorrow at 2pm",
-                "timezone": "America/New_York",
-                "locale": "en_US"
+            "parse": {
+                "method": "POST",
+                "url": "/parse",
+                "body": {
+                    "text": "Meeting with John tomorrow at 2pm",
+                    "timezone": "America/New_York",
+                    "locale": "en_US"
+                }
+            },
+            "ics": {
+                "method": "GET",
+                "url": "/ics?title=Meeting&start=2024-01-16T14:00:00&end=2024-01-16T15:00:00"
             }
         }
     }
@@ -207,6 +225,11 @@ def _format_datetime_with_tz(dt: Optional[datetime], timezone: str) -> Optional[
 
 def _is_all_day_event(parsed_event: ParsedEvent) -> bool:
     """Determine if this should be treated as an all-day event."""
+    # Use the all_day field from the parsed event if available
+    if hasattr(parsed_event, 'all_day'):
+        return parsed_event.all_day
+    
+    # Fallback to heuristic detection for older parsing results
     if not parsed_event.start_datetime or not parsed_event.end_datetime:
         return False
     
@@ -220,6 +243,170 @@ def _is_all_day_event(parsed_event: ParsedEvent) -> bool:
         (start_time.hour == 0 and start_time.minute == 0 and duration.days >= 1) or
         (parsed_event.confidence_score < 0.5 and 'all day' in (parsed_event.description or '').lower())
     )
+
+
+@app.get("/ics")
+async def generate_ics(
+    title: Optional[str] = None,
+    start: Optional[str] = None,
+    end: Optional[str] = None,
+    location: Optional[str] = None,
+    description: Optional[str] = None,
+    allday: Optional[bool] = False,
+    http_request: Request = None
+):
+    """
+    Generate an ICS (iCalendar) file for Apple Calendar and other calendar applications.
+    
+    Returns an ICS file that can be downloaded or opened directly in calendar applications.
+    """
+    try:
+        # Log request metadata
+        client_ip = http_request.client.host if http_request.client else "unknown"
+        logger.info(f"ICS generation request from {client_ip}")
+        
+        # Generate ICS content
+        ics_content = _generate_ics_content(
+            title=title,
+            start_datetime=start,
+            end_datetime=end,
+            location=location,
+            description=description,
+            all_day=allday
+        )
+        
+        # Return ICS file with proper headers
+        return Response(
+            content=ics_content,
+            media_type="text/calendar",
+            headers={
+                "Content-Disposition": f"attachment; filename=event.ics",
+                "Cache-Control": "no-cache"
+            }
+        )
+        
+    except Exception as e:
+        logger.error(f"ICS generation error: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to generate ICS file: {str(e)}"
+        )
+
+
+def _generate_ics_content(
+    title: Optional[str] = None,
+    start_datetime: Optional[str] = None,
+    end_datetime: Optional[str] = None,
+    location: Optional[str] = None,
+    description: Optional[str] = None,
+    all_day: bool = False
+) -> str:
+    """Generate ICS file content."""
+    import uuid
+    
+    # Generate unique ID
+    uid = f"{uuid.uuid4()}@calendar-event-creator"
+    now = datetime.utcnow()
+    
+    # Start building ICS content
+    ics_lines = [
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        "PRODID:-//Calendar Event Creator//EN",
+        "CALSCALE:GREGORIAN",
+        "METHOD:PUBLISH",
+        "BEGIN:VEVENT",
+        f"UID:{uid}",
+        f"DTSTAMP:{_format_datetime_for_ics(now)}"
+    ]
+    
+    # Add title
+    if title:
+        ics_lines.append(f"SUMMARY:{_escape_ics_text(title)}")
+    else:
+        ics_lines.append("SUMMARY:Calendar Event")
+    
+    # Add dates
+    if start_datetime:
+        try:
+            start_dt = datetime.fromisoformat(start_datetime.replace('Z', '+00:00'))
+            
+            if all_day:
+                # All-day event
+                ics_lines.append(f"DTSTART;VALUE=DATE:{_format_date_for_ics(start_dt)}")
+                if end_datetime:
+                    end_dt = datetime.fromisoformat(end_datetime.replace('Z', '+00:00'))
+                else:
+                    # Default to next day for all-day events
+                    from datetime import timedelta
+                    end_dt = start_dt + timedelta(days=1)
+                ics_lines.append(f"DTEND;VALUE=DATE:{_format_date_for_ics(end_dt)}")
+            else:
+                # Timed event
+                ics_lines.append(f"DTSTART:{_format_datetime_for_ics(start_dt)}")
+                if end_datetime:
+                    end_dt = datetime.fromisoformat(end_datetime.replace('Z', '+00:00'))
+                else:
+                    # Default to +1 hour
+                    from datetime import timedelta
+                    end_dt = start_dt + timedelta(hours=1)
+                ics_lines.append(f"DTEND:{_format_datetime_for_ics(end_dt)}")
+                
+        except Exception as e:
+            logger.warning(f"Date parsing error in ICS generation: {e}")
+            # Add current time as fallback
+            ics_lines.append(f"DTSTART:{_format_datetime_for_ics(now)}")
+            from datetime import timedelta
+            ics_lines.append(f"DTEND:{_format_datetime_for_ics(now + timedelta(hours=1))}")
+    
+    # Add location
+    if location:
+        ics_lines.append(f"LOCATION:{_escape_ics_text(location)}")
+    
+    # Add description
+    if description:
+        ics_lines.append(f"DESCRIPTION:{_escape_ics_text(description)}")
+    
+    # Add creation time
+    ics_lines.append(f"CREATED:{_format_datetime_for_ics(now)}")
+    ics_lines.append(f"LAST-MODIFIED:{_format_datetime_for_ics(now)}")
+    
+    # Close event and calendar
+    ics_lines.extend([
+        "END:VEVENT",
+        "END:VCALENDAR"
+    ])
+    
+    return "\r\n".join(ics_lines)
+
+
+def _format_date_for_ics(dt: datetime) -> str:
+    """Format date for ICS (YYYYMMDD)."""
+    return dt.strftime("%Y%m%d")
+
+
+def _format_datetime_for_ics(dt: datetime) -> str:
+    """Format datetime for ICS (YYYYMMDDTHHMMSSZ)."""
+    # Convert to UTC if not already
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=pytz.UTC)
+    elif dt.tzinfo != pytz.UTC:
+        dt = dt.astimezone(pytz.UTC)
+    
+    return dt.strftime("%Y%m%dT%H%M%SZ")
+
+
+def _escape_ics_text(text: str) -> str:
+    """Escape text for ICS format."""
+    if not text:
+        return ""
+    
+    return (text
+            .replace("\\", "\\\\")
+            .replace(";", "\\;")
+            .replace(",", "\\,")
+            .replace("\n", "\\n")
+            .replace("\r", ""))
 
 
 # Custom middleware to prevent request body logging

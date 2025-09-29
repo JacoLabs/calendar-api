@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calendar Event Creator Extension Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        
+        .test-section {
+            background: #f5f5f5;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            border-left: 4px solid #4285f4;
+        }
+        
+        .test-text {
+            background: white;
+            padding: 15px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+            margin: 10px 0;
+            cursor: text;
+            user-select: text;
+        }
+        
+        .instructions {
+            background: #e8f5e8;
+            padding: 15px;
+            border-radius: 4px;
+            border: 1px solid #c6e7c6;
+            margin-bottom: 20px;
+        }
+        
+        .instructions h3 {
+            margin-top: 0;
+            color: #137333;
+        }
+        
+        .test-title {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>📅 Calendar Event Creator Extension Test Page</h1>
+    
+    <div class="instructions">
+        <h3>How to Test the Extension:</h3>
+        <ol>
+            <li>Install the Calendar Event Creator extension in your browser</li>
+            <li>Select any of the text examples below</li>
+            <li>Right-click and choose "Create calendar event"</li>
+            <li>Or use the extension popup to paste text directly</li>
+        </ol>
+    </div>
+    
+    <div class="test-section">
+        <div class="test-title">Simple Meeting</div>
+        <div class="test-text">
+            Meeting with John tomorrow at 2pm in Conference Room A
+        </div>
+    </div>
+    
+    <div class="test-section">
+        <div class="test-title">Lunch Appointment</div>
+        <div class="test-text">
+            Lunch with Sarah next Friday from 12:30-1:30 at The Keg Restaurant downtown
+        </div>
+    </div>
+    
+    <div class="test-section">
+        <div class="test-title">Conference Call</div>
+        <div class="test-text">
+            Weekly team standup call every Monday at 9:00 AM for 30 minutes. Join via Zoom link in calendar.
+        </div>
+    </div>
+    
+    <div class="test-section">
+        <div class="test-title">All-Day Event</div>
+        <div class="test-text">
+            Company retreat on September 30th, 2025 at the Mountain View Resort
+        </div>
+    </div>
+    
+    <div class="test-section">
+        <div class="test-title">Complex Email Format</div>
+        <div class="test-text">
+            Hi everyone,
+            
+            Just a reminder about our quarterly planning session:
+            
+            • Date: Monday, October 7th, 2025
+            • Time: 10:00 AM - 12:00 PM PST
+            • Location: Main conference room (Building A, 3rd floor)
+            • Agenda: Q4 goals and budget review
+            
+            Please bring your laptops and quarterly reports.
+            
+            Thanks,
+            Alex
+        </div>
+    </div>
+    
+    <div class="test-section">
+        <div class="test-title">Relative Date Example</div>
+        <div class="test-text">
+            Doctor appointment this Thursday at 3:30 PM at City Medical Center, 123 Health Street
+        </div>
+    </div>
+    
+    <div class="test-section">
+        <div class="test-title">Informal Event</div>
+        <div class="test-text">
+            Coffee with Mike tomorrow morning around 10am at Starbucks on Main Street
+        </div>
+    </div>
+    
+    <div class="test-section">
+        <div class="test-title">Multi-Day Event</div>
+        <div class="test-text">
+            Tech conference from October 15-17, 2025 at the Convention Center. Registration starts at 8 AM each day.
+        </div>
+    </div>
+    
+    <div class="test-section">
+        <div class="test-title">Evening Event</div>
+        <div class="test-text">
+            Birthday party for Emma on Saturday evening at 7 PM. Location: 456 Oak Avenue, bring a gift!
+        </div>
+    </div>
+    
+    <div class="test-section">
+        <div class="test-title">Workshop with Duration</div>
+        <div class="test-text">
+            Python programming workshop next Wednesday from 2:00 PM for 3 hours at the Community Center
+        </div>
+    </div>
+    
+    <h2>Testing Instructions</h2>
+    <p>
+        Select any of the text blocks above and right-click to access the "Create calendar event" option.
+        The extension should parse the text and open your preferred calendar service with the event details pre-filled.
+    </p>
+    
+    <p>
+        You can also test the popup interface by clicking the extension icon and pasting text directly into the input field.
+    </p>
+    
+    <h3>Expected Behavior:</h3>
+    <ul>
+        <li>Text should be parsed to extract title, date, time, and location</li>
+        <li>Confidence scores should be displayed for each field</li>
+        <li>Calendar integration should work for Google Calendar, Outlook, and Apple Calendar</li>
+        <li>Settings should persist between sessions</li>
+    </ul>
+</body>
+</html>
