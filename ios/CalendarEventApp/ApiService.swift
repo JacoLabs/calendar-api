@@ -7,6 +7,17 @@ class ApiService {
     private init() {}
     
     func parseText(_ text: String, completion: @escaping (Result<ParsedEvent, Error>) -> Void) {
+        // Validate input
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            completion(.failure(ApiError.validationError("Please provide text containing event information.")))
+            return
+        }
+        
+        guard text.count <= 10000 else {
+            completion(.failure(ApiError.validationError("Text is too long. Please limit to 10,000 characters.")))
+            return
+        }
+        
         guard let url = URL(string: "\(baseURL)/parse") else {
             completion(.failure(ApiError.invalidURL))
             return
@@ -15,8 +26,18 @@ class ApiService {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("CalendarEventApp-iOS/1.0", forHTTPHeaderField: "User-Agent")
+        request.timeoutInterval = 30.0
         
-        let requestBody = ["text": text]
+        // Enhanced request body with timezone and locale
+        let requestBody: [String: Any] = [
+            "text": text,
+            "timezone": TimeZone.current.identifier,
+            "locale": Locale.current.identifier,
+            "now": ISO8601DateFormatter().string(from: Date()),
+            "use_llm_enhancement": true
+        ]
         
         do {
             request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
@@ -25,10 +46,46 @@ class ApiService {
             return
         }
         
-        URLSession.shared.dataTask(with: request) { data, response, error in
+        // Perform request with retry logic
+        performRequestWithRetry(request: request, retryCount: 0, completion: completion)
+    }
+    
+    private func performRequestWithRetry(request: URLRequest, retryCount: Int, completion: @escaping (Result<ParsedEvent, Error>) -> Void) {
+        let maxRetries = 3
+        
+        URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
+            // Handle network errors
             if let error = error {
-                completion(.failure(ApiError.networkError(error.localizedDescription)))
-                return
+                let nsError = error as NSError
+                
+                switch nsError.code {
+                case NSURLErrorTimedOut:
+                    if retryCount < maxRetries {
+                        DispatchQueue.global().asyncAfter(deadline: .now() + Double(retryCount + 1)) {
+                            self?.performRequestWithRetry(request: request, retryCount: retryCount + 1, completion: completion)
+                        }
+                        return
+                    } else {
+                        completion(.failure(ApiError.timeoutError("Request timed out after multiple attempts. Please check your internet connection.")))
+                        return
+                    }
+                case NSURLErrorNotConnectedToInternet, NSURLErrorNetworkConnectionLost:
+                    completion(.failure(ApiError.networkError("No internet connection. Please check your network settings and try again.")))
+                    return
+                case NSURLErrorCannotConnectToHost, NSURLErrorCannotFindHost:
+                    if retryCount < maxRetries {
+                        DispatchQueue.global().asyncAfter(deadline: .now() + Double((retryCount + 1) * 2)) {
+                            self?.performRequestWithRetry(request: request, retryCount: retryCount + 1, completion: completion)
+                        }
+                        return
+                    } else {
+                        completion(.failure(ApiError.networkError("Unable to connect to the server. Please try again later.")))
+                        return
+                    }
+                default:
+                    completion(.failure(ApiError.networkError("Network error: \(error.localizedDescription)")))
+                    return
+                }
             }
             
             guard let httpResponse = response as? HTTPURLResponse else {
@@ -45,20 +102,130 @@ class ApiService {
             switch httpResponse.statusCode {
             case 200:
                 do {
-                    let event = try JSONDecoder().decode(ParsedEvent.self, from: data)
-                    completion(.success(event))
+                    // First try to parse as JSON to check structure
+                    if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                        // Handle nested response format
+                        if let parsedEventData = json["parsed_event"] as? [String: Any] {
+                            let parsedEventJson = try JSONSerialization.data(withJSONObject: parsedEventData)
+                            let event = try JSONDecoder().decode(ParsedEvent.self, from: parsedEventJson)
+                            
+                            // Validate the parsed result
+                            if let validationError = self?.validateParseResult(event, originalText: request.httpBody.flatMap { String(data: $0, encoding: .utf8) } ?? "") {
+                                completion(.failure(validationError))
+                                return
+                            }
+                            
+                            completion(.success(event))
+                        } else {
+                            // Try direct parsing
+                            let event = try JSONDecoder().decode(ParsedEvent.self, from: data)
+                            
+                            // Validate the parsed result
+                            if let validationError = self?.validateParseResult(event, originalText: request.httpBody.flatMap { String(data: $0, encoding: .utf8) } ?? "") {
+                                completion(.failure(validationError))
+                                return
+                            }
+                            
+                            completion(.success(event))
+                        }
+                    } else {
+                        completion(.failure(ApiError.decodingError("Invalid JSON response format")))
+                    }
                 } catch {
-                    completion(.failure(ApiError.decodingError(error.localizedDescription)))
+                    completion(.failure(ApiError.decodingError("Failed to parse server response: \(error.localizedDescription)")))
                 }
+                
             case 400:
-                completion(.failure(ApiError.badRequest("Invalid request format")))
-            case 500:
-                completion(.failure(ApiError.serverError("Server error occurred")))
+                let errorDetails = self?.parseErrorResponse(data: data)
+                completion(.failure(ApiError.badRequest(errorDetails?.userMessage ?? "Invalid request format")))
+                
+            case 422:
+                let errorDetails = self?.parseErrorResponse(data: data)
+                completion(.failure(ApiError.validationError(errorDetails?.userMessage ?? "The text does not contain valid event information. Please try rephrasing with clearer date, time, and event details.")))
+                
+            case 429:
+                let errorDetails = self?.parseErrorResponse(data: data)
+                let retryAfter = httpResponse.value(forHTTPHeaderField: "Retry-After") ?? "60"
+                completion(.failure(ApiError.rateLimitError("Too many requests. Please wait \(retryAfter) seconds before trying again.")))
+                
+            case 500, 502, 503, 504:
+                if retryCount < maxRetries {
+                    DispatchQueue.global().asyncAfter(deadline: .now() + Double(retryCount + 1)) {
+                        self?.performRequestWithRetry(request: request, retryCount: retryCount + 1, completion: completion)
+                    }
+                    return
+                } else {
+                    completion(.failure(ApiError.serverError("Server is temporarily unavailable. Please try again in a few minutes.")))
+                }
+                
             default:
-                completion(.failure(ApiError.httpError(httpResponse.statusCode)))
+                let errorDetails = self?.parseErrorResponse(data: data)
+                completion(.failure(ApiError.httpError(httpResponse.statusCode, errorDetails?.userMessage ?? "Request failed with code \(httpResponse.statusCode)")))
             }
         }.resume()
     }
+    
+    private func parseErrorResponse(data: Data) -> ErrorDetails? {
+        do {
+            if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let errorObj = json["error"] as? [String: Any] {
+                
+                let code = errorObj["code"] as? String ?? "UNKNOWN_ERROR"
+                let message = errorObj["message"] as? String ?? "An error occurred"
+                let suggestion = errorObj["suggestion"] as? String
+                
+                let userMessage: String
+                switch code {
+                case "VALIDATION_ERROR":
+                    userMessage = "Invalid input: \(message)"
+                case "PARSING_ERROR":
+                    userMessage = message + (suggestion != nil ? ". \(suggestion!)" : "")
+                case "TEXT_EMPTY":
+                    userMessage = "Please provide text containing event information."
+                case "TEXT_TOO_LONG":
+                    userMessage = "Text is too long. Please limit to 10,000 characters."
+                case "INVALID_TIMEZONE":
+                    userMessage = "Invalid timezone. Please check your device settings."
+                case "LLM_UNAVAILABLE":
+                    userMessage = "Enhanced parsing is temporarily unavailable. Your request will be processed with basic parsing."
+                case "RATE_LIMIT_ERROR":
+                    userMessage = message + (suggestion != nil ? ". \(suggestion!)" : "")
+                case "SERVICE_UNAVAILABLE":
+                    userMessage = "Service is temporarily unavailable. Please try again later."
+                default:
+                    userMessage = message
+                }
+                
+                return ErrorDetails(code: code, message: message, userMessage: userMessage, suggestion: suggestion)
+            }
+        } catch {
+            // Fallback parsing
+        }
+        
+        return nil
+    }
+    
+    private func validateParseResult(_ event: ParsedEvent, originalText: String) -> ApiError? {
+        // Check if we got meaningful results
+        if (event.title?.isEmpty ?? true) && (event.startDatetime?.isEmpty ?? true) {
+            return ApiError.parsingError("Could not extract event information from the text. Please try rephrasing with clearer date, time, and event details.")
+        }
+        
+        // Warn about low confidence
+        if event.confidenceScore < 0.3 {
+            return ApiError.parsingError("The text is unclear and may not contain valid event information. Please try rephrasing with specific date, time, and event details.")
+        }
+        
+        return nil
+    }
+}
+
+struct ErrorDetails {
+    let code: String
+    let message: String
+    let userMessage: String
+    let suggestion: String?
+}
 }
 
 enum ApiError: LocalizedError {
@@ -71,7 +238,10 @@ enum ApiError: LocalizedError {
     case parsingError(String)
     case badRequest(String)
     case serverError(String)
-    case httpError(Int)
+    case httpError(Int, String)
+    case validationError(String)
+    case timeoutError(String)
+    case rateLimitError(String)
     
     var errorDescription: String? {
         switch self {
@@ -80,21 +250,27 @@ enum ApiError: LocalizedError {
         case .encodingError:
             return "Failed to encode request"
         case .networkError(let message):
-            return "Network error: \(message)"
+            return message
         case .invalidResponse:
             return "Invalid server response"
         case .noData:
             return "No data received from server"
         case .decodingError(let message):
-            return "Failed to decode response: \(message)"
+            return message
         case .parsingError(let message):
-            return "Parsing failed: \(message)"
+            return message
         case .badRequest(let message):
-            return "Bad request: \(message)"
+            return message
         case .serverError(let message):
-            return "Server error: \(message)"
-        case .httpError(let code):
-            return "HTTP error: \(code)"
+            return message
+        case .httpError(_, let message):
+            return message
+        case .validationError(let message):
+            return message
+        case .timeoutError(let message):
+            return message
+        case .rateLimitError(let message):
+            return message
         }
     }
 }

@@ -7,8 +7,8 @@ struct ParsedEvent: Codable {
     let location: String?
     let description: String?
     let confidenceScore: Double
-    let allDay: Bool
-    let timezone: String
+    let allDay: Bool?
+    let timezone: String?
     
     enum CodingKeys: String, CodingKey {
         case title
@@ -19,6 +19,15 @@ struct ParsedEvent: Codable {
         case confidenceScore = "confidence_score"
         case allDay = "all_day"
         case timezone
+    }
+    
+    // Default values for optional properties
+    var isAllDay: Bool {
+        return allDay ?? false
+    }
+    
+    var eventTimezone: String {
+        return timezone ?? TimeZone.current.identifier
     }
     
     var displayTitle: String {

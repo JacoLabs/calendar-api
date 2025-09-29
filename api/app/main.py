@@ -9,10 +9,10 @@ from datetime import datetime
 from typing import Optional
 import logging
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
-from pydantic import BaseModel, Field
+from fastapi.exceptions import RequestValidationError
 import pytz
 import uvicorn
 from urllib.parse import unquote
@@ -24,6 +24,21 @@ sys.path.insert(0, parent_dir)
 
 from services.event_parser import EventParser
 from models.event_models import ParsedEvent
+
+# Import enhanced components
+from .models import (
+    ParseRequest, ParseResponse, HealthResponse, ICSRequest, 
+    APIError, ErrorDetail, ErrorCode
+)
+from .middleware import (
+    RateLimitMiddleware, SecurityMiddleware, 
+    RequestLoggingMiddleware, ErrorHandlingMiddleware
+)
+from .error_handlers import (
+    validation_exception_handler, http_exception_handler, 
+    handle_parsing_error, validate_timezone, validate_datetime_string
+)
+from .health import health_checker
 
 # Configure logging (no request body logging for privacy)
 logging.basicConfig(
@@ -43,62 +58,76 @@ class NoBodyLoggingFilter(logging.Filter):
 
 logging.getLogger("uvicorn.access").addFilter(NoBodyLoggingFilter())
 
+# Create FastAPI app with enhanced configuration
 app = FastAPI(
     title="Text-to-Calendar Event Parser API",
-    description="Stateless API for parsing natural language text into calendar events",
-    version="1.0.0"
+    description="""
+    Stateless API for parsing natural language text into calendar events.
+    
+    ## Features
+    - Natural language parsing with LLM enhancement
+    - Support for multiple date/time formats
+    - Location and title extraction
+    - Confidence scoring
+    - Rate limiting and error handling
+    - ICS file generation
+    
+    ## Rate Limits
+    - 60 requests per minute per IP
+    - 1000 requests per hour per IP
+    
+    ## Error Handling
+    All errors return a consistent format with error codes and suggestions.
+    """,
+    version="1.0.0",
+    docs_url="/docs",
+    redoc_url="/redoc"
 )
 
-# CORS middleware for browser extensions and mobile apps
+# Enhanced CORS middleware with specific origins for production
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, specify your domains
-    allow_credentials=True,
-    allow_methods=["GET", "POST"],
-    allow_headers=["*"],
+    allow_origins=[
+        "*",  # Allow all origins for development
+        # In production, replace with specific domains:
+        # "https://yourdomain.com",
+        # "https://api.yourdomain.com",
+        # "chrome-extension://*",  # For browser extensions
+        # "moz-extension://*",     # For Firefox extensions
+    ],
+    allow_credentials=False,  # Set to False for public API
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=[
+        "Accept",
+        "Accept-Language", 
+        "Content-Language",
+        "Content-Type",
+        "Authorization",
+        "X-Requested-With",
+        "User-Agent"
+    ],
+    expose_headers=[
+        "X-Request-ID",
+        "X-RateLimit-Limit-Minute",
+        "X-RateLimit-Limit-Hour", 
+        "X-RateLimit-Remaining-Minute",
+        "X-RateLimit-Remaining-Hour",
+        "Retry-After"
+    ]
 )
+
+# Add enhanced middleware
+app.add_middleware(ErrorHandlingMiddleware)
+app.add_middleware(SecurityMiddleware)
+app.add_middleware(RequestLoggingMiddleware)
+app.add_middleware(RateLimitMiddleware, calls_per_minute=60, calls_per_hour=1000)
+
+# Add exception handlers
+app.add_exception_handler(RequestValidationError, validation_exception_handler)
+app.add_exception_handler(HTTPException, http_exception_handler)
 
 # Initialize event parser
 event_parser = EventParser()
-
-
-class ParseRequest(BaseModel):
-    """Request model for text parsing."""
-    text: str = Field(..., description="Natural language text to parse", min_length=1, max_length=10000)
-    clipboard_text: Optional[str] = Field(default=None, description="Optional clipboard content for smart merging", max_length=10000)
-    timezone: Optional[str] = Field(default="UTC", description="Timezone for date interpretation (e.g., 'America/New_York')")
-    locale: Optional[str] = Field(default="en_US", description="Locale for date format preferences (e.g., 'en_US', 'en_GB')")
-    now: Optional[datetime] = Field(default=None, description="Current datetime for relative date parsing (ISO 8601)")
-    use_llm_enhancement: Optional[bool] = Field(default=True, description="Whether to use LLM enhancement for better parsing")
-
-
-class ParseResponse(BaseModel):
-    """Response model for parsed event data."""
-    title: Optional[str] = Field(description="Extracted event title")
-    start_datetime: Optional[str] = Field(description="Start datetime in ISO 8601 format with timezone")
-    end_datetime: Optional[str] = Field(description="End datetime in ISO 8601 format with timezone")
-    location: Optional[str] = Field(description="Extracted location")
-    description: Optional[str] = Field(description="Event description or original text")
-    confidence_score: float = Field(description="Parsing confidence score (0.0 to 1.0)")
-    all_day: bool = Field(default=False, description="Whether this is an all-day event")
-    timezone: str = Field(description="Timezone used for parsing")
-
-
-class HealthResponse(BaseModel):
-    """Health check response model."""
-    status: str
-    timestamp: datetime
-    version: str
-
-
-class ICSRequest(BaseModel):
-    """Request model for ICS file generation."""
-    title: Optional[str] = Field(default=None, description="Event title")
-    start: Optional[str] = Field(default=None, description="Start datetime in ISO format")
-    end: Optional[str] = Field(default=None, description="End datetime in ISO format")
-    location: Optional[str] = Field(default=None, description="Event location")
-    description: Optional[str] = Field(default=None, description="Event description")
-    allday: Optional[bool] = Field(default=False, description="All-day event flag")
 
 
 @app.get("/")
@@ -134,12 +163,23 @@ async def root():
 
 @app.get("/healthz", response_model=HealthResponse)
 async def health_check():
-    """Health check endpoint."""
-    return HealthResponse(
-        status="healthy",
-        timestamp=datetime.utcnow(),
-        version="1.0.0"
-    )
+    """
+    Comprehensive health check endpoint.
+    
+    Returns detailed status of the API and its dependencies including:
+    - Overall service status
+    - Parser service status  
+    - LLM service availability
+    - System resource usage
+    - Service uptime
+    """
+    return await health_checker.get_health_status()
+
+
+@app.get("/health", response_model=HealthResponse)
+async def health_check_alias():
+    """Alias for /healthz endpoint."""
+    return await health_checker.get_health_status()
 
 
 @app.post("/parse", response_model=ParseResponse)
@@ -147,14 +187,41 @@ async def parse_text(request: ParseRequest, http_request: Request):
     """
     Parse natural language text into calendar event data.
     
+    ## Request Body
+    - **text**: Natural language text containing event information (required)
+    - **timezone**: Timezone for date interpretation (default: UTC)
+    - **locale**: Locale for date format preferences (default: en_US)
+    - **use_llm_enhancement**: Whether to use LLM for better parsing (default: true)
+    - **clipboard_text**: Optional clipboard content for smart merging
+    - **now**: Current datetime for relative date parsing (ISO 8601)
+    
+    ## Response
     Returns structured event data with ISO 8601 datetimes including timezone offsets.
+    Includes confidence scores and parsing metadata.
+    
+    ## Error Handling
+    - Returns 400 for validation errors with specific field information
+    - Returns 503 when LLM service is unavailable (falls back to regex parsing)
+    - Returns 429 when rate limit is exceeded
+    
     Stateless operation - no data is stored.
     """
+    request_id = getattr(http_request.state, 'request_id', None)
+    
     try:
-        # Log request metadata only (no body content for privacy)
-        client_ip = http_request.client.host if http_request.client else "unknown"
-        user_agent = http_request.headers.get("user-agent", "unknown")
-        logger.info(f"Parse request from {client_ip}, User-Agent: {user_agent[:100]}")
+        # Validate timezone
+        if request.timezone and not validate_timezone(request.timezone):
+            return handle_parsing_error(
+                ValueError(f"Invalid timezone: {request.timezone}"),
+                request_id
+            )
+        
+        # Validate datetime if provided
+        if request.now and not validate_datetime_string(request.now.isoformat()):
+            return handle_parsing_error(
+                ValueError("Invalid datetime format for 'now' field"),
+                request_id
+            )
         
         # Set current time for relative date parsing
         current_time = request.now or datetime.utcnow()
@@ -163,19 +230,40 @@ async def parse_text(request: ParseRequest, http_request: Request):
         prefer_dd_mm = request.locale.startswith('en_GB') or request.locale.startswith('en_AU')
         
         # Parse the text with enhancement if requested
-        if request.use_llm_enhancement:
-            parsed_event = event_parser.parse_text_enhanced(
-                text=request.text,
-                clipboard_text=request.clipboard_text,
-                prefer_dd_mm_format=prefer_dd_mm,
-                current_time=current_time
-            )
-        else:
-            parsed_event = event_parser.parse_text(
-                text=request.text,
-                prefer_dd_mm_format=prefer_dd_mm,
-                current_time=current_time
-            )
+        try:
+            if request.use_llm_enhancement:
+                parsed_event = event_parser.parse_text_enhanced(
+                    text=request.text,
+                    clipboard_text=request.clipboard_text,
+                    prefer_dd_mm_format=prefer_dd_mm,
+                    current_time=current_time
+                )
+            else:
+                parsed_event = event_parser.parse_text(
+                    text=request.text,
+                    prefer_dd_mm_format=prefer_dd_mm,
+                    current_time=current_time
+                )
+        except Exception as parsing_error:
+            return handle_parsing_error(parsing_error, request_id)
+        
+        # Collect parsing warnings
+        warnings = []
+        if parsed_event.confidence_score < 0.5:
+            warnings.append("Low confidence parsing - please review extracted information")
+        if not parsed_event.title:
+            warnings.append("No event title detected - consider adding a descriptive title")
+        if not parsed_event.location and "location" in request.text.lower():
+            warnings.append("Location mentioned but not extracted - please verify location field")
+        
+        # Collect parsing metadata
+        parsing_metadata = {
+            "llm_enhanced": request.use_llm_enhancement,
+            "locale": request.locale,
+            "timezone": request.timezone,
+            "has_clipboard_text": bool(request.clipboard_text),
+            "text_length": len(request.text)
+        }
         
         # Convert to response format with timezone-aware ISO 8601 strings
         response = ParseResponse(
@@ -186,20 +274,19 @@ async def parse_text(request: ParseRequest, http_request: Request):
             description=parsed_event.description or request.text,
             confidence_score=parsed_event.confidence_score,
             all_day=_is_all_day_event(parsed_event),
-            timezone=request.timezone
+            timezone=request.timezone,
+            parsing_metadata=parsing_metadata,
+            warnings=warnings if warnings else None
         )
         
         # Log success (no sensitive data)
-        logger.info(f"Parse successful, confidence: {parsed_event.confidence_score:.2f}")
+        logger.info(f"Parse successful - Request: {request_id}, Confidence: {parsed_event.confidence_score:.2f}")
         
         return response
         
     except Exception as e:
-        logger.error(f"Parse error: {str(e)}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to parse text: {str(e)}"
-        )
+        logger.error(f"Unexpected parse error - Request: {request_id}, Error: {str(e)}")
+        return handle_parsing_error(e, request_id)
 
 
 def _format_datetime_with_tz(dt: Optional[datetime], timezone: str) -> Optional[str]:
@@ -258,12 +345,37 @@ async def generate_ics(
     """
     Generate an ICS (iCalendar) file for Apple Calendar and other calendar applications.
     
+    ## Query Parameters
+    - **title**: Event title (optional, defaults to "Calendar Event")
+    - **start**: Start datetime in ISO 8601 format (optional, defaults to current time)
+    - **end**: End datetime in ISO 8601 format (optional, defaults to start + 1 hour)
+    - **location**: Event location (optional)
+    - **description**: Event description (optional)
+    - **allday**: Whether this is an all-day event (optional, default: false)
+    
+    ## Response
     Returns an ICS file that can be downloaded or opened directly in calendar applications.
+    Compatible with Apple Calendar, Google Calendar, Outlook, and other iCalendar-compliant apps.
+    
+    ## Error Handling
+    - Returns 400 for invalid datetime formats
+    - Returns 500 for ICS generation failures
     """
+    request_id = getattr(http_request.state, 'request_id', None)
+    
     try:
-        # Log request metadata
-        client_ip = http_request.client.host if http_request.client else "unknown"
-        logger.info(f"ICS generation request from {client_ip}")
+        # Validate datetime parameters
+        if start and not validate_datetime_string(start):
+            return handle_parsing_error(
+                ValueError("Invalid start datetime format"),
+                request_id
+            )
+        
+        if end and not validate_datetime_string(end):
+            return handle_parsing_error(
+                ValueError("Invalid end datetime format"),
+                request_id
+            )
         
         # Generate ICS content
         ics_content = _generate_ics_content(
@@ -275,22 +387,24 @@ async def generate_ics(
             all_day=allday
         )
         
+        # Log success
+        logger.info(f"ICS generated successfully - Request: {request_id}")
+        
         # Return ICS file with proper headers
         return Response(
             content=ics_content,
             media_type="text/calendar",
             headers={
                 "Content-Disposition": f"attachment; filename=event.ics",
-                "Cache-Control": "no-cache"
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+                "Pragma": "no-cache",
+                "Expires": "0"
             }
         )
         
     except Exception as e:
-        logger.error(f"ICS generation error: {str(e)}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to generate ICS file: {str(e)}"
-        )
+        logger.error(f"ICS generation error - Request: {request_id}, Error: {str(e)}")
+        return handle_parsing_error(e, request_id)
 
 
 def _generate_ics_content(
@@ -409,13 +523,82 @@ def _escape_ics_text(text: str) -> str:
             .replace("\r", ""))
 
 
-# Custom middleware to prevent request body logging
-@app.middleware("http")
-async def privacy_middleware(request: Request, call_next):
-    """Middleware to ensure request bodies are not logged."""
-    # Process request without logging body
-    response = await call_next(request)
-    return response
+# Additional API endpoints for monitoring and documentation
+
+@app.get("/api/info")
+async def api_info():
+    """
+    Get API information and usage statistics.
+    
+    Returns basic API information, version, and available endpoints.
+    """
+    return {
+        "name": "Text-to-Calendar Event Parser API",
+        "version": "1.0.0",
+        "description": "Parse natural language text into structured calendar events",
+        "features": [
+            "Natural language parsing",
+            "LLM enhancement",
+            "Multiple date/time formats",
+            "Location extraction",
+            "Confidence scoring",
+            "ICS file generation",
+            "Rate limiting",
+            "Comprehensive error handling"
+        ],
+        "endpoints": {
+            "parse": {
+                "method": "POST",
+                "path": "/parse",
+                "description": "Parse text into calendar event data"
+            },
+            "ics": {
+                "method": "GET", 
+                "path": "/ics",
+                "description": "Generate ICS calendar file"
+            },
+            "health": {
+                "method": "GET",
+                "path": "/healthz",
+                "description": "Health check with service status"
+            },
+            "docs": {
+                "method": "GET",
+                "path": "/docs",
+                "description": "Interactive API documentation"
+            }
+        },
+        "rate_limits": {
+            "per_minute": 60,
+            "per_hour": 1000
+        },
+        "supported_formats": {
+            "dates": ["MM/DD/YYYY", "DD/MM/YYYY", "Month DD, YYYY", "relative dates"],
+            "times": ["12-hour", "24-hour", "relative times", "time ranges"],
+            "locations": ["addresses", "venue names", "implicit locations"],
+            "timezones": "All IANA timezone identifiers"
+        }
+    }
+
+
+@app.get("/api/status")
+async def api_status():
+    """
+    Get current API status and basic metrics.
+    
+    Returns simplified status information for monitoring systems.
+    """
+    health = await health_checker.get_health_status()
+    
+    return {
+        "status": health.status,
+        "timestamp": health.timestamp,
+        "uptime_seconds": health.uptime_seconds,
+        "services": {
+            "parser": health.services.get("parser", "unknown"),
+            "llm": health.services.get("llm", "unknown")
+        }
+    }
 
 
 if __name__ == "__main__":

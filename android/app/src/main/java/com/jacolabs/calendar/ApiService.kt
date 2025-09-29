@@ -29,7 +29,7 @@ class ApiService {
         .build()
 
     /**
-     * Parse text using the remote API.
+     * Parse text using the remote API with comprehensive error handling.
      */
     suspend fun parseText(
         text: String,
@@ -38,8 +38,22 @@ class ApiService {
         now: Date
     ): ParseResult = withContext(Dispatchers.IO) {
         
+        // Check network connectivity first
+        if (!isNetworkAvailable()) {
+            throw ApiException("No internet connection. Please check your network settings and try again.")
+        }
+        
         // Preprocess text to handle common formatting issues
         val preprocessedText = preprocessText(text)
+        
+        // Validate input
+        if (preprocessedText.isBlank()) {
+            throw ApiException("Please provide text containing event information.")
+        }
+        
+        if (preprocessedText.length > 10000) {
+            throw ApiException("Text is too long. Please limit to 10,000 characters.")
+        }
         
         // Create request body
         val requestBody = JSONObject().apply {
@@ -47,6 +61,7 @@ class ApiService {
             put("timezone", timezone)
             put("locale", locale)
             put("now", formatDateTimeForApi(now))
+            put("use_llm_enhancement", true)
         }
         
         val mediaType = "application/json; charset=utf-8".toMediaType()
@@ -60,44 +75,171 @@ class ApiService {
             .addHeader("User-Agent", "CalendarEventApp-Android/1.0")
             .build()
         
-        try {
-            val response = client.newCall(request).execute()
-            
-            response.use { resp ->
-                val responseBody = resp.body?.string() ?: ""
+        var retryCount = 0
+        val maxRetries = 3
+        
+        while (retryCount <= maxRetries) {
+            try {
+                val response = client.newCall(request).execute()
                 
-                when (resp.code) {
-                    200 -> parseApiResponse(responseBody)
-                    422 -> throw ApiException("The selected text does not contain valid event information")
-                    429 -> throw ApiException("Too many requests. Please try again later")
-                    500 -> throw ApiException("Server error. Please try again later")
-                    else -> {
-                        val errorMsg = try {
-                            val errorJson = JSONObject(responseBody)
-                            errorJson.optString("detail", "Unknown error")
-                        } catch (e: Exception) {
-                            "Request failed (code ${resp.code})"
+                response.use { resp ->
+                    val responseBody = resp.body?.string() ?: ""
+                    
+                    when (resp.code) {
+                        200 -> {
+                            val result = parseApiResponse(responseBody)
+                            // Validate the parsed result
+                            validateParseResult(result, preprocessedText)
+                            return@withContext result
                         }
-                        throw ApiException(errorMsg)
+                        400 -> {
+                            val errorDetails = parseErrorResponse(responseBody)
+                            throw ApiException(errorDetails.userMessage)
+                        }
+                        422 -> {
+                            val errorDetails = parseErrorResponse(responseBody)
+                            throw ApiException(errorDetails.userMessage ?: "The text does not contain valid event information. Please try rephrasing with clearer date, time, and event details.")
+                        }
+                        429 -> {
+                            val errorDetails = parseErrorResponse(responseBody)
+                            val retryAfter = resp.header("Retry-After")?.toIntOrNull() ?: 60
+                            throw ApiException("Too many requests. Please wait ${retryAfter} seconds before trying again.")
+                        }
+                        500, 502, 503, 504 -> {
+                            if (retryCount < maxRetries) {
+                                retryCount++
+                                val delay = (retryCount * 1000L) // Exponential backoff
+                                kotlinx.coroutines.delay(delay)
+                                continue // Retry the request
+                            } else {
+                                throw ApiException("Server is temporarily unavailable. Please try again in a few minutes.")
+                            }
+                        }
+                        else -> {
+                            val errorDetails = parseErrorResponse(responseBody)
+                            throw ApiException(errorDetails.userMessage ?: "Request failed with code ${resp.code}. Please try again.")
+                        }
                     }
                 }
+                
+            } catch (e: java.net.SocketTimeoutException) {
+                if (retryCount < maxRetries) {
+                    retryCount++
+                    continue // Retry on timeout
+                } else {
+                    throw ApiException("Request timed out after multiple attempts. Please check your internet connection and try again.")
+                }
+            } catch (e: java.net.UnknownHostException) {
+                throw ApiException("Unable to connect to the server. Please check your internet connection and try again.")
+            } catch (e: java.net.ConnectException) {
+                if (retryCount < maxRetries) {
+                    retryCount++
+                    val delay = (retryCount * 2000L) // Longer delay for connection issues
+                    kotlinx.coroutines.delay(delay)
+                    continue
+                } else {
+                    throw ApiException("Unable to connect to the server. Please check your internet connection and try again later.")
+                }
+            } catch (e: IOException) {
+                when {
+                    e.message?.contains("timeout", ignoreCase = true) == true -> {
+                        if (retryCount < maxRetries) {
+                            retryCount++
+                            continue
+                        } else {
+                            throw ApiException("Request timed out. Please check your internet connection and try again.")
+                        }
+                    }
+                    e.message?.contains("network", ignoreCase = true) == true -> 
+                        throw ApiException("Network error occurred. Please check your internet connection and try again.")
+                    else -> 
+                        throw ApiException("Connection error: ${e.message ?: "Unknown network error"}. Please try again.")
+                }
+            } catch (e: ApiException) {
+                throw e // Re-throw API exceptions without modification
+            } catch (e: Exception) {
+                throw ApiException("An unexpected error occurred: ${e.message ?: "Unknown error"}. Please try again.")
             }
-            
-        } catch (e: IOException) {
-            when {
-                e.message?.contains("timeout") == true -> 
-                    throw ApiException("Request timed out. Please check your internet connection")
-                e.message?.contains("Unable to resolve host") == true -> 
-                    throw ApiException("Unable to connect to server. Please check your internet connection")
-                else -> 
-                    throw ApiException("Network error occurred. Please try again")
-            }
-        } catch (e: ApiException) {
-            throw e
+        }
+        
+        // This should never be reached, but just in case
+        throw ApiException("Failed to complete request after multiple attempts. Please try again later.")
+    }
+    
+    /**
+     * Check if network is available (basic check).
+     */
+    private fun isNetworkAvailable(): Boolean {
+        return try {
+            // Simple connectivity check - try to resolve a DNS name
+            val address = java.net.InetAddress.getByName("8.8.8.8")
+            !address.equals("")
         } catch (e: Exception) {
-            throw ApiException("An unexpected error occurred: ${e.message}")
+            false
         }
     }
+    
+    /**
+     * Parse error response from API to extract user-friendly messages.
+     */
+    private fun parseErrorResponse(responseBody: String): ErrorDetails {
+        return try {
+            val errorJson = JSONObject(responseBody)
+            
+            // Check for new enhanced error format
+            if (errorJson.has("error")) {
+                val errorObj = errorJson.getJSONObject("error")
+                val code = errorObj.optString("code", "UNKNOWN_ERROR")
+                val message = errorObj.optString("message", "An error occurred")
+                val suggestion = errorObj.optString("suggestion")
+                
+                val userMessage = when (code) {
+                    "VALIDATION_ERROR" -> "Invalid input: $message"
+                    "PARSING_ERROR" -> message + if (suggestion != null) ". $suggestion" else ""
+                    "TEXT_EMPTY" -> "Please provide text containing event information."
+                    "TEXT_TOO_LONG" -> "Text is too long. Please limit to 10,000 characters."
+                    "INVALID_TIMEZONE" -> "Invalid timezone. Please check your device settings."
+                    "LLM_UNAVAILABLE" -> "Enhanced parsing is temporarily unavailable. Your request will be processed with basic parsing."
+                    "RATE_LIMIT_ERROR" -> message + if (suggestion != null) ". $suggestion" else ""
+                    "SERVICE_UNAVAILABLE" -> "Service is temporarily unavailable. Please try again later."
+                    else -> message
+                }
+                
+                ErrorDetails(code, message, userMessage, suggestion)
+            } else {
+                // Fallback to old format
+                val detail = errorJson.optString("detail", "Unknown error occurred")
+                ErrorDetails("UNKNOWN_ERROR", detail, detail, null)
+            }
+        } catch (e: Exception) {
+            ErrorDetails("PARSE_ERROR", responseBody, "Server returned an error. Please try again.", null)
+        }
+    }
+    
+    /**
+     * Validate the parsed result and provide helpful feedback.
+     */
+    private fun validateParseResult(result: ParseResult, originalText: String) {
+        // Check if we got meaningful results
+        if (result.title.isNullOrBlank() && result.startDateTime.isNullOrBlank()) {
+            throw ApiException("Could not extract event information from the text. Please try rephrasing with clearer date, time, and event details.")
+        }
+        
+        // Warn about low confidence
+        if (result.confidenceScore < 0.3) {
+            throw ApiException("The text is unclear and may not contain valid event information. Please try rephrasing with specific date, time, and event details.")
+        }
+    }
+    
+    /**
+     * Data class for structured error information.
+     */
+    private data class ErrorDetails(
+        val code: String,
+        val message: String,
+        val userMessage: String,
+        val suggestion: String?
+    )
 
     private fun parseApiResponse(jsonResponse: String): ParseResult {
         val json = JSONObject(jsonResponse)

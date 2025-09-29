@@ -181,10 +181,13 @@ fun MainScreen(apiService: ApiService, lifecycleScope: androidx.lifecycle.Lifecy
                         
                         parseResult = result
                         
+                        // Check if we applied default times and show banner
+                        showTimeConfirmBanner = hasDefaultTimes(result, textInput)
+                        
                     } catch (e: ApiException) {
-                        errorMessage = e.message
+                        errorMessage = handleApiError(e)
                     } catch (e: Exception) {
-                        errorMessage = "An unexpected error occurred. Please try again."
+                        errorMessage = "An unexpected error occurred. Please check your internet connection and try again."
                     } finally {
                         isLoading = false
                     }
@@ -473,5 +476,38 @@ private fun hasDefaultTimes(result: ParseResult, originalText: String): Boolean 
     val hasDefaultTime = result.startDateTime?.contains("09:00:00") == true
     
     return hasWeekday && hasDefaultTime && !originalText.contains("9:00") && !originalText.contains("9am")
+}
+
+/**
+ * Handle API errors with user-friendly messages and retry suggestions.
+ */
+private fun handleApiError(exception: ApiException): String {
+    val message = exception.message ?: "An error occurred"
+    
+    return when {
+        message.contains("network", ignoreCase = true) || 
+        message.contains("connection", ignoreCase = true) -> {
+            "No internet connection. Please check your network settings and try again."
+        }
+        message.contains("timeout", ignoreCase = true) -> {
+            "Request timed out. Please check your internet connection and try again."
+        }
+        message.contains("server", ignoreCase = true) || 
+        message.contains("unavailable", ignoreCase = true) -> {
+            "Service is temporarily unavailable. Please try again in a few minutes."
+        }
+        message.contains("rate limit", ignoreCase = true) || 
+        message.contains("too many", ignoreCase = true) -> {
+            "Too many requests. Please wait a moment before trying again."
+        }
+        message.contains("invalid", ignoreCase = true) -> {
+            "Please check your input and try again with clearer event information."
+        }
+        message.contains("confidence", ignoreCase = true) || 
+        message.contains("unclear", ignoreCase = true) -> {
+            "Could not understand the event details. Please try rephrasing with specific date, time, and event information."
+        }
+        else -> message
+    }
 }
 

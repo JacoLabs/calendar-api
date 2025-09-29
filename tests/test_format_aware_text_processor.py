@@ -303,6 +303,73 @@ Please bring your laptops and any relevant documents."""
         
         for key in expected_keys:
             self.assertIn(key, result_dict)
+    
+    def test_format_specific_confidence_adjustments(self):
+        """Test that different formats receive appropriate confidence adjustments."""
+        # Test structured email (should have high confidence)
+        structured_text = """
+        Subject: Team Meeting
+        Date: Tomorrow
+        Time: 2:00 PM
+        """
+        structured_result = self.processor.process_text(structured_text)
+        
+        # Test plain text (should have lower confidence)
+        plain_text = "maybe meeting sometime tomorrow"
+        plain_result = self.processor.process_text(plain_text)
+        
+        # Test screenshot text (should have lowest confidence)
+        screenshot_text = "M E E T I N G   T O M O R R O W"
+        screenshot_result = self.processor.process_text(screenshot_text)
+        
+        # Verify confidence ordering
+        self.assertGreater(structured_result.format_specific_confidence, plain_result.format_specific_confidence)
+        self.assertGreater(plain_result.format_specific_confidence, screenshot_result.format_specific_confidence)
+    
+    def test_processing_step_tracking(self):
+        """Test that processing steps are properly tracked with details."""
+        text = "Meeting tomorrow at 2p.m"
+        result = self.processor.process_text(text)
+        
+        # Should have multiple processing steps
+        self.assertGreater(len(result.processing_steps), 3)
+        
+        # Should include key processing steps
+        expected_steps = ['format_detection', 'typo_normalization', 'case_normalization']
+        for step in expected_steps:
+            self.assertIn(step, result.processing_steps)
+        
+        # Should have step details in metadata
+        self.assertIn('step_details', result.processing_metadata)
+        self.assertIn('format_detection', result.processing_metadata['step_details'])
+    
+    def test_normalization_quality_scoring(self):
+        """Test normalization quality scoring based on corrections made."""
+        # Text with typos that need normalization
+        typo_text = "Meeting at 9a.m and 2p.m tomorrow"
+        typo_result = self.processor.process_text(typo_text)
+        
+        # Text with no typos
+        clean_text = "Meeting at 9:00 AM and 2:00 PM tomorrow"
+        clean_result = self.processor.process_text(clean_text)
+        
+        # Both should have normalization quality scores
+        self.assertIsInstance(typo_result.normalization_quality, float)
+        self.assertIsInstance(clean_result.normalization_quality, float)
+        self.assertGreaterEqual(typo_result.normalization_quality, 0.0)
+        self.assertLessEqual(typo_result.normalization_quality, 1.0)
+    
+    def test_original_format_preservation(self):
+        """Test that original format is preserved for reference."""
+        original_text = "Meeting   tomorrow    at   2pm"
+        result = self.processor.process_text(original_text)
+        
+        # Original text should be preserved exactly
+        self.assertEqual(result.original_text, original_text)
+        
+        # Processed text should be different (normalized)
+        self.assertNotEqual(result.processed_text, result.original_text)
+        self.assertIn("2:00 PM", result.processed_text)  # Time should be normalized
 
 
 if __name__ == '__main__':

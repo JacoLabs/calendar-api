@@ -15,8 +15,14 @@
 		A1000011 /* ActionViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000012 /* ActionViewController.swift */; };
 		A1000013 /* ApiService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000014 /* ApiService.swift */; };
 		A1000015 /* CalendarEventExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = A1000016 /* CalendarEventExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
-/* End PBXBuildFile section *//* Begi
-n PBXContainerItemProxy section */
+		A1000050 /* EventKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A1000054 /* EventKit.framework */; };
+		A1000051 /* EventKitUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A1000055 /* EventKitUI.framework */; };
+		A1000052 /* EventKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A1000054 /* EventKit.framework */; };
+		A1000053 /* EventKitUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A1000055 /* EventKitUI.framework */; };
+		A1000056 /* MainInterface.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = A1000057 /* MainInterface.storyboard */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
 		A1000017 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = A1000018 /* Project object */;
@@ -38,8 +44,9 @@ n PBXContainerItemProxy section */
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-/* End PBXCopyFilesBuildPhase section *//* 
-Begin PBXFileReference section */
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
 		A1000021 /* CalendarEventApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CalendarEventApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A1000002 /* CalendarEventApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarEventApp.swift; sourceTree = "<group>"; };
 		A1000004 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -51,12 +58,18 @@ Begin PBXFileReference section */
 		A1000014 /* ApiService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApiService.swift; sourceTree = "<group>"; };
 		A1000022 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A1000023 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-/* End PBXFileReference section *//* Begin 
-PBXFrameworksBuildPhase section */
+		A1000054 /* EventKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = EventKit.framework; path = System/Library/Frameworks/EventKit.framework; sourceTree = SDKROOT; };
+		A1000055 /* EventKitUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = EventKitUI.framework; path = System/Library/Frameworks/EventKitUI.framework; sourceTree = SDKROOT; };
+		A1000057 /* MainInterface.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = MainInterface.storyboard; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
 		A1000024 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A1000050 /* EventKit.framework in Frameworks */,
+				A1000051 /* EventKitUI.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -64,6 +77,8 @@ PBXFrameworksBuildPhase section */
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A1000052 /* EventKit.framework in Frameworks */,
+				A1000053 /* EventKitUI.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -76,6 +91,7 @@ PBXFrameworksBuildPhase section */
 				A1000027 /* CalendarEventApp */,
 				A1000028 /* CalendarEventExtension */,
 				A1000029 /* Products */,
+				A1000058 /* Frameworks */,
 			);
 			sourceTree = "<group>";
 		};
@@ -97,6 +113,7 @@ PBXFrameworksBuildPhase section */
 			children = (
 				A1000012 /* ActionViewController.swift */,
 				A1000014 /* ApiService.swift */,
+				A1000057 /* MainInterface.storyboard */,
 				A1000023 /* Info.plist */,
 			);
 			path = CalendarEventExtension;
@@ -111,8 +128,18 @@ PBXFrameworksBuildPhase section */
 			name = Products;
 			sourceTree = "<group>";
 		};
-/* End PBXGroup section *//* B
-egin PBXNativeTarget section */
+		A1000058 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				A1000054 /* EventKit.framework */,
+				A1000055 /* EventKitUI.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
 		A1000030 /* CalendarEventApp */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = A1000031 /* Build configuration list for PBXNativeTarget "CalendarEventApp" */;
@@ -149,8 +176,9 @@ egin PBXNativeTarget section */
 			productReference = A1000016 /* CalendarEventExtension.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
-/* End PBXNativeTarget section *//* Be
-gin PBXProject section */
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
 		A1000018 /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
@@ -160,9 +188,11 @@ gin PBXProject section */
 				TargetAttributes = {
 					A1000030 = {
 						CreatedOnToolsVersion = 15.0;
+						DevelopmentTeam = "";
 					};
 					A1000019 = {
 						CreatedOnToolsVersion = 15.0;
+						DevelopmentTeam = "";
 					};
 				};
 			};
@@ -183,8 +213,9 @@ gin PBXProject section */
 				A1000019 /* CalendarEventExtension */,
 			);
 		};
-/* End PBXProject section *//* B
-egin PBXResourcesBuildPhase section */
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
 		A1000033 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -196,6 +227,7 @@ egin PBXResourcesBuildPhase section */
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A1000056 /* MainInterface.storyboard in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -223,8 +255,9 @@ egin PBXResourcesBuildPhase section */
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-/* End PBXSourcesBuildPhase section *//* Beg
-in PBXTargetDependency section */
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
 		A1000034 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = A1000019 /* CalendarEventExtension */;
@@ -295,8 +328,8 @@ in PBXTargetDependency section */
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
 			name = Debug;
-		};		A10000
-40 /* Release */ = {
+		};
+		A1000040 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -351,8 +384,8 @@ in PBXTargetDependency section */
 				VALIDATE_PRODUCT = YES;
 			};
 			name = Release;
-		};	
-	A1000041 /* Debug */ = {
+		};
+		A1000041 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -375,7 +408,7 @@ in PBXTargetDependency section */
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.jacolabs.CalendarEventApp;
+				PRODUCT_BUNDLE_IDENTIFIER = com.yourcompany.CalendarEventApp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -406,15 +439,15 @@ in PBXTargetDependency section */
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.jacolabs.CalendarEventApp;
+				PRODUCT_BUNDLE_IDENTIFIER = com.yourcompany.CalendarEventApp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
-		};		
-A1000043 /* Debug */ = {
+		};
+		A1000043 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
@@ -422,7 +455,7 @@ A1000043 /* Debug */ = {
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = CalendarEventExtension/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "Calendar Event Creator";
+				INFOPLIST_KEY_CFBundleDisplayName = "Create Calendar Event";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -431,7 +464,7 @@ A1000043 /* Debug */ = {
 					"@executable_path/../../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.jacolabs.CalendarEventApp.CalendarEventExtension;
+				PRODUCT_BUNDLE_IDENTIFIER = com.yourcompany.CalendarEventApp.CalendarEventExtension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -448,7 +481,7 @@ A1000043 /* Debug */ = {
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = CalendarEventExtension/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "Calendar Event Creator";
+				INFOPLIST_KEY_CFBundleDisplayName = "Create Calendar Event";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -457,7 +490,7 @@ A1000043 /* Debug */ = {
 					"@executable_path/../../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.jacolabs.CalendarEventApp.CalendarEventExtension;
+				PRODUCT_BUNDLE_IDENTIFIER = com.yourcompany.CalendarEventApp.CalendarEventExtension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -466,8 +499,9 @@ A1000043 /* Debug */ = {
 			};
 			name = Release;
 		};
-/* End XCBuildConfiguration section *//* 
-Begin XCConfigurationList section */
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
 		A1000031 /* Build configuration list for PBXNativeTarget "CalendarEventApp" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

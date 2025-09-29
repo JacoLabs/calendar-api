@@ -61,8 +61,9 @@ IMPORTANT RULES:
 CRITICAL ALL-DAY EVENT RULES:
 8. If text contains "due date", "deadline", "expires", "ends on" with ONLY a date (no time), create an ALL-DAY event on that date
 9. If text has a date but NO time context, default to ALL-DAY event rather than assuming a time
-10. For all-day events, set start_datetime to the date at 00:00:00 and end_datetime to the next day at 00:00:00
+10. For all-day events, ALWAYS extract the actual date and set start_datetime to the date at 00:00:00 and end_datetime to the next day at 00:00:00
 11. Set all_day: true for events that should be all-day
+12. NEVER leave start_datetime as null if a date is mentioned - always extract and format the date as ISO datetime
 
 Response format:
 {
@@ -87,7 +88,11 @@ Response format:
 "{text}"
 
 Current date context: {current_date}
-Additional context: {context}"""
+Additional context: {context}
+
+EXAMPLES:
+- For "Due Date: Oct 15, 2025" return: {{"title": "Due Date", "start_datetime": "2025-10-15T00:00:00", "end_datetime": "2025-10-16T00:00:00", "all_day": true}}
+- For "Title: COWA Due Date: Oct 15, 2025" return: {{"title": "COWA", "start_datetime": "2025-10-15T00:00:00", "end_datetime": "2025-10-16T00:00:00", "all_day": true}}"""
 
         return PromptTemplate(
             system_prompt=system_prompt,

@@ -184,21 +184,29 @@ class FormatAwareTextProcessor:
         result.detected_format = detected_format
         result.add_processing_step("format_detection", {"detected_format": detected_format.value})
         
-        # Step 2: Initial whitespace normalization
-        processed_text = self._normalize_whitespace(text)
-        result.add_processing_step("whitespace_normalization")
-        
-        # Step 3: Format-specific processing
-        if detected_format == TextFormat.BULLET_POINTS:
-            processed_text = self._process_bullet_points(processed_text, result)
-        elif detected_format == TextFormat.STRUCTURED_EMAIL:
-            processed_text = self._process_structured_email(processed_text, result)
-        elif detected_format == TextFormat.PARAGRAPHS:
-            processed_text = self._process_paragraphs(processed_text, result)
-        elif detected_format == TextFormat.MIXED:
-            processed_text = self._process_mixed_format(processed_text, result)
+        # Step 2: Format-specific processing (before whitespace normalization for screenshot text)
+        if detected_format == TextFormat.SCREENSHOT_TEXT:
+            # Process screenshot text before whitespace normalization to preserve word boundaries
+            processed_text = self._process_screenshot_text(text, result)
+            # Then apply whitespace normalization
+            processed_text = self._normalize_whitespace(processed_text)
+            result.add_processing_step("whitespace_normalization")
         else:
-            processed_text = self._process_plain_text(processed_text, result)
+            # For other formats, normalize whitespace first
+            processed_text = self._normalize_whitespace(text)
+            result.add_processing_step("whitespace_normalization")
+            
+            # Then apply format-specific processing
+            if detected_format == TextFormat.BULLET_POINTS:
+                processed_text = self._process_bullet_points(processed_text, result)
+            elif detected_format == TextFormat.STRUCTURED_EMAIL:
+                processed_text = self._process_structured_email(processed_text, result)
+            elif detected_format == TextFormat.PARAGRAPHS:
+                processed_text = self._process_paragraphs(processed_text, result)
+            elif detected_format == TextFormat.MIXED:
+                processed_text = self._process_mixed_format(processed_text, result)
+            else:
+                processed_text = self._process_plain_text(processed_text, result)
         
         # Step 4: Typo normalization
         processed_text = self._normalize_typos(processed_text, result)
@@ -265,12 +273,21 @@ class FormatAwareTextProcessor:
     
     def _has_screenshot_characteristics(self, text: str) -> bool:
         """Detect if text has characteristics of screenshot/OCR text."""
+        # Check for spaced-out single characters (common OCR artifact)
+        spaced_chars = bool(re.search(r'\b[A-Z]\s+[A-Z]\s+[A-Z]', text))
+        
         indicators = [
             len(re.findall(r'\b[A-Z]{2,}\b', text)) > 2,  # Many all-caps words
             len(re.findall(r'\s+', text)) / len(text) > 0.2,  # Excessive whitespace
             bool(re.search(r'[^\w\s\.,!?;:\-\(\)\'\"]+', text)),  # Unusual characters
             len(text.split('\n')) > len(text) / 20,  # Many short lines
+            spaced_chars,  # Spaced-out characters (strong OCR indicator)
         ]
+        
+        # If we have spaced characters, that's a strong indicator
+        if spaced_chars:
+            return True
+        
         return sum(indicators) >= 2
     
     def _normalize_whitespace(self, text: str) -> str:
@@ -401,6 +418,68 @@ class FormatAwareTextProcessor:
         
         result.format_specific_confidence = 0.6
         return processed_text
+    
+    def _process_screenshot_text(self, text: str, result: TextFormatResult) -> str:
+        """Process screenshot/OCR text with special handling for spaced characters."""
+        result.add_processing_step("screenshot_text_processing")
+        
+        # Handle spaced-out characters (common in OCR text)
+        # Work with original text that still has multiple spaces to identify word boundaries
+        processed = text
+        
+        # Split by multiple spaces (2+) to identify word boundaries first
+        word_parts = re.split(r'\s{2,}', processed)
+        
+        processed_words = []
+        for word_part in word_parts:
+            word_part = word_part.strip()
+            if not word_part:
+                continue
+                
+            # Check if this part has spaced single characters
+            if re.search(r'\b[A-Z]\s+[A-Z]', word_part):
+                # Collapse spaced characters within this word part
+                collapsed_word = re.sub(r'\s+', '', word_part)
+                processed_words.append(collapsed_word)
+            else:
+                # Keep as-is but normalize internal spaces
+                normalized_word = re.sub(r'\s+', ' ', word_part)
+                processed_words.append(normalized_word)
+        
+        # If no multiple spaces were found, fall back to single-space splitting
+        if len(processed_words) <= 1:
+            # Try to detect word boundaries by looking for patterns
+            # This is a fallback for cases where word boundaries aren't clear
+            tokens = processed.split()
+            grouped_tokens = []
+            current_word_chars = []
+            
+            for token in tokens:
+                if len(token) == 1 and token.isalpha():
+                    current_word_chars.append(token)
+                else:
+                    if current_word_chars:
+                        grouped_tokens.append(''.join(current_word_chars))
+                        current_word_chars = []
+                    grouped_tokens.append(token)
+            
+            if current_word_chars:
+                grouped_tokens.append(''.join(current_word_chars))
+            
+            processed = ' '.join(grouped_tokens)
+        else:
+            # Rejoin the processed words with single spaces
+            processed = ' '.join(processed_words)
+        
+        result.format_specific_confidence = 0.4  # Lower confidence for OCR text
+        result.processing_metadata['screenshot_processing'] = {
+            'spaced_chars_detected': True,
+            'original_spacing_pattern': 'detected',
+            'word_parts_found': len(word_parts),
+            'processed_words': len(processed_words)
+        }
+        
+        return processed
     
     def _process_plain_text(self, text: str, result: TextFormatResult) -> str:
         """Process plain text format."""

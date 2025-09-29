@@ -86,15 +86,23 @@ class ApiService {
                 throw ApiError.decodingError
             }
             
+            // Handle both direct response and nested "parsed_event" response
+            let eventData: [String: Any]
+            if let parsedEvent = json["parsed_event"] as? [String: Any] {
+                eventData = parsedEvent
+            } else {
+                eventData = json
+            }
+            
             return ParseResult(
-                title: json["title"] as? String,
-                startDateTime: json["start_datetime"] as? String,
-                endDateTime: json["end_datetime"] as? String,
-                location: json["location"] as? String,
-                description: json["description"] as? String,
-                confidenceScore: json["confidence_score"] as? Double ?? 0.0,
-                allDay: json["all_day"] as? Bool ?? false,
-                timezone: json["timezone"] as? String ?? "UTC"
+                title: eventData["title"] as? String,
+                startDateTime: eventData["start_datetime"] as? String,
+                endDateTime: eventData["end_datetime"] as? String,
+                location: eventData["location"] as? String,
+                description: eventData["description"] as? String,
+                confidenceScore: eventData["confidence_score"] as? Double ?? 0.0,
+                allDay: eventData["all_day"] as? Bool ?? false,
+                timezone: eventData["timezone"] as? String ?? TimeZone.current.identifier
             )
             
         } catch {
