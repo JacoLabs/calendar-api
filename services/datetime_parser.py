@@ -54,10 +54,18 @@ class DateTimeParser:
                 re.IGNORECASE
             ),
             'month_dd_yyyy': re.compile(
-                r'\b(january|february|march|april|may|june|july|august|september|october|november|december)\s+(\d{1,2}),?\s+(\d{4})\b',
+                r'\b(january|february|march|april|may|june|july|august|september|october|november|december)\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(\d{4})\b',
+                re.IGNORECASE
+            ),
+            'month_dd_range_yyyy': re.compile(
+                r'\b(january|february|march|april|may|june|july|august|september|october|november|december)\s+(\d{1,2})(?:st|nd|rd|th)?\s+to\s+\d{1,2}(?:st|nd|rd|th)?,?\s+(\d{4})\b',
                 re.IGNORECASE
             ),
             'month_dd': re.compile(
+                r'\b(january|february|march|april|may|june|july|august|september|october|november|december)\s+(\d{1,2})(?:st|nd|rd|th)?\b',
+                re.IGNORECASE
+            ),
+            'month_dd_original': re.compile(
                 r'\b(january|february|march|april|may|june|july|august|september|october|november|december)\s+(\d{1,2})\b',
                 re.IGNORECASE
             ),
@@ -169,6 +177,10 @@ class DateTimeParser:
             'from_to_mixed': re.compile(
                 r'\bfrom\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\s+to\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b',
                 re.IGNORECASE
+            ),
+            'simple_to_12hour': re.compile(
+                r'\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\s+to\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b',
+                re.IGNORECASE
             )
         }
         
@@ -231,8 +243,18 @@ class DateTimeParser:
             if not any(abs(time_match.start_pos - match.start_pos) < 50 for match in combined_matches + time_range_matches):
                 matches.append(time_match)  # Time matches already have today's date
         
-        # Sort by confidence (highest first)
-        matches.sort(key=lambda x: x.confidence, reverse=True)
+        # Sort by confidence and preference for combined date+time matches
+        def sort_key(match):
+            confidence = match.confidence
+            # Boost confidence for combined date+time patterns
+            if '+' in match.pattern_type:
+                confidence += 0.1  # Small boost for combined patterns
+            # Boost confidence for patterns that include year information
+            if 'yyyy' in match.pattern_type:
+                confidence += 0.05
+            return confidence
+        
+        matches.sort(key=sort_key, reverse=True)
         return matches
     
     def _extract_dates(self, text: str, prefer_dd_mm: bool = False) -> List[DateTimeMatch]:
@@ -276,6 +298,15 @@ class DateTimeParser:
                         if 1 <= day <= 31:
                             date_obj = date(year, month, day)
                             confidence = 0.95  # High confidence for explicit month names
+                    
+                    elif pattern_name == 'month_dd_range_yyyy':
+                        month_name = match.group(1).lower()
+                        day = int(match.group(2))  # Start day of range
+                        year = int(match.group(3))
+                        month = self.month_names[month_name]
+                        if 1 <= day <= 31:
+                            date_obj = date(year, month, day)
+                            confidence = 0.95  # High confidence for explicit month names and year
                     
                     elif pattern_name == 'month_dd':
                         month_name = match.group(1).lower()
@@ -468,6 +499,31 @@ class DateTimeParser:
                         
                         if (0 <= start_hour <= 23 and 0 <= start_minute <= 59 and
                             0 <= end_hour <= 23 and 0 <= end_minute <= 59):
+                            start_time = time(start_hour, start_minute)
+                            end_time = time(end_hour, end_minute)
+                    
+                    elif pattern_name == 'simple_to_12hour':
+                        # 9am to 12pm (without "from")
+                        start_hour = int(match.group(1))
+                        start_minute = int(match.group(2)) if match.group(2) else 0
+                        start_ampm = match.group(3).lower()
+                        
+                        end_hour = int(match.group(4))
+                        end_minute = int(match.group(5)) if match.group(5) else 0
+                        end_ampm = match.group(6).lower()
+                        
+                        # Convert to 24-hour format
+                        if 1 <= start_hour <= 12 and 1 <= end_hour <= 12:
+                            if start_ampm == 'pm' and start_hour != 12:
+                                start_hour += 12
+                            elif start_ampm == 'am' and start_hour == 12:
+                                start_hour = 0
+                                
+                            if end_ampm == 'pm' and end_hour != 12:
+                                end_hour += 12
+                            elif end_ampm == 'am' and end_hour == 12:
+                                end_hour = 0
+                            
                             start_time = time(start_hour, start_minute)
                             end_time = time(end_hour, end_minute)
                     

@@ -75,7 +75,7 @@ class TextMergeHelper(private val context: Context) {
             val defaultStartTime = generateDefaultStartTime(originalText)
             val defaultEndTime = generateDefaultEndTime(defaultStartTime)
             
-            return result.copy(
+            return result.copyWithSaferDefaults(
                 startDateTime = defaultStartTime,
                 endDateTime = defaultEndTime
             )
@@ -113,13 +113,26 @@ class TextMergeHelper(private val context: Context) {
         }
     }
     
+    /**
+     * Attempts to merge selected text with clipboard content for better parsing results.
+     * 
+     * Control flow:
+     * - Returns null early if texts are identical or don't appear contextually related
+     * - Preprocesses both texts for better title extraction
+     * - Tests multiple merge strategies and selects the best based on composite scoring
+     * - Returns the best merge if any strategy meets minimum confidence, otherwise null
+     * 
+     * @param selectedText The text selected by the user in Gmail
+     * @param clipboardText The text currently in the clipboard
+     * @return The best merged text, or null if no good merge is possible
+     */
     private suspend fun attemptClipboardMerge(selectedText: String, clipboardText: String): String? {
-        // Don't merge if clipboard is the same as selection
+        // Early return: Don't merge if clipboard is the same as selection
         if (selectedText.trim() == clipboardText.trim()) {
             return null
         }
         
-        // Check if clipboard appears to be from the same context
+        // Early return: Check if clipboard appears to be from the same context
         if (!appearsFromSameContext(selectedText, clipboardText)) {
             return null
         }
@@ -156,8 +169,6 @@ class TextMergeHelper(private val context: Context) {
         }
         
         return bestMerge
-        
-        return null
     }
     
     private fun appearsFromSameContext(selectedText: String, clipboardText: String): Boolean {
@@ -314,11 +325,14 @@ class TextMergeHelper(private val context: Context) {
         return try {
             val formatter = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.US)
             val startDate = formatter.parse(startTime)
-            val calendar = Calendar.getInstance()
-            calendar.time = startDate
-            calendar.add(Calendar.HOUR_OF_DAY, 1) // Add 1 hour
-            
-            formatter.format(calendar.time)
+            if (startDate != null) {
+                val calendar = Calendar.getInstance()
+                calendar.time = startDate
+                calendar.add(Calendar.HOUR_OF_DAY, 1) // Add 1 hour
+                formatter.format(calendar.time)
+            } else {
+                startTime // Fallback if parsing fails
+            }
         } catch (e: Exception) {
             startTime // Fallback to same time
         }
@@ -366,8 +380,28 @@ class TextMergeHelper(private val context: Context) {
     
     /**
      * Enhances text to improve title extraction.
+     * Handles both single-line and multi-line text properly.
      */
     private fun enhanceTitleExtraction(text: String): String {
+        var enhanced = text
+        
+        // For multi-line text, process each line separately then recombine
+        if (enhanced.contains('\n')) {
+            val lines = enhanced.split('\n').map { line ->
+                enhanceSingleLineTitle(line.trim())
+            }.filter { it.isNotEmpty() }
+            enhanced = lines.joinToString("\n")
+        } else {
+            enhanced = enhanceSingleLineTitle(enhanced)
+        }
+        
+        return enhanced
+    }
+    
+    /**
+     * Enhances a single line of text for better title extraction.
+     */
+    private fun enhanceSingleLineTitle(text: String): String {
         var enhanced = text
         
         // Pattern 1: "On [day] the [people] will attend [EVENT]" -> "[EVENT] on [day]"
@@ -465,9 +499,10 @@ class TextMergeHelper(private val context: Context) {
 }
 
 /**
- * Extension function to create a copy of ParseResult with modified fields.
+ * Extension function to create a copy of ParseResult with safer defaults applied.
+ * This function provides additional logic beyond the standard data class copy.
  */
-fun ParseResult.copy(
+fun ParseResult.copyWithSaferDefaults(
     title: String? = this.title,
     startDateTime: String? = this.startDateTime,
     endDateTime: String? = this.endDateTime,

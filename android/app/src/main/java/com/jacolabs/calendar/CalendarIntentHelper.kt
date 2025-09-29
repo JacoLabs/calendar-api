@@ -244,7 +244,15 @@ class CalendarIntentHelper(private val context: Context) {
      */
     private fun isAppInstalled(packageName: String): Boolean {
         return try {
-            context.packageManager.getPackageInfo(packageName, 0)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                context.packageManager.getPackageInfo(
+                    packageName, 
+                    PackageManager.PackageInfoFlags.of(0)
+                )
+            } else {
+                @Suppress("DEPRECATION")
+                context.packageManager.getPackageInfo(packageName, 0)
+            }
             true
         } catch (e: PackageManager.NameNotFoundException) {
             false
@@ -389,7 +397,7 @@ class CalendarIntentHelper(private val context: Context) {
     /**
      * Shows error when insufficient data is available.
      */
-    private fun showInsufficientDataError(result: ParseResult) {
+    private fun showInsufficientDataError(@Suppress("UNUSED_PARAMETER") result: ParseResult) {
         val message = buildString {
             appendLine("❌ Insufficient event information")
             appendLine()

@@ -63,9 +63,11 @@ event_parser = EventParser()
 class ParseRequest(BaseModel):
     """Request model for text parsing."""
     text: str = Field(..., description="Natural language text to parse", min_length=1, max_length=10000)
+    clipboard_text: Optional[str] = Field(default=None, description="Optional clipboard content for smart merging", max_length=10000)
     timezone: Optional[str] = Field(default="UTC", description="Timezone for date interpretation (e.g., 'America/New_York')")
     locale: Optional[str] = Field(default="en_US", description="Locale for date format preferences (e.g., 'en_US', 'en_GB')")
     now: Optional[datetime] = Field(default=None, description="Current datetime for relative date parsing (ISO 8601)")
+    use_llm_enhancement: Optional[bool] = Field(default=True, description="Whether to use LLM enhancement for better parsing")
 
 
 class ParseResponse(BaseModel):
@@ -142,12 +144,20 @@ async def parse_text(request: ParseRequest, http_request: Request):
         # Configure parser based on locale
         prefer_dd_mm = request.locale.startswith('en_GB') or request.locale.startswith('en_AU')
         
-        # Parse the text
-        parsed_event = event_parser.parse_text(
-            text=request.text,
-            prefer_dd_mm_format=prefer_dd_mm,
-            current_time=current_time
-        )
+        # Parse the text with enhancement if requested
+        if request.use_llm_enhancement:
+            parsed_event = event_parser.parse_text_enhanced(
+                text=request.text,
+                clipboard_text=request.clipboard_text,
+                prefer_dd_mm_format=prefer_dd_mm,
+                current_time=current_time
+            )
+        else:
+            parsed_event = event_parser.parse_text(
+                text=request.text,
+                prefer_dd_mm_format=prefer_dd_mm,
+                current_time=current_time
+            )
         
         # Convert to response format with timezone-aware ISO 8601 strings
         response = ParseResponse(

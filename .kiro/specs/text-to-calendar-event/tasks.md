@@ -313,24 +313,7 @@
   - _Requirements: 1.4, 5.1, 5.2_
 
 - [x] 19. Fix Android Calendar Intent Handling
-
-
-
-
-
-- [ ] 19.1 Resolve "calendar app not found" error in Android app
-  - Fix intent resolution check that fails on newer Android versions due to package visibility restrictions
-  - Add proper intent flags and fallback mechanisms for calendar app detection
-  - Implement more robust calendar app discovery using PackageManager queries
-  - Add support for multiple calendar apps (Google Calendar, Samsung Calendar, Outlook, etc.)
-  - Improve error handling and user feedback when no calendar apps are available
-  - Test calendar intent handling across different Android versions and devices
-  - _Requirements: 5.1, 5.2, 5.3_
-- [ ] 19. 
-Fix Android Calendar Intent Handling
 - [x] 19.1 Resolve calendar app not found error in Android app
-
-
   - Fix intent resolution check that fails on newer Android versions due to package visibility restrictions
   - Add proper intent flags and fallback mechanisms for calendar app detection
   - Implement more robust calendar app discovery using PackageManager queries
@@ -338,4 +321,171 @@ Fix Android Calendar Intent Handling
   - Improve error handling and user feedback when no calendar apps are available
   - Test calendar intent handling across different Android versions and devices
   - _Requirements: 5.1, 5.2, 5.3_
+
+## Milestone I: Comprehensive Real-World Parsing Implementation
+
+- [x] 20. Implement Advanced Date and Time Parsing
+
+
+
+
+
+
+
+
+
+
+- [x] 20.1 Create ComprehensiveDateTimeParser class
+
+
+
+  - Implement explicit date parsing (Monday, Sep 29, 2025; 09/29/2025; September 29th)
+  - Add relative date conversion (tomorrow, this Monday, next week, in two weeks)
+  - Create natural phrase interpretation (the first day back after break, end of month)
+  - Implement inline date handling (Sep 29 assumes current year)
+  - Add typo-tolerant time parsing (9a.m, 9am, 9:00 A M, 9 AM)
+  - Create relative time conversion (after lunch → 1:00 PM, before school → 8:00 AM)
+  - Implement time range extraction (9–10 a.m., from 3 p.m. to 5 p.m.)
+  - Add duration calculation ("for 2 hours", "30 minutes long")
+  - Write comprehensive unit tests for all date/time scenarios
+  - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 2.8_
+
+- [x] 20.2 Create DateTimeResult data model and confidence scoring
+
+
+
+  - Implement DateTimeResult class with confidence scoring
+  - Add extraction method tracking (explicit, relative, inferred)
+  - Create ambiguity detection and multiple interpretation handling
+  - Implement raw text preservation for debugging
+  - Add validation and quality assessment for extracted dates/times
+  - Write unit tests for confidence scoring accuracy
+  - _Requirements: 2.1, 7.2, 7.5_
+
+- [ ] 21. Implement Comprehensive Location Extraction
+- [ ] 21.1 Create AdvancedLocationExtractor class
+  - Implement explicit address parsing (Nathan Phillips Square, 123 Main Street)
+  - Add implicit location detection (at school, gym, the office, downtown)
+  - Create directional location parsing (meet at the front doors, by the entrance)
+  - Implement venue keyword recognition (Square, Park, Center, Hall, School, Building, Room)
+  - Add context clue detection ("venue:", "at", "in", "@" indicators)
+  - Create location type classification (address, venue, implicit, directional)
+  - Implement alternative location detection for ambiguous cases
+  - Write comprehensive unit tests for location extraction scenarios
+  - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5_
+
+- [ ] 21.2 Create LocationResult data model with confidence scoring
+  - Implement LocationResult class with confidence and type tracking
+  - Add alternative location storage for user selection
+  - Create location validation and quality assessment
+  - Implement raw text preservation for debugging
+  - Add location prioritization logic for multiple candidates
+  - Write unit tests for location confidence scoring
+  - _Requirements: 4.1, 7.2, 7.5_
+
+- [ ] 22. Implement Intelligent Title Generation and Extraction
+- [ ] 22.1 Create SmartTitleExtractor class
+  - Implement formal event name detection (Indigenous Legacy Gathering)
+  - Add action-based title generation ("We will leave school" → "School Departure")
+  - Create context-derived title generation using who/what/where analysis
+  - Implement truncated sentence detection and completion
+  - Add title quality assessment to avoid incomplete phrases
+  - Create multiple title candidate evaluation and selection
+  - Implement title normalization and formatting
+  - Write comprehensive unit tests for title extraction scenarios
+  - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5_
+
+- [ ] 22.2 Create TitleResult data model with generation tracking
+  - Implement TitleResult class with confidence and method tracking
+  - Add alternative title storage for user selection
+  - Create title quality scoring based on completeness and relevance
+  - Implement generation method tracking (explicit, derived, generated)
+  - Add raw text preservation for debugging
+  - Write unit tests for title confidence scoring
+  - _Requirements: 5.1, 7.2, 7.5_
+
+- [ ] 23. Implement Multi-Format Text Processing
+- [ ] 23.1 Create FormatAwareTextProcessor class
+  - Implement bullet point parsing for structured email content
+  - Add paragraph parsing for embedded event information
+  - Create multiple event detection in single text blocks
+  - Implement typo normalization (9a.m, 9am, 9:00 A M → 9:00 AM)
+  - Add case-insensitive processing with proper capitalization
+  - Create whitespace normalization and cleanup
+  - Implement format consistency between screenshot and highlight text
+  - Write comprehensive unit tests for format handling
+  - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5_
+
+- [ ] 23.2 Create TextFormatResult with processing metadata
+  - Implement format detection and classification
+  - Add processing step tracking for debugging
+  - Create format-specific confidence adjustments
+  - Implement normalization quality scoring
+  - Add original format preservation for reference
+  - Write unit tests for format processing accuracy
+  - _Requirements: 6.5, 7.5_
+
+- [ ] 24. Implement Robust Error Handling and Fallback Systems
+- [ ] 24.1 Create ComprehensiveErrorHandler class
+  - Implement low confidence extraction handling (< 0.3 threshold)
+  - Add multiple interpretation resolution with user selection
+  - Create graceful degradation for missing critical fields
+  - Implement "no event information found" detection and messaging
+  - Add partial information handling with completion prompts
+  - Create format recognition failure fallbacks
+  - Implement consistency validation between input methods
+  - Write comprehensive unit tests for error scenarios
+  - _Requirements: 7.1, 7.2, 7.3, 7.4_
+
+- [ ] 24.2 Create NormalizedEvent output with confidence scoring
+  - Implement standardized output format (title, startDateTime, endDateTime, location, description, confidenceScore)
+  - Add field-level confidence tracking and reporting
+  - Create parsing issue documentation and suggestion generation
+  - Implement quality threshold validation before output
+  - Add metadata preservation for debugging and improvement
+  - Write unit tests for output normalization and validation
+  - _Requirements: 7.5, 8.4, 8.5_
+
+- [ ] 25. Integrate Enhanced Parser Components
+- [ ] 25.1 Create MasterEventParser orchestration class
+  - Integrate ComprehensiveDateTimeParser, AdvancedLocationExtractor, SmartTitleExtractor, and FormatAwareTextProcessor
+  - Implement proper execution order and data flow between components
+  - Add cross-component validation and consistency checking
+  - Create unified confidence scoring across all extraction components
+  - Implement performance optimization for multi-component processing
+  - Add comprehensive logging and debugging support
+  - Write integration tests for complete parsing pipeline
+  - _Requirements: 1.2, 1.3, 8.4, 8.5_
+
+- [ ] 25.2 Create comprehensive real-world testing suite
+  - Develop test cases for all enumerated parsing scenarios (dates, times, locations, titles)
+  - Add test cases for various text formats (bullet points, paragraphs, multiple events)
+  - Create test cases for typo handling and format normalization
+  - Implement test cases for error conditions and fallback mechanisms
+  - Add performance benchmarks for parsing speed and accuracy
+  - Create user acceptance test scenarios with real email examples
+  - Document parsing accuracy improvements and remaining limitations
+  - _Requirements: All requirements validation_
+
+## Milestone J: Advanced Features and Documentation
+
+- [ ] 26. Create Comprehensive Parsing Documentation
+- [ ] 26.1 Document all parsing strategies and capabilities
+  - Create detailed documentation of date/time parsing capabilities
+  - Document location extraction strategies and supported formats
+  - Document title generation and extraction methods
+  - Create examples of supported text formats and edge cases
+  - Document error handling and fallback mechanisms
+  - Add troubleshooting guide for common parsing issues
+  - Create API documentation for parsing service integration
+  - _Requirements: 8.4, 8.5_
+
+- [ ] 26.2 Create user guide and best practices
+  - Write user guide for optimal text selection and formatting
+  - Document confidence scoring system and interpretation
+  - Create best practices for handling ambiguous text
+  - Add examples of high-quality vs low-quality parsing results
+  - Document system limitations and workarounds
+  - Create FAQ for common user questions and issues
+  - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.5_
 

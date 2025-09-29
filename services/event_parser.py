@@ -10,6 +10,7 @@ import re
 from models.event_models import ParsedEvent, ValidationResult
 from services.datetime_parser import DateTimeParser, DateTimeMatch
 from services.event_extractor import EventInformationExtractor, ExtractionMatch
+from services.text_merge_helper import TextMergeHelper
 from ui.safe_input import safe_input, confirm_action, get_choice, is_non_interactive
 
 
@@ -22,6 +23,7 @@ class EventParser:
     def __init__(self):
         self.datetime_parser = DateTimeParser()
         self.info_extractor = EventInformationExtractor()
+        self.text_merge_helper = TextMergeHelper()
         
         # Configuration for parsing behavior
         self.config = {
@@ -32,6 +34,56 @@ class EventParser:
             'enable_ambiguity_detection': True,  # Whether to detect and flag ambiguous text
         }
     
+    def parse_text_enhanced(self, text: str, clipboard_text: Optional[str] = None, **kwargs) -> ParsedEvent:
+        """
+        Parse natural language text with LLM enhancement and smart merging.
+        
+        Args:
+            text: Input text containing event information
+            clipboard_text: Optional clipboard content for smart merging
+            **kwargs: Optional configuration overrides
+            
+        Returns:
+            ParsedEvent object with extracted information and confidence scores
+        """
+        if not text or not text.strip():
+            return ParsedEvent(
+                description=text,
+                confidence_score=0.0,
+                extraction_metadata={'error': 'Empty or invalid input text'}
+            )
+        
+        # Step 1: Enhance text using LLM and smart merging
+        merge_result = self.text_merge_helper.enhance_text_for_parsing(text, clipboard_text)
+        enhanced_text = merge_result.final_text
+        
+        # Step 2: Parse the enhanced text using existing logic
+        parsed_event = self.parse_text(enhanced_text, **kwargs)
+        
+        # Step 3: Apply safer defaults if needed
+        parsed_event = self.text_merge_helper.apply_safer_defaults(parsed_event, enhanced_text)
+        
+        # Step 4: Update metadata with enhancement information
+        if parsed_event.extraction_metadata is None:
+            parsed_event.extraction_metadata = {}
+        
+        parsed_event.extraction_metadata.update({
+            'text_enhancement': {
+                'original_text': text,
+                'enhanced_text': enhanced_text,
+                'merge_applied': merge_result.merge_applied,
+                'enhancement_applied': merge_result.enhancement_applied,
+                'enhancement_confidence': merge_result.confidence,
+                'enhancement_metadata': merge_result.metadata
+            }
+        })
+        
+        # Boost overall confidence if enhancement was successful
+        if merge_result.enhancement_applied and merge_result.confidence > 0.7:
+            parsed_event.confidence_score = min(1.0, parsed_event.confidence_score * 1.2)
+        
+        return parsed_event
+
     def parse_text(self, text: str, **kwargs) -> ParsedEvent:
         """
         Parse natural language text and return a complete ParsedEvent object.
@@ -253,7 +305,8 @@ class EventParser:
             # Also check for combined date+time_range_end patterns
             if (match.pattern_type.endswith('+time_range_end_from_to_12hour') or
                 match.pattern_type.endswith('+time_range_end_from_to_24hour') or
-                match.pattern_type.endswith('+time_range_end_from_to_mixed')):
+                match.pattern_type.endswith('+time_range_end_from_to_mixed') or
+                match.pattern_type.endswith('+time_range_end_simple_to_12hour')):
                 # This is a combined date+end_time match
                 return match.value
         
