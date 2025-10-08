@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from services.regex_date_extractor import RegexDateExtractor, DateTimeResult
 from services.title_extractor import TitleExtractor
 from services.llm_enhancer import LLMEnhancer, EnhancementResult
+from services.advanced_location_extractor import AdvancedLocationExtractor
 from models.event_models import ParsedEvent, TitleResult
 
 logger = logging.getLogger(__name__)
@@ -50,6 +51,7 @@ class HybridEventParser:
         # Initialize components
         self.regex_extractor = RegexDateExtractor(current_time=self.current_time)
         self.title_extractor = TitleExtractor()
+        self.location_extractor = AdvancedLocationExtractor()
         self.llm_enhancer = LLMEnhancer()
         
         # Configuration
@@ -155,11 +157,21 @@ class HybridEventParser:
             'quality_score': title_result.quality_score
         }
         
-        # Step 3: Confidence-based routing
+        # Step 3: Location extraction
+        location_results = self.location_extractor.extract_locations(text)
+        location = location_results[0].location if location_results else None
+        location_confidence = location_results[0].confidence if location_results else 0.0
+        processing_metadata['location_extraction'] = {
+            'confidence': location_confidence,
+            'extraction_method': location_results[0].extraction_method if location_results else None,
+            'location_type': location_results[0].location_type.value if location_results else None
+        }
+        
+        # Step 4: Confidence-based routing
         if datetime_result.confidence >= self.config['regex_confidence_threshold']:
             # High confidence regex → LLM enhancement mode
             return self._regex_with_llm_enhancement(
-                datetime_result, title_result, text, warnings, processing_metadata
+                datetime_result, title_result, location, text, warnings, processing_metadata
             )
         else:
             # Low confidence regex → LLM fallback mode
@@ -170,6 +182,7 @@ class HybridEventParser:
     def _regex_with_llm_enhancement(self,
                                    datetime_result: DateTimeResult,
                                    title_result: TitleResult,
+                                   location: Optional[str],
                                    text: str,
                                    warnings: List[str],
                                    processing_metadata: Dict[str, Any]) -> HybridParsingResult:
@@ -180,6 +193,7 @@ class HybridEventParser:
         parsed_event.start_datetime = datetime_result.start_datetime
         parsed_event.end_datetime = datetime_result.end_datetime
         parsed_event.all_day = datetime_result.is_all_day
+        parsed_event.location = location
         parsed_event.description = text
         
         # Use regex title if available
@@ -200,12 +214,14 @@ class HybridEventParser:
         }
         
         if enhancement_result.success:
-            # Apply LLM enhancements
-            if enhancement_result.enhanced_title:
+            # Apply LLM enhancements ONLY if they're actually better
+            if enhancement_result.enhanced_title and title_result.confidence < 0.8:
+                # Only use LLM title if regex title had low confidence
                 parsed_event.title = enhancement_result.enhanced_title
             
-            if enhancement_result.enhanced_description:
-                parsed_event.description = enhancement_result.enhanced_description
+            # Never use LLM descriptions - they tend to hallucinate
+            # if enhancement_result.enhanced_description:
+            #     parsed_event.description = enhancement_result.enhanced_description
             
             # Calculate combined confidence (regex datetime + LLM enhancement)
             confidence_score = min(1.0, datetime_result.confidence + 0.1)  # Boost for enhancement
@@ -303,6 +319,8 @@ class HybridEventParser:
         # Extract datetime with regex
         datetime_result = self.regex_extractor.extract_datetime(text)
         title_result = self.title_extractor.extract_title(text)
+        location_results = self.location_extractor.extract_locations(text)
+        location = location_results[0].location if location_results else None
         
         processing_metadata['regex_only'] = {
             'datetime_confidence': datetime_result.confidence,
@@ -315,6 +333,7 @@ class HybridEventParser:
         parsed_event.end_datetime = datetime_result.end_datetime
         parsed_event.all_day = datetime_result.is_all_day
         parsed_event.title = title_result.title
+        parsed_event.location = location
         parsed_event.description = text
         
         # Calculate confidence (average of datetime and title)

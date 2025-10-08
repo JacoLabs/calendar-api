@@ -119,6 +119,11 @@ Open `test-popup.html` in a web browser to test the extension functionality with
 
 ## Troubleshooting
 
+### Extension Loading Slowly?
+1. **Use the fast server**: `python browser-extension/start_fast_server.py`
+2. **Check API timeout**: Extension will fallback to local parsing after 3 seconds
+3. **Works without API**: Extension has built-in parsing and works offline
+
 ### Extension Not Loading
 - Ensure Developer mode is enabled
 - Check for manifest.json syntax errors
@@ -135,13 +140,50 @@ Open `test-popup.html` in a web browser to test the extension functionality with
 - Ensure calendar service URLs are accessible
 
 ### Parsing Issues
-- Check API connectivity (requires internet)
+- Extension will work with local fallback parsing even if API is down
+- Check API connectivity for advanced features
 - Verify text contains recognizable event information
 - Try adjusting confidence threshold in settings
+
+### Performance Tips:
+- Use the lightweight server for fastest startup
+- Extension works immediately even if API is slow
+- Local fallback handles basic parsing (time, date, location)
+- No need to wait for heavy LLM processing
+
+## Performance Optimization
+
+### Fast Server Startup
+For the best performance, use the fast startup script:
+
+```bash
+# Fast startup (tries lightweight server first)
+python browser-extension/start_fast_server.py
+```
+
+### Server Options
+
+1. **Lightweight Server** (fastest startup):
+```bash
+python browser-extension/lightweight_server.py
+```
+
+2. **Full Server** (more features, slower startup):
+```bash
+python api_server.py
+```
+
+### Extension Performance Features
+
+- ⚡ **3-second timeout** prevents hanging on slow API calls
+- 🔄 **Automatic fallback** to local parsing when API is slow/unavailable
+- 📱 **Works offline** with built-in parsing capabilities
+- 🚀 **No waiting** - extension responds immediately even if API is down
 
 ## API Integration
 
 The extension connects to the Calendar Event Creator API at:
+- Local: `http://localhost:5000` (recommended for best performance)
 - Production: `https://calendar-api-wrxz.onrender.com`
 - Endpoint: `POST /parse`
 

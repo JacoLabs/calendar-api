@@ -6,30 +6,32 @@ The text-to-calendar event feature will be implemented as a comprehensive multi-
 
 ## Architecture
 
-The system follows a multi-platform layered architecture with a central API service and multiple client interfaces:
+The system follows a multi-platform layered architecture with per-field confidence routing and deterministic backup layers:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                    Client Interfaces                            │
 │  Android App | iOS App | Browser Extension | CLI Interface     │
 ├─────────────────────────────────────────────────────────────────┤
-│                     FastAPI Service                             │
-│         (REST API + CORS + OpenAPI + Telemetry)                │
+│                Enhanced FastAPI Service                         │
+│  /parse | /healthz | /audit | Caching (24h TTL) | Async       │
 ├─────────────────────────────────────────────────────────────────┤
-│                  Master Event Parser (Task 26)                 │
-│        Hybrid: Regex-first datetime; LLM polish/fallback       │
+│              Per-Field Confidence Router                        │
+│  Field Analysis → Confidence Scoring → Selective Enhancement   │
 ├─────────────────────────────────────────────────────────────────┤
-│  Pre-clean → RegexDateExtractor → TitleExtractor → LLMEnhancer  │
-│    → Confidence/Warnings → Response (parsing_path included)    │
+│                 Parsing Pipeline Layers                         │
+│  1. RegexDateExtractor (conf ≥0.8) → High confidence fields    │
+│  2. Deterministic Backup (Duckling/Recognizers) → Med conf     │
+│  3. LLMEnhancer (JSON schema, 3s timeout) → Low conf fields    │
 ├─────────────────────────────────────────────────────────────────┤
-│              LLM Constraints & Telemetry                       │
-│  Never invent datetime | Temp ≤0.2 | JSON schema | Metrics    │
+│              Enhanced Field Processing                          │
+│  Recurrence (RRULE) | Duration | All-day | Timezone handling   │
 ├─────────────────────────────────────────────────────────────────┤
-│    Mode Support | Golden Tests CI | Performance (p50 ≤1.5s)    │
-│  hybrid|regex_only|llm_only | 5 test cases | Latency tracking  │
+│           Performance & Monitoring Layer                        │
+│  Component Latency | Golden Set Testing | Reliability Diagram  │
 ├─────────────────────────────────────────────────────────────────┤
-│                   Data Models                                  │
-│  ParsedEvent | DateTimeResult | LocationResult | TitleResult   │
+│                Enhanced Data Models                             │
+│  FieldResult{value,source,confidence,span} | CacheEntry | Audit │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -37,23 +39,46 @@ The system follows a multi-platform layered architecture with a central API serv
 
 ## Components and Interfaces
 
-### 1. Text Selection Handler
-- **Purpose**: Manages text highlighting and context menu integration
+### 1. Per-Field Confidence Router
+- **Purpose**: Analyzes text and routes fields to optimal processing methods based on confidence
 - **Key Methods**:
-  - `capture_selected_text()`: Gets highlighted text from clipboard or selection
-  - `show_context_menu()`: Displays "Create Calendar Event" option
-  - `handle_selection()`: Processes user's menu selection
+  - `analyze_field_extractability(text: str) -> Dict[str, float]`: Assess per-field confidence potential
+  - `route_processing_method(field: str, confidence: float) -> ProcessingMethod`: Choose regex/deterministic/LLM
+  - `validate_field_consistency(results: Dict[str, FieldResult]) -> ValidationResult`: Cross-field validation
+  - `optimize_processing_order(fields: List[str]) -> List[str]`: Order fields for efficient processing
 
-### 2. Master Event Parser Service (Task 26 Integration Focal Point)
-- **Purpose**: Orchestrates hybrid parsing with regex-first datetime extraction and LLM enhancement/fallback
-- **Processing Flow**: pre-clean → RegexDateExtractor → TitleExtractor → LLMEnhancer → confidence/warnings → response
+### 2. Deterministic Backup Layer
+- **Purpose**: Provides reliable fallback parsing before expensive LLM processing
+- **Integration Options**:
+  - **Duckling**: Facebook's rule-based parser for dates, times, numbers
+  - **Microsoft Recognizers-Text**: Multi-language entity recognition
 - **Key Methods**:
-  - `parse_text(text: str, mode: str = "hybrid") -> ParsedEvent`: Main parsing orchestration with mode support (hybrid|regex_only|llm_only)
-  - `regex_extract_datetime(text: str) -> DateTimeResult`: Primary regex-based datetime extraction (confidence ≥ 0.8)
-  - `llm_enhance_fields(event: ParsedEvent) -> ParsedEvent`: LLM title/description polishing when regex succeeds
-  - `llm_fallback_extract(text: str) -> ParsedEvent`: Full LLM extraction only when regex fails (confidence ≤ 0.5, add warning)
-  - `validate_and_score(event: ParsedEvent) -> ParsedEvent`: Confidence scoring and warning generation
-  - `collect_telemetry(input_text: str, result: ParsedEvent) -> TelemetryData`: Track parsing metrics and performance
+  - `extract_with_duckling(text: str, field: str) -> FieldResult`: Duckling-based extraction
+  - `extract_with_recognizers(text: str, field: str) -> FieldResult`: Microsoft Recognizers extraction
+  - `choose_best_span(candidates: List[FieldResult]) -> FieldResult`: Select shortest valid span
+  - `validate_timezone_normalization(datetime_result: FieldResult) -> bool`: Ensure valid timezone handling
+
+### 3. Enhanced LLM Processing with Guardrails
+- **Purpose**: Provides LLM enhancement with strict constraints and timeouts
+- **Key Methods**:
+  - `enhance_low_confidence_fields(text: str, fields: List[str], locked_fields: Dict) -> Dict[str, FieldResult]`: Process only specified fields
+  - `enforce_schema_constraints(llm_output: Dict, locked_fields: Dict) -> Dict`: Prevent modification of high-confidence fields
+  - `limit_context_to_residual(text: str, extracted_spans: List[Tuple[int, int]]) -> str`: Reduce LLM context
+  - `timeout_with_retry(prompt: str, timeout_seconds: int = 3) -> Optional[Dict]`: Handle timeouts and retries
+  - `validate_json_schema(output: str) -> Dict`: Ensure structured output compliance
+
+### 2. Enhanced Hybrid Event Parser Service
+- **Purpose**: Orchestrates per-field confidence routing with deterministic backup layers
+- **Processing Flow**: text → field analysis → confidence routing → selective enhancement → result aggregation
+- **Key Methods**:
+  - `parse_event_text(text: str, mode: str = "hybrid", fields: List[str] = None) -> ParsedEvent`: Main parsing with field filtering
+  - `analyze_field_confidence(text: str, field: str) -> FieldConfidence`: Per-field confidence assessment
+  - `route_field_processing(field: str, confidence: float) -> ProcessingMethod`: Determine optimal processing method
+  - `extract_with_regex(text: str, field: str) -> FieldResult`: High-confidence regex extraction (≥0.8)
+  - `extract_with_deterministic_backup(text: str, field: str) -> FieldResult`: Duckling/Recognizers fallback (0.6-0.8)
+  - `enhance_with_llm(text: str, field: str, context: Dict) -> FieldResult`: LLM processing for low-confidence fields (<0.6)
+  - `aggregate_field_results(results: Dict[str, FieldResult]) -> ParsedEvent`: Combine results with provenance
+  - `validate_and_cache(text_hash: str, result: ParsedEvent) -> ParsedEvent`: Caching and validation
 
 **Hybrid Parsing Strategy (Requirement 9)**:
 
@@ -123,18 +148,38 @@ The system follows a multi-platform layered architecture with a central API serv
   - `handle_confirmation()`: Processes user's create/cancel decision
   - `show_confidence_warnings()`: Displays low-confidence field warnings for user review
 
-### 4. Calendar Integration Services
-- **Purpose**: Manages calendar event creation across different platforms and services
-- **Platform-Specific Implementations**:
-  - **Android**: CalendarContract integration for native Android calendar
-  - **iOS**: EventKit framework for native iOS calendar
-  - **Browser**: URL generation for Google Calendar, Outlook web interfaces
-  - **CLI**: File output and console confirmation for development
+### 4. Enhanced Recurrence and Duration Processing
+- **Purpose**: Handles complex recurrence patterns and duration calculations
 - **Key Methods**:
-  - `create_event(event: Event) -> bool`: Creates calendar entry with platform-specific implementation
-  - `validate_event(event: Event) -> ValidationResult`: Checks event validity before creation
-  - `get_calendar_url(event: Event) -> str`: Generates calendar service URLs for web integration
-  - `handle_creation_errors() -> ErrorResponse`: Provides user-friendly error messages and retry options
+  - `parse_recurrence_pattern(text: str) -> RecurrenceResult`: Convert natural language to RRULE
+  - `handle_every_other_pattern(text: str) -> str`: "every other Tuesday" → FREQ=WEEKLY;INTERVAL=2;BYDAY=TU
+  - `calculate_duration_end_time(start: datetime, duration_text: str) -> datetime`: "for 45 minutes" processing
+  - `parse_until_time(text: str, start_date: date) -> datetime`: "until noon" → 12:00 PM same day
+  - `detect_all_day_indicators(text: str) -> bool`: Identify all-day event markers
+  - `validate_rrule_format(rrule: str) -> bool`: Ensure RFC 5545 compliance
+
+### 5. Enhanced API Service Layer
+- **Purpose**: Provides comprehensive API with audit, caching, and performance features
+- **New Endpoints**:
+  - `POST /parse?mode=audit&fields=start,title`: Enhanced parsing with audit data
+  - `GET /healthz`: Health check with component status
+  - `GET /cache/stats`: Cache performance metrics
+- **Key Methods**:
+  - `handle_audit_mode(request: ParseRequest) -> AuditResponse`: Expose routing and confidence data
+  - `handle_partial_parsing(text: str, fields: List[str]) -> PartialParseResult`: Process only specified fields
+  - `manage_cache(text_hash: str, result: ParsedEvent) -> CacheEntry`: 24h TTL caching
+  - `collect_performance_metrics() -> PerformanceMetrics`: Component latency tracking
+  - `lazy_load_heavy_modules()`: Defer expensive imports for faster cold starts
+
+### 6. Performance Monitoring and Testing
+- **Purpose**: Maintains system reliability and performance standards
+- **Key Methods**:
+  - `track_component_latency(component: str, duration_ms: int)`: Log processing times
+  - `maintain_golden_set() -> List[TestCase]`: 50-100 curated test snippets
+  - `generate_reliability_diagram(predictions: List[float], outcomes: List[bool]) -> ReliabilityDiagram`: Confidence calibration
+  - `precompile_regex_patterns()`: Startup optimization
+  - `warm_up_models()`: Model initialization on boot
+  - `concurrent_field_processing(fields: List[str]) -> Dict[str, FieldResult]`: asyncio.gather() optimization
 
 ## Data Models
 
@@ -147,23 +192,65 @@ class ParsedEvent:
     end_datetime: Optional[datetime]
     location: Optional[str]
     description: str
+    recurrence: Optional[str]  # RRULE format
+    participants: List[str]
+    all_day: bool
     confidence_score: float
-    field_confidence: Dict[str, float]  # Individual field confidence scores
-    extraction_metadata: Dict[str, Any]
-    parsing_issues: List[str]  # Issues encountered during parsing
-    suggestions: List[str]  # Suggestions for improvement
-```
+    field_results: Dict[str, FieldResult]  # Per-field results with provenance
+    parsing_path: str  # "regex_primary", "deterministic_backup", "llm_fallback"
+    processing_time_ms: int
+    cache_hit: bool
+    warnings: List[str]
+    needs_confirmation: bool
 
-### DateTimeResult
+### FieldResult
 ```python
 @dataclass
-class DateTimeResult:
-    start_datetime: Optional[datetime]
-    end_datetime: Optional[datetime]
+class FieldResult:
+    value: Any
+    source: str  # "regex", "duckling", "recognizers", "llm"
     confidence: float
-    extraction_method: str  # "explicit", "relative", "inferred"
-    ambiguities: List[str]  # Multiple possible interpretations
-    raw_text: str  # Original text that was parsed
+    span: Tuple[int, int]  # Character positions in original text
+    alternatives: List[Any]  # Other possible values
+    processing_time_ms: int
+```
+
+### RecurrenceResult
+```python
+@dataclass
+class RecurrenceResult:
+    rrule: Optional[str]  # RFC 5545 format
+    natural_language: str  # Original text like "every other Tuesday"
+    confidence: float
+    pattern_type: str  # "weekly", "monthly", "daily", "custom"
+    
+### DurationResult
+```python
+@dataclass
+class DurationResult:
+    duration_minutes: Optional[int]
+    end_time_override: Optional[datetime]  # For "until noon" cases
+    all_day: bool
+    confidence: float
+    
+### CacheEntry
+```python
+@dataclass
+class CacheEntry:
+    text_hash: str
+    result: ParsedEvent
+    timestamp: datetime
+    hit_count: int
+    
+### AuditData
+```python
+@dataclass
+class AuditData:
+    field_routing_decisions: Dict[str, str]  # field -> processing_method
+    confidence_breakdown: Dict[str, float]
+    processing_times: Dict[str, int]  # component -> time_ms
+    fallback_triggers: List[str]
+    cache_status: str
 ```
 
 ### LocationResult
@@ -272,19 +359,25 @@ class ValidationResult:
 
 ## Implementation Considerations
 
-### Multi-Platform Architecture Strategy
+### Enhanced Architecture Strategy
 
-**API-Centric Design**:
-- **FastAPI Backend**: Central parsing service with REST endpoints and CORS support
-- **Client Applications**: Android, iOS, Browser Extension, CLI all consume same API
-- **Consistent Results**: Identical parsing logic ensures same output across all platforms
-- **Scalability**: Centralized service allows easy updates and improvements
+**Per-Field Confidence Routing**:
+- **Field-Level Analysis**: Each field (start, end, recurrence, location, title, participants) analyzed independently
+- **Confidence-Based Processing**: High confidence (≥0.8) → regex only; Medium (0.6-0.8) → deterministic backup; Low (<0.6) → LLM enhancement
+- **Provenance Tracking**: Store {value, source, confidence, span} for each field result
+- **Selective Enhancement**: LLM only processes fields that need improvement, reducing cost and latency
 
-**Hybrid Parsing Strategy (Requirement 9)**:
-- **Primary DateTime**: Regex patterns and dateutil.parser for reliable date/time extraction with high confidence
-- **LLM Enhancement**: Ollama/Llama 3.2 for title polishing and description generation when regex succeeds
-- **LLM Fallback**: Full LLM extraction only when regex fails, with confidence ≤ 0.5 and needs_confirmation flag
-- **Component Fallback**: Specialized parsers for location extraction and title generation as needed
+**Deterministic Backup Integration**:
+- **Duckling Integration**: Facebook's rule-based parser for robust date/time extraction
+- **Microsoft Recognizers**: Multi-language entity recognition for comprehensive coverage
+- **Span Optimization**: Choose candidate with shortest valid span and proper timezone normalization
+- **Confidence Calibration**: Deterministic methods provide 0.6-0.8 confidence range
+
+**Enhanced LLM Guardrails**:
+- **Schema Enforcement**: JSON/function-calling schema prevents modification of high-confidence fields
+- **Context Limitation**: Only residual unparsed text sent to LLM, reducing token usage
+- **Timeout Management**: 3-second timeout with single retry, return partial results on failure
+- **Temperature Control**: Temperature=0 for deterministic outputs, prevent hallucination
 
 **LLM Integration Details (Enhancement Role)**:
 - **Model Selection**: Llama 3.2 3B for local deployment, avoiding API costs and ensuring privacy
@@ -320,18 +413,26 @@ class ValidationResult:
 - **Confidence Indicators**: Visual cues showing extraction quality for each field
 - **Error Recovery**: Clear error messages with specific suggestions for improvement
 
-### Performance and Scalability
+### Enhanced Performance and Scalability
 
 **Optimization Strategies**:
-- **Compiled regex patterns**: Pre-compile frequently used patterns
-- **Caching layer**: Store parsing results for identical text
-- **Async processing**: Non-blocking operations for API calls
-- **Batch processing**: Handle multiple events efficiently
+- **Lazy Module Loading**: Defer heavy imports (Duckling, Recognizers) until needed for faster cold starts
+- **Regex Precompilation**: Compile patterns at startup for faster matching
+- **Model Warm-up**: Initialize small models on boot to reduce first-request latency
+- **Concurrent Processing**: Use asyncio.gather() for independent field processing
+- **Intelligent Caching**: 24h TTL cache with normalized text hashing
 
 **Resource Management**:
-- **Memory efficiency**: Stream processing for large text blocks
-- **CPU optimization**: Prioritize fast patterns before complex analysis
-- **Network efficiency**: Minimize API calls through intelligent caching
+- **Memory efficiency**: Stream processing and lazy loading of large modules
+- **CPU optimization**: Per-field routing prevents unnecessary processing
+- **Network efficiency**: Partial parsing reduces API payload sizes
+- **Timeout Handling**: Return partial results rather than failing completely
+
+**Performance Monitoring**:
+- **Component Latency**: Track regex, deterministic backup, and LLM processing times
+- **Golden Set Testing**: Maintain 50-100 curated test cases for accuracy validation
+- **Reliability Calibration**: Generate reliability diagrams for confidence score validation
+- **Health Monitoring**: /healthz endpoint with component status and performance metrics
 
 ### Extensibility and Maintenance
 

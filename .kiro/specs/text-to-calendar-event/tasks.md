@@ -1,504 +1,204 @@
-# Implementation Plan
-
-- [x] 1. Set up project structure and core data models
-  - Create directory structure for models, services, and UI components
-  - Implement core data classes (ParsedEvent, Event, ValidationResult)
-  - Write unit tests for data model validation and serialization
-  - _Requirements: 1.4, 3.1, 5.4_
-
-- [x] 2. Implement basic date and time parsing functionality
-  - Create datetime extraction service with regex patterns for common formats
-  - Implement support for absolute dates (MM/DD/YYYY, DD/MM/YYYY, Month DD, YYYY)
-  - Add time parsing for 12-hour and 24-hour formats with AM/PM support
-  - Write comprehensive unit tests for date/time parsing edge cases
-  - _Requirements: 2.1, 2.2_
-
-- [x] 3. Add relative date parsing capabilities
-  - Implement relative date conversion ("tomorrow", "next Friday", "in 2 weeks")
-  - Add duration parsing and end time calculation ("for 2 hours", "30 minutes")
-  - Create helper functions for date arithmetic and validation
-  - Write unit tests for relative date scenarios and boundary conditions
-  - _Requirements: 2.3, 2.4_
-
-- [x] 4. Create event information extraction service
-  - Implement title extraction using heuristics and keyword detection
-  - Add location parsing with keyword identification (at, in, @)
-  - Create confidence scoring system for extraction quality assessment
-  - Write unit tests for various text formats and extraction scenarios
-  - _Requirements: 1.3, 4.4_
-
-- [x] 5. Set up LLM integration with Ollama
-  - Install and configure Ollama with Llama 3.2 3B model for local inference
-  - Create LLMService class for handling model communication
-  - Implement structured prompts for event extraction with JSON output
-  - Add error handling and fallback when LLM is unavailable
-  - Create unit tests for LLM service functionality
-  - _Requirements: 1.2, 6.3_
-
-- [x] 5.1 Build main event parser service with LLM-first approach
-  - Create unified EventParser class with LLM as primary parsing method
-  - Implement llm_extract_event() method for natural language processing
-  - Add regex_fallback_extract() method for when LLM fails
-  - Implement parse_text() method that orchestrates LLM-first strategy
-  - Add validation and error handling for incomplete or ambiguous text
-  - Create comprehensive test suite with real-world text examples
-  - _Requirements: 1.2, 4.1, 4.2, 4.3_
-
-- [x] 5.2 Create LLM prompt templates for event extraction
-  - Design prompts for extracting title, date, time, and optional location
-  - Create prompts that handle multi-paragraph text as single event context
-  - Implement confidence scoring requests in prompts
-  - Add prompts for handling ambiguous or incomplete information
-  - Create fallback prompts for when initial extraction fails
-  - Test prompt effectiveness with various text formats and scenarios
-  - _Requirements: 1.3, 6.3, 7.5_
-
-- [x] 6. Create basic command-line interface for text input
-  - Implement simple CLI that accepts text input and displays parsed results
-  - Add command-line options for different parsing preferences (date format, etc.)
-  - Create text input validation and error handling
-  - Write tests for CLI functionality
-  - _Requirements: 1.1, 1.2_
-
-- [x] 7. Create event preview and editing interface
-  - Build console-based interface for displaying extracted event information
-  - Implement interactive prompts for editing title, date, time, location, and description
-  - Add validation for user input and error handling for required fields
-  - Create confirmation and cancellation handling
-  - _Requirements: 3.1, 3.2, 3.3_
-
-- [x] 8. Implement calendar service and event creation
-  - Create CalendarService class with interface for event management
-  - Implement basic event creation that outputs to file or console (as proof of concept)
-  - Add event validation and error handling before creation
-  - Write unit tests for calendar service operations
-  - _Requirements: 5.1, 5.3_
-
-- [x] 9. Add event creation confirmation and feedback
-  - Implement success confirmation with event details display
-  - Add error handling and retry mechanisms for failed event creation
-  - Create user feedback system for creation status and errors
-  - Write tests for confirmation flow and error scenarios
-  - _Requirements: 5.2, 5.3_
-
-- [x] 10. Integrate all components and create main application flow
-  - Create main.py application that orchestrates the complete workflow
-  - Wire together CLI input, parsing, preview interface, and calendar services
-  - Implement complete end-to-end workflow from text input to event creation
-  - Add basic configuration options and error handling
-  - Create integration tests for full user workflow
-  - _Requirements: 1.1, 1.2, 1.3, 1.4, 3.4, 5.4_
-
-- [x] 11. Add advanced parsing features and error handling
-  - Enhance EventParser to handle ambiguous text with user clarification prompts
-  - Add support for detecting and parsing multiple events in single text input
-  - Create fallback mechanisms for failed parsing with manual input options
-  - Write tests for edge cases and error recovery scenarios
-  - _Requirements: 4.2, 4.3_
-
-- [x] 12. Create comprehensive test suite and validation
-  - Implement end-to-end tests covering complete user workflows
-  - Add performance tests for parsing large text blocks
-  - Create test data sets with various text formats and scenarios
-  - Validate all requirements are met through automated testing
-  - _Requirements: All requirements validation_
-
-## API and Deployment
-
-- [x] 13. Create FastAPI backend service
-  - Implement REST API endpoints for text parsing
-  - Add CORS middleware for browser and mobile app access
-  - Create request/response models with proper validation
-  - Deploy API to Render with proper configuration
-  - Add health check and monitoring endpoints
-  - _Requirements: 1.1, 1.2, 1.3_
-
-## Mobile Applications
-
-- [x] 14. Android App Development
-- [x] 14.1 Create basic Android app with text input interface
-  - Set up Android project structure with Kotlin and Jetpack Compose
-  - Implement UI with text input field and submit button
-  - Add API service to call POST /parse endpoint
-  - Display parsed event results with confidence scoring
-  - Handle network errors and loading states gracefully
-  - _Requirements: 1.1, 1.2, 1.3_
-
-- [x] 14.2 Implement Android text selection integration
-  - Add ACTION_PROCESS_TEXT intent handler for text selection context menu
-  - Create "Create Calendar Event" option in text selection menu
-  - Implement background API call when text is selected
-  - Launch native Android calendar app with pre-filled event data using CalendarContract
-  - Add proper permissions and error handling for calendar integration
-  - Test text selection workflow across different Android apps
-  - _Requirements: 1.1, 1.4, 5.1, 5.2_
-
-- [x] 15. iOS App Development
-- [x] 15.1 Create basic iOS app with text input interface
-  - Set up iOS project with Swift and SwiftUI
-  - Implement UI with text input field and submit button
-  - Add API service to call POST /parse endpoint
-  - Display parsed event results in native iOS interface
-  - Handle JSON parsing and error states gracefully
-  - _Requirements: 1.1, 1.2, 1.3_
-
-- [x] 15.2 Implement iOS Share Extension
-  - Create iOS Share Extension target for text sharing
-  - Add extension to handle selected text from other apps via Share Sheet
-  - Implement API call from extension to parse selected text
-  - Launch native iOS EventKit calendar editor with pre-filled data
-  - Add proper Info.plist configuration and calendar permissions
-  - Test share extension with various apps (Safari, Mail, Messages)
-  - _Requirements: 1.1, 1.4, 5.1, 5.2_
-
-## Browser Extension
-
-- [x] 16. Browser Extension Development
-- [x] 16.1 Create browser extension with API integration
-  - Update existing browser-extension scaffold to use live API
-  - Implement context menu "Create calendar event" on text selection
-  - Add API service to call POST /parse with selected text
-  - Handle API responses and error states in background script
-  - Create calendar URL generation for Google Calendar and Outlook
-  - _Requirements: 1.1, 1.2, 1.3_
-
-- [x] 16.2 Enhance browser extension popup interface
-
-
-
-
-
-  - Update popup.html with event display interface
-  - Implement popup.js for showing parsed event results
-  - Add calendar integration buttons (Google Calendar, Outlook)
-  - Create user preferences and settings management
-  - Test cross-browser compatibility (Chrome, Firefox, Edge)
-  - _Requirements: 1.4, 5.1, 5.2_
-
-## Advanced Parsing Components
-
-- [x] 17. Comprehensive DateTime Parser
-- [x] 17.1 Create ComprehensiveDateTimeParser class
-  - Implement explicit date parsing (Monday, Sep 29, 2025; 09/29/2025; September 29th)
-  - Add relative date conversion (tomorrow, this Monday, next week, in two weeks)
-  - Create natural phrase interpretation (the first day back after break, end of month)
-  - Implement inline date handling (Sep 29 assumes current year)
-  - Add typo-tolerant time parsing (9a.m, 9am, 9:00 A M, 9 AM)
-  - Create relative time conversion (after lunch → 1:00 PM, before school → 8:00 AM)
-  - Implement time range extraction (9–10 a.m., from 3 p.m. to 5 p.m.)
-  - Add duration calculation ("for 2 hours", "30 minutes long")
-  - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 2.8_
-
-- [x] 17.2 Create DateTimeResult data model with confidence scoring
-  - Implement DateTimeResult class with confidence scoring
-  - Add extraction method tracking (explicit, relative, inferred)
-  - Create ambiguity detection and multiple interpretation handling
-  - Implement raw text preservation for debugging
-  - Add validation and quality assessment for extracted dates/times
-  - _Requirements: 2.1, 7.2, 7.5_
-
-- [x] 18. Advanced Location Extraction
-- [x] 18.1 Create AdvancedLocationExtractor class
-  - Implement explicit address parsing (Nathan Phillips Square, 123 Main Street)
-  - Add implicit location detection (at school, gym, the office, downtown)
-  - Create directional location parsing (meet at the front doors, by the entrance)
-  - Implement venue keyword recognition (Square, Park, Center, Hall, School, Building, Room)
-  - Add context clue detection ("venue:", "at", "in", "@" indicators)
-  - Create location type classification (address, venue, implicit, directional)
-  - Ensure events can be created successfully without location information
-  - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.6, 4.7_
-
-- [x] 18.2 Create LocationResult data model with confidence scoring
-  - Implement LocationResult class with confidence and type tracking
-  - Add alternative location storage for user selection
-  - Create location validation and quality assessment
-  - Implement raw text preservation for debugging
-  - Add location prioritization logic for multiple candidates
-  - _Requirements: 4.1, 7.2, 7.5_
-
-- [x] 19. Smart Title Extraction (LLM Fallback Service)
-- [x] 19.1 Create SmartTitleExtractor class as LLM fallback
-  - Implement regex-based formal event name detection as fallback when LLM fails
-  - Create context-derived title generation for LLM enhancement/validation
-  - Implement title quality assessment for LLM-generated titles
-  - Add title normalization and formatting for LLM outputs
-  - Create fallback title extraction when LLM returns low confidence results
-  - Add user prompt handling when neither LLM nor regex can generate good titles
-  - Implement title validation and alternative suggestion for LLM results
-  - _Requirements: 5.1, 5.2, 5.3, 5.4_
-
-- [x] 19.2 Create TitleResult data model with generation tracking
-  - Implement TitleResult class with confidence and method tracking
-  - Add alternative title storage for user selection
-  - Create title quality scoring based on completeness and relevance
-  - Implement generation method tracking (explicit, derived, generated)
-  - Add raw text preservation for debugging
-  - _Requirements: 5.1, 7.2, 7.5_
-
-## Remaining Implementation Tasks
-
-- [x] 20. Multi-Format Text Processing
-
-
-
-
-
-
-
-
-- [x] 20.1 Create FormatAwareTextProcessor class
-
-
-
-
-
-
-
-  - Implement bullet point parsing for structured email content
-  - Add paragraph parsing for embedded event information
-  - Create multi-paragraph text processing as single event description
-  - Create multiple event detection in single text blocks
-  - Implement typo normalization (9a.m, 9am, 9:00 A M → 9:00 AM)
-  - Add case-insensitive processing with proper capitalization
-  - Create whitespace normalization and cleanup
-  - Implement format consistency between screenshot and highlight text
-  - Write comprehensive unit tests for format handling
-  - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.6_
-
-- [x] 20.2 Create TextFormatResult with processing metadata
-
-
-  - Implement format detection and classification
-  - Add processing step tracking for debugging
-  - Create format-specific confidence adjustments
-  - Implement normalization quality scoring
-  - Add original format preservation for reference
-  - Write unit tests for format processing accuracy
-  - _Requirements: 6.5, 7.5_
-
-- [x] 21. Robust Error Handling and Fallback Systems
-
-
-
-
-
-
-
-
-- [x] 21.1 Create ComprehensiveErrorHandler class
-
-
-
-  - Implement low confidence extraction handling (< 0.3 threshold)
-  - Add multiple interpretation resolution with user selection
-  - Create graceful degradation for missing critical fields (title, date/time)
-  - Handle missing optional fields (location) without preventing event creation
-  - Implement "no event information found" detection and messaging
-  - Add partial information handling with completion prompts
-  - Create LLM failure fallbacks to regex-based extraction
-  - Implement consistency validation between input methods
-  - Write comprehensive unit tests for error scenarios
-  - _Requirements: 7.1, 7.2, 7.3, 7.4_
-
-- [x] 21.2 Create NormalizedEvent output with confidence scoring
-
-
-  - Implement standardized output format (title, startDateTime, endDateTime, location, description, confidenceScore)
-  - Add field-level confidence tracking and reporting
-  - Create parsing issue documentation and suggestion generation
-  - Implement quality threshold validation before output
-  - Add metadata preservation for debugging and improvement
-  - Write unit tests for output normalization and validation
-  - _Requirements: 7.5, 8.4, 8.5_
--
-
-- [x] 22. Enhanced Parser Integration
-
-
-
-- [x] 22.1 Create MasterEventParser orchestration class with LLM-first strategy
-
-
-  - Integrate LLMService as primary parsing method with regex fallbacks
-  - Implement FormatAwareTextProcessor for multi-paragraph text handling
-  - Add optional AdvancedLocationExtractor and SmartTitleExtractor as enhancements
-  - Implement proper execution order: LLM → regex fallback → component fallback
+# Implementation Plan - Enhanced Hybrid Parsing Architecture
+
+## Phase 1: Core Infrastructure and Data Models
+
+- [x] 1. Refactor core data models for per-field confidence tracking
+
+
+
+
+
+
+  - Update ParsedEvent with field_results, parsing_path, processing_time_ms, cache_hit, needs_confirmation
+  - Create FieldResult class with value, source, confidence, span, alternatives, processing_time_ms
+  - Implement RecurrenceResult, DurationResult, CacheEntry, and AuditData models
+  - Add enhanced ValidationResult with field-specific warnings and suggestions
+  - Write comprehensive unit tests for new data model serialization and validation
+  - _Requirements: 10.4, 14.5, 15.4_
+
+- [ ] 2. Create Per-Field Confidence Router
+  - Implement PerFieldConfidenceRouter class with field analysis capabilities
+  - Add analyze_field_extractability() method to assess per-field confidence potential
+  - Create route_processing_method() to choose between regex/deterministic/LLM based on confidence
+  - Implement validate_field_consistency() for cross-field validation
+  - Add optimize_processing_order() to sequence fields for efficient processing
+  - Write unit tests for routing logic and confidence thresholds
+  - _Requirements: 10.1, 10.2, 10.3, 10.5_
+
+## Phase 2: Deterministic Backup Layer
+
+- [ ] 3. Integrate Duckling parser as deterministic backup
+  - Install and configure Duckling for date/time entity extraction
+  - Create DucklingExtractor class with extract_with_duckling() method
+  - Implement confidence scoring for Duckling results (0.6-0.8 range)
+  - Add timezone validation and normalization for Duckling outputs
+  - Create unit tests for Duckling integration and edge cases
+  - _Requirements: 11.1, 11.3, 11.4_
+
+- [ ] 4. Integrate Microsoft Recognizers-Text as backup option
+  - Install Microsoft Recognizers-Text Python library
+  - Create RecognizersExtractor class with extract_with_recognizers() method
+  - Implement multi-language entity recognition for dates, times, numbers
+  - Add confidence scoring and span validation for Recognizers results
+  - Create unit tests for Recognizers integration and language support
+  - _Requirements: 11.1, 11.2, 11.4_
+
+- [ ] 5. Implement deterministic backup coordination
+  - Create DeterministicBackupLayer class to coordinate Duckling and Recognizers
+  - Implement choose_best_span() method to select shortest valid span
+  - Add validate_timezone_normalization() for datetime results
+  - Create fallback logic when deterministic methods fail
+  - Write integration tests for backup layer coordination
+  - _Requirements: 11.2, 11.3, 11.5_
+
+## Phase 3: Enhanced LLM Processing with Guardrails
+
+- [ ] 6. Refactor LLM service with strict guardrails
+  - Update LLMEnhancer with enhance_low_confidence_fields() method
+  - Implement enforce_schema_constraints() to prevent modification of high-confidence fields
+  - Add limit_context_to_residual() to reduce LLM context to unparsed text only
+  - Create timeout_with_retry() with 3-second timeout and single retry
+  - Implement validate_json_schema() for structured output compliance
+  - _Requirements: 12.1, 12.2, 12.3, 12.4, 12.5_
+
+- [ ] 7. Implement LLM function calling schema
+  - Design JSON schema that locks high-confidence fields from modification
+  - Create function definitions for field-specific enhancement
+  - Implement schema validation and error handling for malformed LLM outputs
+  - Add temperature=0 enforcement for deterministic results
+  - Write unit tests for schema enforcement and constraint validation
+  - _Requirements: 12.1, 12.5, 12.6_
+
+## Phase 4: Enhanced Field Processing
+
+- [ ] 8. Create enhanced recurrence pattern processing
+  - Implement RecurrenceProcessor class with parse_recurrence_pattern() method
+  - Add handle_every_other_pattern() for "every other Tuesday" → RRULE conversion
+  - Create RRULE generation for weekly, monthly, daily patterns
+  - Implement validate_rrule_format() for RFC 5545 compliance
+  - Write comprehensive tests for recurrence pattern recognition
+  - _Requirements: 13.1, 13.5_
+
+- [ ] 9. Implement duration and all-day event processing
+  - Create DurationProcessor class with calculate_duration_end_time() method
+  - Add parse_until_time() for "until noon" → 12:00 PM conversion
+  - Implement detect_all_day_indicators() for all-day event detection
+  - Create duration conflict resolution when explicit end time exists
+  - Write unit tests for duration calculations and all-day detection
+  - _Requirements: 13.2, 13.3, 13.4, 13.6_
+
+## Phase 5: Enhanced Hybrid Event Parser
+
+- [ ] 10. Refactor HybridEventParser with per-field routing
+  - Update parse_event_text() with field filtering and confidence routing
+  - Implement analyze_field_confidence() for per-field assessment
+  - Add route_field_processing() to determine optimal processing method per field
+  - Create aggregate_field_results() to combine results with provenance tracking
+  - Implement validate_and_cache() for result caching and validation
+  - _Requirements: 10.1, 10.2, 10.6_
+
+- [ ] 11. Integrate all parsing layers into unified pipeline
+  - Connect regex extraction, deterministic backup, and LLM enhancement
+  - Implement processing order: regex (≥0.8) → deterministic (0.6-0.8) → LLM (<0.6)
   - Add cross-component validation and consistency checking
   - Create unified confidence scoring across all extraction methods
-  - Implement performance optimization for LLM + fallback processing
-  - Add comprehensive logging and debugging support
-  - Write integration tests for complete LLM-first parsing pipeline
-  - _Requirements: 1.2, 1.3, 8.4, 8.5_
-
-- [x] 22.2 Create comprehensive real-world testing suite
-
-
-  - Develop test cases for all enumerated parsing scenarios (dates, times, locations, titles)
-  - Add test cases for various text formats (bullet points, paragraphs, multiple events)
-  - Create test cases for typo handling and format normalization
-  - Implement test cases for error conditions and fallback mechanisms
-  - Add performance benchmarks for parsing speed and accuracy
-  - Create user acceptance test scenarios with real email examples
-  - Document parsing accuracy improvements and remaining limitations
-  - _Requirements: All requirements validation_
-
-## Final Polish and Documentation
-
-- [x] 23. Browser Extension Completion
-
-
-
-
-
-
-
-
-
-
-
-
-- [x] 23.1 Complete browser extension popup interface
-
-
-
-
-  - Update popup.html with event display interface
-  - Implement popup.js for showing parsed event results
-  - Add calendar integration buttons (Google Calendar, Outlook)
-  - Create calendar service selection in extension options
-  - Add URL generation for calendar web apps with parsed event data
-  - Test cross-browser compatibility (Chrome, Firefox, Edge)
-  - _Requirements: 1.4, 5.1, 5.2_
-
-- [x] 24. Integration & Polish
-
-
-
-
-
-- [x] 24.1 Enhance API CORS and error handling
-
-
-  - Verify CORS middleware configuration in FastAPI allows all client origins
-  - Add proper error responses and status codes for client applications
-  - Implement API rate limiting and basic security measures
-  - Add API health check endpoint monitoring
-  - Create API documentation for mobile and browser clients
-  - _Requirements: 5.3_
-
-- [x] 24.2 Add comprehensive error handling to all clients
-
-
-  - Implement offline/API unavailable handling in Android app
-  - Add network error recovery in iOS app and extension
-  - Create user-friendly error messages for parsing failures
-  - Add retry mechanisms for temporary API failures
-  - Implement fallback behavior when calendar integration fails
-  - _Requirements: 5.3_
-
-- [x] 25. Documentation and Testing
-
-
-
-
-
-- [x] 25.1 Create comprehensive parsing documentation
-
-
-  - Create detailed documentation of date/time parsing capabilities
-  - Document location extraction strategies and supported formats
-  - Document title generation and extraction methods
-  - Create examples of supported text formats and edge cases
-  - Document error handling and fallback mechanisms
-  - Add troubleshooting guide for common parsing issues
-  - Create API documentation for parsing service integration
-  - _Requirements: 8.4, 8.5_
-
-- [x] 25.2 Create user guide and best practices
-
-
-  - Write user guide for optimal text selection and formatting
-  - Document confidence scoring system and interpretation
-  - Create best practices for handling ambiguous text
-  - Add examples of high-quality vs low-quality parsing results
-  - Document system limitations and workarounds
-  - Create FAQ for common user questions and issues
-  - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.5_
-
-- [x] 25.3 Create end-to-end documentation and testing
-
-
-  - Document complete user workflows: highlight → API → event created
-  - Create video demonstrations of Android text selection flow
-  - Create video demonstrations of iOS share extension flow  
-  - Create video demonstrations of browser extension usage
-  - Write comprehensive user guides for each platform
-  - Create automated integration tests across all platforms
-  - _Requirements: All requirements validation_
-
-## Enhanced Hybrid Parsing Pipeline
-
-- [x] 26. Implement hybrid regex-LLM parsing pipeline
-
-
-
-
-  - Create optimized parsing strategy that uses regex for high-confidence extractions and LLM for enhancement
-  - Implement confidence-based routing between parsing methods
-  - Add comprehensive golden test suite for validation
-  - _Requirements: 9.3, 9.4, 9.5, 9.6, 9.7_
-
-- [x] 26.1 Create RegexDateExtractor for absolute/relative dates, ranges, durations
-
-
-  - Implement regex patterns for explicit date formats (Oct 15, 2025, 10/15/2025, October 15th)
-  - Add relative date parsing (tomorrow, next Friday, in 2 weeks)
-  - Create time range extraction (2–3pm, 9:30-10:30, from 2pm to 4pm)
-  - Implement duration parsing (for 2 hours, 30 minutes long)
-  - Add confidence scoring based on pattern match quality
-  - _Requirements: 9.1, 9.3, 9.6_
-
-- [x] 26.2 Create TitleExtractor for label-based or fallback titles
-
-
-  - Implement regex patterns for explicit titles (Title:, Event:, Subject:)
-  - Add heuristic-based title extraction from sentence structure
-  - Create fallback title generation from context clues
-  - Implement title quality scoring and validation
-  - Add support for cleaning and normalizing extracted titles
-  - _Requirements: 9.2, 9.3_
-
-- [x] 26.3 Implement LLMEnhancer (JSON schema, polish text only)
-
-
-  - Create LLM service for polishing regex-extracted information
-  - Implement structured JSON schema for consistent LLM outputs
-  - Add LLM enhancement for titles and descriptions only when regex succeeds
-  - Create fallback LLM parsing when regex extraction fails completely
-  - Implement confidence adjustment based on LLM vs regex agreement
-  - _Requirements: 9.3, 9.4, 9.7_
-
-- [x] 26.4 Integrate hybrid pipeline into parse_event_text()
-
-
-  - Update main parsing function to use regex-first approach
-  - Implement confidence-based routing (regex ≥ 0.8, LLM enhancement; regex < 0.8, full LLM parsing)
-  - Add warning flags for low-confidence extractions (< 0.6)
-  - Create unified output format with confidence scores and parsing method tracking
-  - Implement timezone and current time context for relative date resolution
-  - _Requirements: 9.3, 9.4, 9.5, 9.6, 9.7_
-
-- [x] 26.5 Add golden tests + log parsing path and confidence
-
-
-  - Create comprehensive test suite with golden examples:
-    - "Title: COWA! Due Date: Oct 15, 2025" → all-day event
-    - "Lunch with Sarah Friday at 12pm" → timed event  
-    - "Dentist Oct 1 @ 9:30" → timed event
-    - "Pick up passport on 10/02" → all-day event, current year
-    - "Tomorrow 7am" with now=2025-09-29T17:00:00-04:00 → Sept 30 07:00
-  - Add logging for parsing path taken (regex vs LLM) and confidence scores
+  - Write integration tests for complete parsing pipeline
+  - _Requirements: 10.5, 11.5, 12.6_
+
+## Phase 6: Enhanced API Service
+
+- [ ] 12. Implement enhanced API endpoints
+  - Add /parse endpoint with mode=audit and fields query parameters
+  - Create /healthz endpoint with component status and performance metrics
+  - Implement /cache/stats endpoint for cache performance monitoring
+  - Add audit mode response with routing decisions and confidence breakdown
+  - Create partial parsing support for fields parameter
+  - _Requirements: 14.1, 14.2, 16.2_
+
+- [ ] 13. Implement intelligent caching system
+  - Create CacheManager class with 24h TTL and normalized text hashing
+  - Implement cache key generation from normalized text
+  - Add cache hit/miss tracking and performance metrics
+  - Create cache invalidation and cleanup mechanisms
+  - Write unit tests for caching logic and TTL handling
+  - _Requirements: 14.3, 14.4_
+
+- [ ] 14. Add performance optimization features
+  - Implement lazy loading for heavy modules (Duckling, Recognizers)
+  - Add regex pattern precompilation at startup
+  - Create model warm-up on boot for reduced first-request latency
+  - Implement concurrent field processing with asyncio.gather()
+  - Add timeout handling that returns partial results
+  - _Requirements: 16.1, 16.4, 16.5_
+
+## Phase 7: Performance Monitoring and Testing
+
+- [ ] 15. Implement comprehensive performance monitoring
+  - Create PerformanceMonitor class with component latency tracking
+  - Add track_component_latency() for regex, deterministic, and LLM timing
+  - Implement golden set maintenance with 50-100 curated test cases
+  - Create generate_reliability_diagram() for confidence calibration
+  - Add performance metrics collection and reporting
+  - _Requirements: 15.1, 15.2, 15.3_
+
+- [ ] 16. Create golden test suite and validation
+  - Implement comprehensive test cases covering all parsing scenarios
+  - Add regression testing for parsing accuracy improvements
   - Create test validation for confidence thresholds and warning flags
-  - Implement regression testing for parsing accuracy improvements
-  - Update files: event_parser.py, event_models.py, event_extractor.py
-  - _Requirements: 9.7, 8.4, 8.5_
+  - Implement automated accuracy evaluation against golden set
+  - Add performance benchmarking and latency profiling
+  - _Requirements: 15.2, 15.3_
+
+## Phase 8: API Integration and Client Updates
+
+- [ ] 17. Update FastAPI service with async processing
+  - Refactor API to use async FastAPI with uvicorn and uvloop
+  - Implement async request handling and concurrent processing
+  - Add proper error handling and status codes for enhanced features
+  - Create OpenAPI documentation for new endpoints and parameters
+  - Write integration tests for async API functionality
+  - _Requirements: 16.3, 16.6_
+
+- [ ] 18. Update client applications for enhanced API
+  - Update Android app to handle audit mode and partial parsing
+  - Modify iOS app to use enhanced confidence scoring
+  - Update browser extension to leverage caching and performance improvements
+  - Add error handling for new API features across all clients
+  - Test client compatibility with enhanced API responses
+  - _Requirements: 14.1, 14.2_
+
+## Phase 9: Testing and Documentation
+
+- [ ] 19. Create comprehensive testing suite
+  - Implement end-to-end tests for enhanced parsing pipeline
+  - Add performance tests for component latency and caching
+  - Create accuracy validation tests against golden set
+  - Implement reliability testing for confidence calibration
+  - Add stress testing for concurrent processing and timeouts
+  - _Requirements: 15.1, 15.2, 15.3_
+
+- [ ] 20. Create enhanced documentation and user guides
+  - Document per-field confidence routing and processing decisions
+  - Create API documentation for audit mode and partial parsing
+  - Document deterministic backup integration and configuration
+  - Create troubleshooting guide for enhanced features
+  - Add performance tuning guide and best practices
+  - _Requirements: 14.5, 15.4, 16.6_
+
+## Phase 10: Deployment and Monitoring
+
+- [ ] 21. Deploy enhanced system with monitoring
+  - Deploy updated API service with health checks and monitoring
+  - Configure caching and performance monitoring in production
+  - Set up alerting for component failures and performance degradation
+  - Implement log aggregation for parsing decisions and performance metrics
+  - Create production deployment guide and operational procedures
+  - _Requirements: 16.2, 16.6_
+
+- [ ] 22. Validate production performance and accuracy
+  - Monitor parsing accuracy against golden set in production
+  - Track component latency and overall system performance
+  - Validate confidence calibration with real user data
+  - Monitor cache hit rates and performance improvements
+  - Create production performance dashboard and reporting
+  - _Requirements: 15.1, 15.2, 15.3, 16.6_

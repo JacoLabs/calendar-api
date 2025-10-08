@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Extension Debug Helper</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .test-section {
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 5px;
+        }
+        .test-text {
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 3px;
+            margin: 10px 0;
+            cursor: pointer;
+            user-select: text;
+        }
+        .test-text:hover {
+            background: #e5e5e5;
+        }
+        .instructions {
+            background: #e7f3ff;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .error-log {
+            background: #ffe7e7;
+            padding: 10px;
+            border-radius: 3px;
+            margin: 10px 0;
+            font-family: monospace;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Calendar Event Creator - Debug Helper</h1>
+    
+    <div class="instructions">
+        <h3>How to use this debug page:</h3>
+        <ol>
+            <li>Install the Calendar Event Creator extension</li>
+            <li>Select any text below by clicking and dragging</li>
+            <li>Right-click and choose "Create calendar event"</li>
+            <li>Or click the extension icon and test the popup</li>
+            <li>Check the browser console (F12) for any errors</li>
+        </ol>
+    </div>
+
+    <div class="test-section">
+        <h3>✅ High Confidence Test Cases</h3>
+        <p>These should work well with the extension:</p>
+        
+        <div class="test-text">
+            Meeting tomorrow at 2pm
+        </div>
+        
+        <div class="test-text">
+            Dentist appointment Oct 15, 2025 at 9:30am
+        </div>
+        
+        <div class="test-text">
+            Lunch with Sarah Friday at 12pm
+        </div>
+        
+        <div class="test-text">
+            Title: Project Review Due Date: Nov 1, 2025
+        </div>
+        
+        <div class="test-text">
+            Conference call from 2pm to 3pm today
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h3>⚠️ Medium Confidence Test Cases</h3>
+        <p>These might work but could have lower confidence:</p>
+        
+        <div class="test-text">
+            Pick up passport on 10/02
+        </div>
+        
+        <div class="test-text">
+            Team meeting next week
+        </div>
+        
+        <div class="test-text">
+            Doctor visit Thursday morning
+        </div>
+        
+        <div class="test-text">
+            Birthday party this weekend
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h3>❌ Low Confidence Test Cases</h3>
+        <p>These might fail or have very low confidence:</p>
+        
+        <div class="test-text">
+            Something important
+        </div>
+        
+        <div class="test-text">
+            Maybe we should meet
+        </div>
+        
+        <div class="test-text">
+            Random text with no event information
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h3>🔧 Debug Information</h3>
+        <p>Check the browser console for detailed error messages:</p>
+        <ul>
+            <li><strong>Background Script Errors:</strong> Go to chrome://extensions/ → Details → Inspect views: background page</li>
+            <li><strong>Content Script Errors:</strong> Open DevTools (F12) on this page</li>
+            <li><strong>Popup Errors:</strong> Right-click the extension popup → Inspect</li>
+        </ul>
+        
+        <div id="error-log" class="error-log" style="display: none;">
+            <strong>JavaScript Errors:</strong><br>
+            <div id="error-content"></div>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h3>📋 Extension Status</h3>
+        <button onclick="checkExtensionStatus()">Check Extension Status</button>
+        <div id="status-result"></div>
+    </div>
+
+    <script>
+        // Log any JavaScript errors
+        window.addEventListener('error', (event) => {
+            const errorLog = document.getElementById('error-log');
+            const errorContent = document.getElementById('error-content');
+            
+            errorLog.style.display = 'block';
+            errorContent.innerHTML += `<div>${event.error?.stack || event.message}</div>`;
+        });
+
+        // Check if extension is loaded
+        function checkExtensionStatus() {
+            const statusDiv = document.getElementById('status-result');
+            
+            if (typeof chrome !== 'undefined' && chrome.runtime) {
+                statusDiv.innerHTML = `
+                    <div style="color: green; margin-top: 10px;">
+                        ✅ Chrome extension APIs available<br>
+                        Extension ID: ${chrome.runtime.id || 'Unknown'}
+                    </div>
+                `;
+            } else {
+                statusDiv.innerHTML = `
+                    <div style="color: red; margin-top: 10px;">
+                        ❌ Chrome extension APIs not available<br>
+                        Make sure the extension is installed and enabled
+                    </div>
+                `;
+            }
+        }
+
+        // Auto-check status on load
+        setTimeout(checkExtensionStatus, 1000);
+
+        // Add click handlers to test text for easy selection
+        document.querySelectorAll('.test-text').forEach(element => {
+            element.addEventListener('click', () => {
+                const selection = window.getSelection();
+                const range = document.createRange();
+                range.selectNodeContents(element);
+                selection.removeAllRanges();
+                selection.addRange(range);
+                
+                // Show a hint
+                element.style.background = '#d4edda';
+                setTimeout(() => {
+                    element.style.background = '#f5f5f5';
+                }, 1000);
+            });
+        });
+    </script>
+</body>
+</html>

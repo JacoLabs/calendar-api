@@ -118,3 +118,93 @@ This feature enables users to highlight text containing event information and au
 5. WHEN extraction confidence < 0.6 THEN the system SHALL flag needs_confirmation in the response
 6. WHEN user's timezone and current time are provided THEN the system SHALL resolve relative dates/times accurately (e.g., "tomorrow 7am")
 7. WHEN event information is extracted THEN the response SHALL always include: title, start_datetime, end_datetime, all_day, description, confidence_score, warnings
+
+### Requirement 10
+
+**User Story:** As a developer, I want per-field confidence tracking and routing, so that the system can optimize parsing performance by only enhancing low-confidence fields with LLM processing.
+
+#### Acceptance Criteria
+
+1. WHEN parsing text THEN the system SHALL compute confidence scores for each field (start, end, recurrence, location, title, participants)
+2. WHEN a field has high confidence (≥0.8) THEN the system SHALL NOT invoke LLM enhancement for that field
+3. WHEN a field has low confidence (<0.8) THEN the system SHALL route only that field to LLM enhancement
+4. WHEN storing field results THEN the system SHALL include {value, source, confidence, span} provenance data
+5. WHEN multiple parsing methods extract the same field THEN the system SHALL choose the highest confidence result
+6. WHEN field confidence varies THEN the system SHALL provide field-level confidence in API responses
+
+### Requirement 11
+
+**User Story:** As a developer, I want a deterministic backup parsing layer, so that the system has reliable fallback options before invoking expensive LLM processing.
+
+#### Acceptance Criteria
+
+1. WHEN regex parsing fails THEN the system SHALL attempt parsing with Duckling or Microsoft Recognizers-Text
+2. WHEN multiple deterministic parsers succeed THEN the system SHALL choose the candidate with shortest valid span
+3. WHEN deterministic parsers extract dates THEN the system SHALL validate timezone normalization
+4. WHEN deterministic backup succeeds THEN the system SHALL set confidence between 0.6-0.8
+5. WHEN all deterministic methods fail THEN the system SHALL invoke LLM parsing as final fallback
+
+### Requirement 12
+
+**User Story:** As a developer, I want LLM processing with strict guardrails, so that high-confidence regex fields cannot be corrupted and processing remains efficient.
+
+#### Acceptance Criteria
+
+1. WHEN using LLM enhancement THEN the system SHALL enforce JSON/function-calling schema
+2. WHEN high-confidence regex fields exist THEN the LLM SHALL NOT be allowed to modify those fields
+3. WHEN invoking LLM THEN the system SHALL limit context to residual unparsed text only
+4. WHEN LLM processing exceeds 3 seconds THEN the system SHALL timeout and retry once
+5. WHEN using LLM THEN the system SHALL set temperature to 0 for deterministic results
+6. WHEN LLM fails after retry THEN the system SHALL return partial results with warnings
+
+### Requirement 13
+
+**User Story:** As a user, I want enhanced recurrence and duration support, so that I can create recurring events and events with specific durations from natural language.
+
+#### Acceptance Criteria
+
+1. WHEN text contains "every other Tuesday" THEN the system SHALL create RRULE with FREQ=WEEKLY;INTERVAL=2;BYDAY=TU
+2. WHEN text contains "for 45 minutes" THEN the system SHALL calculate end time as start time + 45 minutes
+3. WHEN text contains "until noon" THEN the system SHALL set end time to 12:00 PM
+4. WHEN text contains "all-day" THEN the system SHALL create all-day event with no specific times
+5. WHEN recurrence is detected THEN the system SHALL normalize to RFC 5545 RRULE format
+6. WHEN duration conflicts with explicit end time THEN the system SHALL prioritize explicit end time
+
+### Requirement 14
+
+**User Story:** As a developer, I want enhanced API capabilities, so that I can audit parsing decisions, request partial parses, and benefit from caching.
+
+#### Acceptance Criteria
+
+1. WHEN mode=audit is specified THEN the API SHALL expose routing decisions and confidence data
+2. WHEN fields=start,title query param is provided THEN the API SHALL compute partial parse for only those fields
+3. WHEN identical normalized text is parsed THEN the system SHALL return cached results within 24h TTL
+4. WHEN caching THEN the system SHALL use normalized text hash as cache key
+5. WHEN audit mode is used THEN the response SHALL include parsing_path, field_sources, and confidence_breakdown
+6. WHEN partial parsing is requested THEN the system SHALL only process and return specified fields
+
+### Requirement 15
+
+**User Story:** As a developer, I want comprehensive performance monitoring, so that I can track system performance and maintain reliability standards.
+
+#### Acceptance Criteria
+
+1. WHEN parsing text THEN the system SHALL log latency by component (regex, deterministic backup, LLM)
+2. WHEN evaluating accuracy THEN the system SHALL maintain golden set of 50-100 test snippets
+3. WHEN measuring calibration THEN the system SHALL produce reliability diagram for confidence scores
+4. WHEN API responds THEN the system SHALL include performance metrics in headers
+5. WHEN system starts THEN the system SHALL precompile regex patterns and warm up models
+6. WHEN LLM times out THEN the system SHALL return partial parse results rather than failing
+
+### Requirement 16
+
+**User Story:** As a user, I want optimized API performance, so that parsing requests complete quickly and the system remains responsive.
+
+#### Acceptance Criteria
+
+1. WHEN API starts THEN the system SHALL lazy-load large modules to reduce cold start time
+2. WHEN health check is requested THEN the system SHALL respond at /healthz endpoint within 100ms
+3. WHEN using FastAPI THEN the system SHALL use async processing with uvicorn and uvloop
+4. WHEN parsing multiple fields THEN the system SHALL use asyncio.gather() for concurrent processing
+5. WHEN LLM processing times out THEN the system SHALL return partial results rather than failing completely
+6. WHEN system performance degrades THEN the health check SHALL reflect degraded status

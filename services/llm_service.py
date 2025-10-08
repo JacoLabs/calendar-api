@@ -282,11 +282,13 @@ class LLMService:
                 "stream": False,
                 "options": {
                     "temperature": 0.1,  # Low temperature for consistent extraction
-                    "num_predict": 800,  # Enough tokens for detailed response
-                    "top_p": 0.9
+                    "num_predict": 200,  # Reduced tokens for faster response
+                    "top_p": 0.9,
+                    "num_ctx": 2048,  # Smaller context window
+                    "repeat_penalty": 1.1
                 }
             },
-            timeout=60
+            timeout=15  # Reduced timeout for faster responses
         )
         
         if response.status_code != 200:

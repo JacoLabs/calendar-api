@@ -31,21 +31,22 @@ class TitleExtractor:
         """Compile regex patterns for title extraction."""
         
         # Explicit title label patterns (highest confidence)
+        # More generalized patterns that stop at common field separators
         self.explicit_label_patterns = {
             'title_colon': re.compile(
-                r'\b(?:title|event|subject|meeting|appointment)\s*:\s*([^\n\r]+)',
+                r'\btitle\s*:\s*([A-Za-z0-9\s!?.,\-]+?)(?:\s*(?:due\s+date|date|time|location|when|where|at|on|in)\s*[:]\s*|\s+(?:due|on|at|in|from|to)\s+|$)',
                 re.IGNORECASE
             ),
             'event_name': re.compile(
-                r'\b(?:event\s+name|meeting\s+name|appointment\s+name)\s*:\s*([^\n\r]+)',
+                r'\b(?:event\s+name|meeting\s+name|appointment\s+name)\s*:\s*([A-Za-z0-9\s!?.,\-]+?)(?:\s*(?:due\s+date|date|time|location|when|where|at|on|in)\s*[:]\s*|\s+(?:due|on|at|in|from|to)\s+|$)',
                 re.IGNORECASE
             ),
             'subject_line': re.compile(
-                r'\bsubject\s*:\s*([^\n\r]+)',
+                r'\bsubject\s*:\s*([A-Za-z0-9\s!?.,\-]+?)(?:\s*(?:due\s+date|date|time|location|when|where|at|on|in)\s*[:]\s*|\s+(?:due|on|at|in|from|to)\s+|$)',
                 re.IGNORECASE
             ),
             'agenda_item': re.compile(
-                r'\b(?:agenda|item)\s*:\s*([^\n\r]+)',
+                r'\b(?:agenda|item)\s*:\s*([A-Za-z0-9\s!?.,\-]+?)(?:\s*(?:due\s+date|date|time|location|when|where|at|on|in)\s*[:]\s*|\s+(?:due|on|at|in|from|to)\s+|$)',
                 re.IGNORECASE
             )
         }
@@ -105,6 +106,11 @@ class TitleExtractor:
             'travel': re.compile(
                 r'\b([^,\n\r\.]*(?:flight|trip|vacation|travel|departure|arrival)[^,\n\r\.]*)',
                 re.IGNORECASE
+            ),
+            # New pattern for structured event text (like event pages)
+            'structured_event': re.compile(
+                r'^([^A-Z]{3,}?)(?:\s+(?:DATE|TIME|LOCATION|WHEN|WHERE|AT)\s)',
+                re.IGNORECASE
             )
         }
         
@@ -120,6 +126,11 @@ class TitleExtractor:
             ),
             'reminder_about': re.compile(
                 r'\b(?:reminder\s+about|reminder\s+for|reminder\s+that)\s+([^,\n\r\.]+)',
+                re.IGNORECASE
+            ),
+            # Pattern for structured event text (title before DATE/LOCATION/TIME)
+            'structured_event_title': re.compile(
+                r'^([^A-Z\n\r]+?)(?:\s+(?:DATE|TIME|LOCATION|WHEN|WHERE)\s)',
                 re.IGNORECASE
             )
         }

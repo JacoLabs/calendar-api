@@ -2,43 +2,23 @@
   "manifest_version": 3,
   "name": "Calendar Event Creator",
   "version": "1.0",
-  "description": "Create calendar events from selected text using natural language processing",
+  "description": "Create calendar events from selected text",
   
   "permissions": [
     "contextMenus",
-    "activeTab",
-    "storage",
-    "downloads"
+    "activeTab"
   ],
   
   "host_permissions": [
-    "https://calendar-api-wrxz.onrender.com/*",
-    "https://calendar.google.com/*",
-    "https://outlook.live.com/*"
+    "http://localhost:5000/*"
   ],
   
   "background": {
     "service_worker": "background.js"
   },
   
-  "content_scripts": [
-    {
-      "matches": ["<all_urls>"],
-      "js": ["content.js"]
-    }
-  ],
-  
   "action": {
     "default_popup": "popup.html",
     "default_title": "Calendar Event Creator"
-  },
-  
-
-  
-  "web_accessible_resources": [
-    {
-      "resources": ["popup.html"],
-      "matches": ["<all_urls>"]
-    }
-  ]
+  }
 }

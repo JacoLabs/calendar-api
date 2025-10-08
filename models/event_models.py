@@ -4,23 +4,242 @@ Core data models for event parsing and calendar integration.
 
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Tuple, Union
 import json
+
+
+@dataclass
+class FieldResult:
+    """
+    Represents the result of extracting a single field with provenance tracking.
+    Used for per-field confidence routing and optimization.
+    """
+    value: Any
+    source: str  # "regex", "duckling", "recognizers", "llm"
+    confidence: float
+    span: Tuple[int, int]  # Character positions in original text
+    alternatives: List[Any] = field(default_factory=list)
+    processing_time_ms: int = 0
+    
+    def __post_init__(self):
+        """Validate and normalize data after initialization."""
+        self.confidence = max(0.0, min(1.0, self.confidence))
+        self.processing_time_ms = max(0, self.processing_time_ms)
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for serialization."""
+        return {
+            'value': self.value,
+            'source': self.source,
+            'confidence': self.confidence,
+            'span': self.span,
+            'alternatives': self.alternatives,
+            'processing_time_ms': self.processing_time_ms
+        }
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'FieldResult':
+        """Create FieldResult from dictionary."""
+        return cls(
+            value=data['value'],
+            source=data['source'],
+            confidence=data.get('confidence', 0.0),
+            span=tuple(data.get('span', (0, 0))),
+            alternatives=data.get('alternatives', []),
+            processing_time_ms=data.get('processing_time_ms', 0)
+        )
+
+
+@dataclass
+class RecurrenceResult:
+    """
+    Represents the result of recurrence pattern extraction.
+    Used for handling complex recurrence patterns and RRULE generation.
+    """
+    rrule: Optional[str] = None  # RFC 5545 format
+    natural_language: str = ""  # Original text like "every other Tuesday"
+    confidence: float = 0.0
+    pattern_type: str = "none"  # "weekly", "monthly", "daily", "custom", "none"
+    
+    def __post_init__(self):
+        """Validate and normalize data after initialization."""
+        self.confidence = max(0.0, min(1.0, self.confidence))
+        if self.natural_language:
+            self.natural_language = self.natural_language.strip()
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for serialization."""
+        return {
+            'rrule': self.rrule,
+            'natural_language': self.natural_language,
+            'confidence': self.confidence,
+            'pattern_type': self.pattern_type
+        }
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'RecurrenceResult':
+        """Create RecurrenceResult from dictionary."""
+        return cls(
+            rrule=data.get('rrule'),
+            natural_language=data.get('natural_language', ''),
+            confidence=data.get('confidence', 0.0),
+            pattern_type=data.get('pattern_type', 'none')
+        )
+
+
+@dataclass
+class DurationResult:
+    """
+    Represents the result of duration extraction and calculation.
+    Used for handling duration information and end time calculation.
+    """
+    duration_minutes: Optional[int] = None
+    end_time_override: Optional[datetime] = None  # For "until noon" cases
+    all_day: bool = False
+    confidence: float = 0.0
+    
+    def __post_init__(self):
+        """Validate and normalize data after initialization."""
+        self.confidence = max(0.0, min(1.0, self.confidence))
+        if self.duration_minutes is not None:
+            self.duration_minutes = max(0, self.duration_minutes)
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for serialization."""
+        return {
+            'duration_minutes': self.duration_minutes,
+            'end_time_override': self.end_time_override.isoformat() if self.end_time_override else None,
+            'all_day': self.all_day,
+            'confidence': self.confidence
+        }
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'DurationResult':
+        """Create DurationResult from dictionary."""
+        return cls(
+            duration_minutes=data.get('duration_minutes'),
+            end_time_override=datetime.fromisoformat(data['end_time_override']) if data.get('end_time_override') else None,
+            all_day=data.get('all_day', False),
+            confidence=data.get('confidence', 0.0)
+        )
+
+
+@dataclass
+class CacheEntry:
+    """
+    Represents a cached parsing result with metadata.
+    Used for intelligent caching with 24h TTL.
+    """
+    text_hash: str
+    result: 'ParsedEvent'
+    timestamp: datetime
+    hit_count: int = 0
+    
+    def is_expired(self, ttl_hours: int = 24) -> bool:
+        """Check if cache entry is expired."""
+        age = datetime.now() - self.timestamp
+        return age.total_seconds() > (ttl_hours * 3600)
+    
+    def increment_hit_count(self):
+        """Increment the hit count for this cache entry."""
+        self.hit_count += 1
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for serialization."""
+        return {
+            'text_hash': self.text_hash,
+            'result': self.result.to_dict(),
+            'timestamp': self.timestamp.isoformat(),
+            'hit_count': self.hit_count
+        }
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'CacheEntry':
+        """Create CacheEntry from dictionary."""
+        return cls(
+            text_hash=data['text_hash'],
+            result=ParsedEvent.from_dict(data['result']),
+            timestamp=datetime.fromisoformat(data['timestamp']),
+            hit_count=data.get('hit_count', 0)
+        )
+
+
+@dataclass
+class AuditData:
+    """
+    Represents audit information for parsing decisions and performance.
+    Used for debugging and system monitoring.
+    """
+    field_routing_decisions: Dict[str, str] = field(default_factory=dict)  # field -> processing_method
+    confidence_breakdown: Dict[str, float] = field(default_factory=dict)
+    processing_times: Dict[str, int] = field(default_factory=dict)  # component -> time_ms
+    fallback_triggers: List[str] = field(default_factory=list)
+    cache_status: str = "miss"
+    
+    def add_routing_decision(self, field: str, method: str):
+        """Add a field routing decision."""
+        self.field_routing_decisions[field] = method
+    
+    def add_confidence_score(self, field: str, confidence: float):
+        """Add a field confidence score."""
+        self.confidence_breakdown[field] = confidence
+    
+    def add_processing_time(self, component: str, time_ms: int):
+        """Add processing time for a component."""
+        self.processing_times[component] = time_ms
+    
+    def add_fallback_trigger(self, trigger: str):
+        """Add a fallback trigger event."""
+        if trigger not in self.fallback_triggers:
+            self.fallback_triggers.append(trigger)
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for serialization."""
+        return {
+            'field_routing_decisions': self.field_routing_decisions,
+            'confidence_breakdown': self.confidence_breakdown,
+            'processing_times': self.processing_times,
+            'fallback_triggers': self.fallback_triggers,
+            'cache_status': self.cache_status
+        }
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'AuditData':
+        """Create AuditData from dictionary."""
+        return cls(
+            field_routing_decisions=data.get('field_routing_decisions', {}),
+            confidence_breakdown=data.get('confidence_breakdown', {}),
+            processing_times=data.get('processing_times', {}),
+            fallback_triggers=data.get('fallback_triggers', []),
+            cache_status=data.get('cache_status', 'miss')
+        )
 
 
 @dataclass
 class ParsedEvent:
     """
-    Represents an event extracted from text with confidence scoring.
+    Represents an event extracted from text with per-field confidence tracking.
     Used during the parsing phase before user confirmation.
+    Enhanced with field-level results and processing metadata.
     """
     title: Optional[str] = None
     start_datetime: Optional[datetime] = None
     end_datetime: Optional[datetime] = None
     location: Optional[str] = None
     description: str = ""
+    recurrence: Optional[str] = None  # RRULE format
+    participants: List[str] = field(default_factory=list)
     all_day: bool = False
     confidence_score: float = 0.0
+    
+    # Enhanced per-field tracking
+    field_results: Dict[str, FieldResult] = field(default_factory=dict)
+    parsing_path: str = "unknown"  # "regex_primary", "deterministic_backup", "llm_fallback"
+    processing_time_ms: int = 0
+    cache_hit: bool = False
+    needs_confirmation: bool = False
+    
+    # Legacy metadata for backward compatibility
     extraction_metadata: Dict[str, Any] = field(default_factory=dict)
     
     def is_complete(self) -> bool:
@@ -30,6 +249,40 @@ class ParsedEvent:
             self.start_datetime is not None
         )
     
+    def get_field_confidence(self, field_name: str) -> float:
+        """Get confidence score for a specific field."""
+        if field_name in self.field_results:
+            return self.field_results[field_name].confidence
+        return self.confidence_score
+    
+    def set_field_result(self, field_name: str, field_result: FieldResult):
+        """Set field result for a specific field."""
+        self.field_results[field_name] = field_result
+    
+    def add_warning(self, warning: str):
+        """Add a warning to the extraction metadata."""
+        if 'warnings' not in self.extraction_metadata:
+            self.extraction_metadata['warnings'] = []
+        if warning not in self.extraction_metadata['warnings']:
+            self.extraction_metadata['warnings'].append(warning)
+    
+    def should_confirm(self, confidence_threshold: float = 0.6) -> bool:
+        """Check if event needs user confirmation based on confidence."""
+        if self.needs_confirmation:
+            return True
+        
+        # Check overall confidence
+        if self.confidence_score < confidence_threshold:
+            return True
+        
+        # Check essential field confidence
+        essential_fields = ['title', 'start_datetime']
+        for field in essential_fields:
+            if self.get_field_confidence(field) < confidence_threshold:
+                return True
+        
+        return False
+    
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for serialization."""
         return {
@@ -38,24 +291,44 @@ class ParsedEvent:
             'end_datetime': self.end_datetime.isoformat() if self.end_datetime else None,
             'location': self.location,
             'description': self.description,
+            'recurrence': self.recurrence,
+            'participants': self.participants,
             'all_day': self.all_day,
             'confidence_score': self.confidence_score,
+            'field_results': {k: v.to_dict() for k, v in self.field_results.items()},
+            'parsing_path': self.parsing_path,
+            'processing_time_ms': self.processing_time_ms,
+            'cache_hit': self.cache_hit,
+            'needs_confirmation': self.needs_confirmation,
             'extraction_metadata': self.extraction_metadata
         }
     
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'ParsedEvent':
         """Create ParsedEvent from dictionary."""
-        event = cls()
-        event.title = data.get('title')
-        event.start_datetime = datetime.fromisoformat(data['start_datetime']) if data.get('start_datetime') else None
-        event.end_datetime = datetime.fromisoformat(data['end_datetime']) if data.get('end_datetime') else None
-        event.location = data.get('location')
-        event.description = data.get('description', '')
-        event.all_day = data.get('all_day', False)
-        event.confidence_score = data.get('confidence_score', 0.0)
-        event.extraction_metadata = data.get('extraction_metadata', {})
-        return event
+        # Handle field_results deserialization
+        field_results = {}
+        if 'field_results' in data:
+            for field_name, field_data in data['field_results'].items():
+                field_results[field_name] = FieldResult.from_dict(field_data)
+        
+        return cls(
+            title=data.get('title'),
+            start_datetime=datetime.fromisoformat(data['start_datetime']) if data.get('start_datetime') else None,
+            end_datetime=datetime.fromisoformat(data['end_datetime']) if data.get('end_datetime') else None,
+            location=data.get('location'),
+            description=data.get('description', ''),
+            recurrence=data.get('recurrence'),
+            participants=data.get('participants', []),
+            all_day=data.get('all_day', False),
+            confidence_score=data.get('confidence_score', 0.0),
+            field_results=field_results,
+            parsing_path=data.get('parsing_path', 'unknown'),
+            processing_time_ms=data.get('processing_time_ms', 0),
+            cache_hit=data.get('cache_hit', False),
+            needs_confirmation=data.get('needs_confirmation', False),
+            extraction_metadata=data.get('extraction_metadata', {})
+        )
 
 
 @dataclass
@@ -117,13 +390,18 @@ class Event:
 @dataclass
 class ValidationResult:
     """
-    Represents the result of validating event data.
-    Used to provide feedback to users about missing or invalid information.
+    Represents the result of validating event data with enhanced field-specific feedback.
+    Used to provide detailed feedback to users about missing or invalid information.
     """
     is_valid: bool
     missing_fields: List[str] = field(default_factory=list)
     warnings: List[str] = field(default_factory=list)
     suggestions: List[str] = field(default_factory=list)
+    
+    # Enhanced field-specific feedback
+    field_warnings: Dict[str, List[str]] = field(default_factory=dict)
+    field_suggestions: Dict[str, List[str]] = field(default_factory=dict)
+    confidence_issues: Dict[str, float] = field(default_factory=dict)  # field -> confidence score
     
     def add_missing_field(self, field_name: str, suggestion: str = None):
         """Add a missing field with optional suggestion."""
@@ -141,13 +419,43 @@ class ValidationResult:
         """Add a suggestion message."""
         self.suggestions.append(message)
     
+    def add_field_warning(self, field_name: str, warning: str):
+        """Add a field-specific warning."""
+        if field_name not in self.field_warnings:
+            self.field_warnings[field_name] = []
+        if warning not in self.field_warnings[field_name]:
+            self.field_warnings[field_name].append(warning)
+    
+    def add_field_suggestion(self, field_name: str, suggestion: str):
+        """Add a field-specific suggestion."""
+        if field_name not in self.field_suggestions:
+            self.field_suggestions[field_name] = []
+        if suggestion not in self.field_suggestions[field_name]:
+            self.field_suggestions[field_name].append(suggestion)
+    
+    def add_confidence_issue(self, field_name: str, confidence: float, threshold: float = 0.6):
+        """Add a confidence issue for a field."""
+        if confidence < threshold:
+            self.confidence_issues[field_name] = confidence
+            self.add_field_warning(field_name, f"Low confidence ({confidence:.2f}) - please review")
+    
+    def get_field_issues(self, field_name: str) -> Dict[str, List[str]]:
+        """Get all issues for a specific field."""
+        return {
+            'warnings': self.field_warnings.get(field_name, []),
+            'suggestions': self.field_suggestions.get(field_name, [])
+        }
+    
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for serialization."""
         return {
             'is_valid': self.is_valid,
             'missing_fields': self.missing_fields,
             'warnings': self.warnings,
-            'suggestions': self.suggestions
+            'suggestions': self.suggestions,
+            'field_warnings': self.field_warnings,
+            'field_suggestions': self.field_suggestions,
+            'confidence_issues': self.confidence_issues
         }
     
     @classmethod
@@ -157,7 +465,10 @@ class ValidationResult:
             is_valid=data['is_valid'],
             missing_fields=data.get('missing_fields', []),
             warnings=data.get('warnings', []),
-            suggestions=data.get('suggestions', [])
+            suggestions=data.get('suggestions', []),
+            field_warnings=data.get('field_warnings', {}),
+            field_suggestions=data.get('field_suggestions', {}),
+            confidence_issues=data.get('confidence_issues', {})
         )
     
     @classmethod

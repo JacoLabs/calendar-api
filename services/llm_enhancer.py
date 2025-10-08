@@ -316,8 +316,8 @@ CRITICAL CONSTRAINTS:
 
 Your job is to:
 1. Polish titles to be complete and descriptive (fix truncation, improve clarity)
-2. Create helpful descriptions from context when useful
-3. Maintain accuracy - don't invent information
+2. NEVER create or modify descriptions - leave them as null
+3. Maintain accuracy - don't invent ANY information not explicitly in the text
 
 Output must be valid JSON matching the provided schema."""
     
@@ -374,11 +374,13 @@ Output must be valid JSON matching the provided schema."""
         
         prompt_parts.extend([
             "Please provide:",
-            "1. Enhanced title (complete, descriptive, fix any truncation)",
-            "2. Enhanced description (helpful context from the text)",
+            "1. Enhanced title: ONLY clean up the existing title, do NOT add extra words or context",
+            "2. Enhanced description: ALWAYS set to null - do NOT create descriptions",
             "3. Confidence scores for your enhancements",
             "",
-            "Remember: DO NOT modify datetime information. Only enhance title and description."
+            "CRITICAL: If title is already good (like 'COWA!'), return it exactly as-is.",
+            "DO NOT add context like 'Event on October 15' or any extra words.",
+            "Remember: DO NOT modify datetime information. Only clean existing title if needed."
         ])
         
         return "\n".join(prompt_parts)
@@ -455,11 +457,13 @@ Output must be valid JSON matching the provided schema."""
                     "stream": False,
                     "options": {
                         "temperature": temperature,  # Low temperature for consistency
-                        "num_predict": 500,
-                        "top_p": 0.9
+                        "num_predict": 150,  # Reduced for faster enhancement
+                        "top_p": 0.9,
+                        "num_ctx": 1024,  # Smaller context for speed
+                        "repeat_penalty": 1.1
                     }
                 },
-                timeout=30
+                timeout=10  # Faster timeout for enhancement
             )
             
             if response.status_code == 200:
