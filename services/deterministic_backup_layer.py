@@ -339,7 +339,11 @@ class DeterministicBackupLayer:
         if field in ["time", "date", "datetime", "start_datetime", "end_datetime"]:
             if isinstance(value, datetime):
                 # Check if datetime is reasonable
-                now = datetime.now(timezone.utc)
+                # Handle both timezone-aware and naive datetimes
+                if value.tzinfo is not None:
+                    now = datetime.now(timezone.utc)
+                else:
+                    now = datetime.now()
                 
                 # Should be within reasonable range (past 1 year to future 2 years)
                 min_date = now.replace(year=now.year - 1)
