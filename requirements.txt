@@ -31,5 +31,7 @@ requests>=2.31.0,<3.0.0
 # Note: Duckling requires a separate Haskell service running on localhost:8000
 # Install with: stack install duckling && duckling-example-exe
 
-# Microsoft Recognizers-Text for multi-language entity recognition
-recognizers-text>=1.0.2,<2.0.0
+# Microsoft Recognizers-Text for multi-language entity recognition (OPTIONAL)
+# Note: Only alpha versions are available, not needed for basic API functionality
+# Uncomment if you need advanced multi-language entity recognition:
+# recognizers-text>=1.0.2a2,<2.0.0

@@ -8,10 +8,35 @@ import logging
 from typing import Optional, List, Dict, Any, Tuple
 from dataclasses import dataclass
 
-from services.llm_text_enhancer import LLMTextEnhancer, TextEnhancement
 from models.event_models import ParsedEvent
 
+# Lazy import to avoid loading heavy ML dependencies at startup
+_llm_text_enhancer = None
+_TextEnhancement = None
+
 logger = logging.getLogger(__name__)
+
+
+def _get_llm_text_enhancer():
+    """Lazily import and initialize LLM text enhancer to avoid heavy ML dependencies at startup."""
+    global _llm_text_enhancer, _TextEnhancement
+    
+    if _llm_text_enhancer is None:
+        try:
+            from services.llm_text_enhancer import LLMTextEnhancer, TextEnhancement
+            _llm_text_enhancer = LLMTextEnhancer(provider="auto")
+            _TextEnhancement = TextEnhancement
+            logger.info("LLM text enhancer loaded successfully")
+        except ImportError as e:
+            logger.warning(f"LLM text enhancer not available: {e}")
+            _llm_text_enhancer = None
+            _TextEnhancement = None
+        except Exception as e:
+            logger.warning(f"Failed to initialize LLM text enhancer: {e}")
+            _llm_text_enhancer = None
+            _TextEnhancement = None
+    
+    return _llm_text_enhancer, _TextEnhancement
 
 
 @dataclass
@@ -43,7 +68,7 @@ class TextMergeHelper:
             use_llm: Whether to use LLM enhancement (requires OpenAI API key)
         """
         self.use_llm = use_llm
-        self.llm_enhancer = LLMTextEnhancer() if use_llm else None
+        self.llm_enhancer = None  # Will be lazily loaded when needed
         
         # Configuration
         self.config = {
@@ -80,9 +105,15 @@ class TextMergeHelper:
                 logger.info("Applied clipboard merge")
             
             # Step 2: Apply LLM enhancement if available
-            if self.use_llm and self.llm_enhancer and self.llm_enhancer.is_available():
-                context = "gmail_selection" if merge_applied else "single_text"
-                enhancement = self.llm_enhancer.enhance_text_for_parsing(text, context)
+            if self.use_llm:
+                # Lazy load the LLM enhancer
+                if self.llm_enhancer is None:
+                    llm_enhancer, TextEnhancement = _get_llm_text_enhancer()
+                    self.llm_enhancer = llm_enhancer
+                
+                if self.llm_enhancer and self.llm_enhancer.is_available():
+                    context = "gmail_selection" if merge_applied else "single_text"
+                    enhancement = self.llm_enhancer.enhance_text_for_parsing(text, context)
                 
                 # Use enhanced text if confidence is good
                 if enhancement.confidence > 0.6:
