@@ -142,6 +142,62 @@ class LLMEnhancer:
                         "all_day", "confidence", "extraction_notes", "needs_confirmation"],
             "additionalProperties": False
         }
+        
+        # Function calling schema for field-specific enhancement
+        self.function_calling_schema = {
+            "name": "enhance_event_fields",
+            "description": "Enhance specific low-confidence event fields while preserving high-confidence locked fields",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "enhanced_fields": {
+                        "type": "object",
+                        "description": "Enhanced values for low-confidence fields only",
+                        "properties": {
+                            "title": {
+                                "type": ["string", "null"],
+                                "description": "Enhanced event title (only if confidence < 0.8)"
+                            },
+                            "location": {
+                                "type": ["string", "null"],
+                                "description": "Enhanced location (only if confidence < 0.8)"
+                            },
+                            "description": {
+                                "type": ["string", "null"],
+                                "description": "Enhanced description (only if confidence < 0.8)"
+                            },
+                            "participants": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                                "description": "Enhanced participant list (only if confidence < 0.8)"
+                            }
+                        },
+                        "additionalProperties": False
+                    },
+                    "field_confidence": {
+                        "type": "object",
+                        "description": "Confidence scores for enhanced fields",
+                        "properties": {
+                            "title": {"type": "number", "minimum": 0.0, "maximum": 1.0},
+                            "location": {"type": "number", "minimum": 0.0, "maximum": 1.0},
+                            "description": {"type": "number", "minimum": 0.0, "maximum": 1.0},
+                            "participants": {"type": "number", "minimum": 0.0, "maximum": 1.0}
+                        },
+                        "additionalProperties": False
+                    },
+                    "locked_fields_preserved": {
+                        "type": "boolean",
+                        "description": "Confirmation that high-confidence locked fields were not modified"
+                    },
+                    "enhancement_notes": {
+                        "type": "string",
+                        "description": "Notes about what fields were enhanced and why"
+                    }
+                },
+                "required": ["enhanced_fields", "field_confidence", "locked_fields_preserved", "enhancement_notes"],
+                "additionalProperties": False
+            }
+        }
     
     def enhance_regex_extraction(self, 
                                 datetime_result: DateTimeResult,
@@ -672,12 +728,16 @@ Output must be valid JSON matching the provided schema."""
                 enhanced_results = field_results.copy()
                 
                 # Update enhanced fields
+                enhanced_fields = validated_data.get('enhanced_fields', {})
+                field_confidence = validated_data.get('field_confidence', {})
+                
                 for field_name in fields_to_enhance:
-                    if field_name in validated_data and validated_data[field_name] is not None:
+                    if field_name in enhanced_fields and enhanced_fields[field_name] is not None:
+                        new_confidence = field_confidence.get(field_name, 0.7)
                         enhanced_results[field_name] = FieldResult(
-                            value=validated_data[field_name],
+                            value=enhanced_fields[field_name],
                             source="llm_enhancement",
-                            confidence=min(0.7, field_results[field_name].confidence + 0.2),  # Boost but cap
+                            confidence=new_confidence,
                             span=field_results[field_name].span,
                             alternatives=field_results[field_name].alternatives,
                             processing_time_ms=int(response.processing_time * 1000) if hasattr(response, 'processing_time') else 0
@@ -692,121 +752,393 @@ Output must be valid JSON matching the provided schema."""
             logger.error(f"Field enhancement failed: {e}")
             return field_results
     
-    def enforce_schema_constraints(self, llm_output: Dict[str, Any], locked_fields: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Enforce schema constraints to prevent modification of high-confidence fields.
-        
-        This method implements strict guardrails by:
-        1. Removing any attempts to modify locked high-confidence fields
-        2. Blocking datetime field modifications when any fields are locked
-        3. Logging constraint violations for monitoring
-        4. Returning only validated, safe field modifications
-        
-        Args:
-            llm_output: Raw LLM output data from enhancement call
-            locked_fields: High-confidence fields that cannot be modified
-            
-        Returns:
-            Validated output with locked fields removed and constraints enforced
-        """
-        validated_output = {}
-        violations = []
-        
-        for field_name, value in llm_output.items():
-            # Check if field is explicitly locked (Requirement 12.2)
-            if field_name in locked_fields:
-                violations.append(f"attempted to modify locked field '{field_name}'")
-                logger.warning(f"LLM attempted to modify locked field '{field_name}' - ignoring")
-                continue
-            
-            # Additional validation for datetime fields - never allow modification
-            if field_name in ['start_datetime', 'end_datetime', 'date', 'time', 'start', 'end']:
-                violations.append(f"attempted to modify datetime field '{field_name}'")
-                logger.warning(f"LLM attempted to modify datetime field '{field_name}' - ignoring")
-                continue
-            
-            # Additional validation for confidence fields that might override system confidence
-            if field_name == 'confidence_score' or field_name == 'overall_confidence':
-                violations.append(f"attempted to modify system confidence field '{field_name}'")
-                logger.warning(f"LLM attempted to modify confidence field '{field_name}' - ignoring")
-                continue
-            
-            # Validate field value types for safety
-            if field_name in ['title', 'location', 'description'] and value is not None:
-                if not isinstance(value, str):
-                    violations.append(f"invalid type for field '{field_name}': expected string, got {type(value)}")
-                    logger.warning(f"Invalid type for field '{field_name}': expected string, got {type(value)} - ignoring")
-                    continue
-            
-            # Field passed all constraints
-            validated_output[field_name] = value
-        
-        # Log summary of constraint enforcement
-        if violations:
-            logger.info(f"Enforced {len(violations)} schema constraints: {violations}")
-        
-        return validated_output
-    
     def limit_context_to_residual(self, text: str, field_results: Dict[str, FieldResult]) -> str:
         """
-        Reduce LLM context to residual unparsed text only.
+        Limit LLM context to residual unparsed text only (Requirement 12.3).
         
-        This method implements context limitation by:
-        1. Identifying all extracted spans from successful field parsing
-        2. Removing extracted spans to leave only unparsed residual text
-        3. Cleaning up whitespace and ensuring minimum viable context
-        4. Falling back to original text if residual is too small
-        
-        This reduces token usage and prevents LLM from seeing already-parsed content.
+        Removes already-extracted spans from the text to reduce token usage
+        and prevent LLM from re-processing high-confidence fields.
         
         Args:
             text: Original input text
-            field_results: Extracted field results with character spans
+            field_results: Current field extraction results with spans
             
         Returns:
-            Residual text with extracted spans removed, or original text if residual too small
+            Residual text with high-confidence spans removed
         """
         if not field_results:
-            logger.debug("No field results provided, returning original text")
             return text
         
-        # Collect all extracted spans with confidence > 0.5
+        # Collect all spans that have been successfully extracted
         extracted_spans = []
         for field_name, field_result in field_results.items():
-            if (field_result.span and 
-                field_result.span != (0, 0) and 
-                field_result.confidence > 0.5):  # Only remove high-confidence extractions
+            if field_result.confidence >= 0.8 and field_result.span:
                 extracted_spans.append(field_result.span)
-                logger.debug(f"Found extracted span for {field_name}: {field_result.span}")
         
         if not extracted_spans:
-            logger.debug("No valid extracted spans found, returning original text")
             return text
         
-        # Sort spans by start position (reverse order for safe removal)
+        # Sort spans by start position (reverse order for removal)
         extracted_spans.sort(key=lambda x: x[0], reverse=True)
         
         # Remove extracted spans from text
         residual_text = text
         for start, end in extracted_spans:
             if 0 <= start < end <= len(residual_text):
-                removed_text = residual_text[start:end]
                 residual_text = residual_text[:start] + residual_text[end:]
-                logger.debug(f"Removed span [{start}:{end}]: '{removed_text.strip()}'")
         
-        # Clean up extra whitespace and normalize
+        # Clean up multiple spaces
         residual_text = re.sub(r'\s+', ' ', residual_text).strip()
         
-        # If residual text is too short, return original text for context
-        min_context_length = 15  # Minimum viable context
-        if len(residual_text) < min_context_length:
-            logger.debug(f"Residual text too short ({len(residual_text)} chars), using original text")
-            return text
-        
-        logger.info(f"Limited context from {len(text)} to {len(residual_text)} characters")
-        logger.debug(f"Residual text: '{residual_text[:100]}{'...' if len(residual_text) > 100 else ''}'")
-        
         return residual_text
+    
+    def enforce_schema_constraints(self, llm_output: Dict[str, Any], locked_fields: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Enforce schema constraints to prevent modification of high-confidence fields (Requirement 12.2).
+        
+        Validates that LLM output doesn't attempt to modify locked fields and
+        removes any unauthorized field modifications.
+        
+        Args:
+            llm_output: Raw LLM response data
+            locked_fields: High-confidence fields that cannot be modified
+            
+        Returns:
+            Validated output with locked field modifications removed
+        """
+        if not locked_fields:
+            return llm_output
+        
+        validated_output = llm_output.copy()
+        
+        # Check for unauthorized field modifications
+        unauthorized_modifications = []
+        for field_name in locked_fields:
+            if field_name in validated_output:
+                unauthorized_modifications.append(field_name)
+                # Remove the unauthorized modification
+                del validated_output[field_name]
+        
+        if unauthorized_modifications:
+            logger.warning(f"LLM attempted to modify locked fields: {unauthorized_modifications}")
+            
+            # Add warning to enhancement notes
+            if 'enhancement_notes' in validated_output:
+                validated_output['enhancement_notes'] += f" [WARNING: Attempted to modify locked fields: {unauthorized_modifications}]"
+            else:
+                validated_output['enhancement_notes'] = f"WARNING: Attempted to modify locked fields: {unauthorized_modifications}"
+        
+        # Validate enhanced_fields structure if present
+        enhanced_field_violations = []
+        if 'enhanced_fields' in validated_output:
+            enhanced_fields = validated_output['enhanced_fields']
+            for field_name in list(enhanced_fields.keys()):
+                if field_name in locked_fields:
+                    logger.warning(f"Removing unauthorized enhancement of locked field: {field_name}")
+                    enhanced_field_violations.append(field_name)
+                    del enhanced_fields[field_name]
+        
+        # Add warnings for enhanced_fields violations
+        if enhanced_field_violations:
+            warning_msg = f" [WARNING: Attempted to modify locked fields in enhanced_fields: {enhanced_field_violations}]"
+            if 'enhancement_notes' in validated_output:
+                validated_output['enhancement_notes'] += warning_msg
+            else:
+                validated_output['enhancement_notes'] = f"WARNING: Attempted to modify locked fields: {enhanced_field_violations}"
+        
+        return validated_output
+    
+    def timeout_with_retry(self, 
+                          system_prompt: str, 
+                          user_prompt: str, 
+                          schema: Dict[str, Any],
+                          timeout_seconds: int = 3) -> Optional[LLMResponse]:
+        """
+        Handle LLM calls with timeout and single retry (Requirement 12.4).
+        
+        Implements timeout handling with single retry and returns partial results
+        on failure rather than complete failure.
+        
+        Args:
+            system_prompt: System prompt for LLM
+            user_prompt: User prompt for LLM
+            schema: JSON schema for validation
+            timeout_seconds: Timeout in seconds (default 3)
+            
+        Returns:
+            LLMResponse or None if both attempts fail
+        """
+        import time
+        import threading
+        from concurrent.futures import ThreadPoolExecutor, TimeoutError
+        
+        def call_llm():
+            """Inner function to call LLM with schema."""
+            return self._call_llm_with_schema(system_prompt, user_prompt, schema, temperature=0.0)
+        
+        # First attempt
+        try:
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(call_llm)
+                response = future.result(timeout=timeout_seconds)
+                
+                if response.success:
+                    return response
+                else:
+                    logger.warning(f"First LLM attempt failed: {response.error}")
+        
+        except TimeoutError:
+            logger.warning(f"First LLM attempt timed out after {timeout_seconds}s")
+        except Exception as e:
+            logger.warning(f"First LLM attempt failed with exception: {e}")
+        
+        # Single retry attempt (Requirement 12.4)
+        try:
+            logger.info("Retrying LLM call...")
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(call_llm)
+                response = future.result(timeout=timeout_seconds)
+                
+                if response.success:
+                    logger.info("LLM retry succeeded")
+                    return response
+                else:
+                    logger.error(f"LLM retry failed: {response.error}")
+        
+        except TimeoutError:
+            logger.error(f"LLM retry timed out after {timeout_seconds}s")
+        except Exception as e:
+            logger.error(f"LLM retry failed with exception: {e}")
+        
+        # Both attempts failed - return None (Requirement 12.6)
+        logger.error("Both LLM attempts failed, returning None for partial results handling")
+        return None
+    
+    def validate_json_schema(self, output: str) -> Dict[str, Any]:
+        """
+        Ensure structured output compliance with JSON schema (Requirement 12.5).
+        
+        Validates LLM output against the expected schema and handles
+        malformed responses gracefully.
+        
+        Args:
+            output: Raw LLM output string
+            
+        Returns:
+            Validated dictionary or empty dict if validation fails
+        """
+        try:
+            # Try to parse as JSON
+            data = json.loads(output)
+            
+            # Basic structure validation
+            if not isinstance(data, dict):
+                logger.error("LLM output is not a JSON object")
+                return {}
+            
+            # Check for required function calling structure
+            if 'enhanced_fields' in data:
+                # Validate function calling schema
+                return self._validate_function_calling_response(data)
+            else:
+                # Validate regular schema
+                return self._validate_regular_response(data)
+        
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse LLM output as JSON: {e}")
+            # Try to extract JSON from text
+            return self._extract_json_from_response(output) or {}
+        except Exception as e:
+            logger.error(f"Schema validation failed: {e}")
+            return {}
+    
+    def _validate_function_calling_response(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Validate function calling schema response."""
+        required_fields = ['enhanced_fields', 'field_confidence', 'locked_fields_preserved', 'enhancement_notes']
+        
+        for field in required_fields:
+            if field not in data:
+                logger.warning(f"Missing required field in function calling response: {field}")
+                return {}
+        
+        # Validate enhanced_fields structure
+        enhanced_fields = data.get('enhanced_fields', {})
+        if not isinstance(enhanced_fields, dict):
+            logger.error("enhanced_fields must be an object")
+            return {}
+        
+        # Validate field_confidence structure
+        field_confidence = data.get('field_confidence', {})
+        if not isinstance(field_confidence, dict):
+            logger.error("field_confidence must be an object")
+            return {}
+        
+        # Validate confidence values
+        for field, confidence in field_confidence.items():
+            if not isinstance(confidence, (int, float)) or not (0.0 <= confidence <= 1.0):
+                logger.warning(f"Invalid confidence value for {field}: {confidence}")
+                field_confidence[field] = 0.5  # Default fallback
+        
+        # Validate locked_fields_preserved
+        if not isinstance(data.get('locked_fields_preserved'), bool):
+            logger.warning("locked_fields_preserved must be boolean")
+            data['locked_fields_preserved'] = True  # Safe default
+        
+        return data
+    
+    def _validate_regular_response(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Validate regular enhancement/fallback schema response."""
+        # Basic validation for enhancement or fallback schemas
+        if 'confidence' in data:
+            confidence = data['confidence']
+            if isinstance(confidence, dict):
+                # Validate confidence values
+                for field, conf_value in confidence.items():
+                    if not isinstance(conf_value, (int, float)) or not (0.0 <= conf_value <= 1.0):
+                        logger.warning(f"Invalid confidence value for {field}: {conf_value}")
+                        confidence[field] = 0.5  # Default fallback
+        
+        return data
+    
+    def _create_field_enhancement_schema(self, fields_to_enhance: List[str], locked_fields: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Create dynamic schema for field-specific enhancement.
+        
+        Generates a schema that only allows enhancement of specified low-confidence fields
+        while explicitly preventing modification of locked high-confidence fields.
+        
+        Args:
+            fields_to_enhance: List of field names that need enhancement
+            locked_fields: High-confidence fields that cannot be modified
+            
+        Returns:
+            Dynamic JSON schema for field enhancement
+        """
+        # Base schema structure
+        schema = {
+            "type": "object",
+            "properties": {
+                "enhanced_fields": {
+                    "type": "object",
+                    "description": f"Enhanced values for fields: {', '.join(fields_to_enhance)}",
+                    "properties": {},
+                    "additionalProperties": False
+                },
+                "field_confidence": {
+                    "type": "object",
+                    "description": "Confidence scores for enhanced fields",
+                    "properties": {},
+                    "additionalProperties": False
+                },
+                "locked_fields_preserved": {
+                    "type": "boolean",
+                    "description": f"Confirmation that locked fields were not modified: {', '.join(locked_fields.keys())}"
+                },
+                "enhancement_notes": {
+                    "type": "string",
+                    "description": "Notes about field enhancements"
+                }
+            },
+            "required": ["enhanced_fields", "field_confidence", "locked_fields_preserved", "enhancement_notes"],
+            "additionalProperties": False
+        }
+        
+        # Add properties for fields that can be enhanced
+        for field_name in fields_to_enhance:
+            if field_name == "title":
+                schema["properties"]["enhanced_fields"]["properties"]["title"] = {
+                    "type": ["string", "null"],
+                    "description": "Enhanced event title"
+                }
+                schema["properties"]["field_confidence"]["properties"]["title"] = {
+                    "type": "number", "minimum": 0.0, "maximum": 1.0
+                }
+            elif field_name == "location":
+                schema["properties"]["enhanced_fields"]["properties"]["location"] = {
+                    "type": ["string", "null"],
+                    "description": "Enhanced event location"
+                }
+                schema["properties"]["field_confidence"]["properties"]["location"] = {
+                    "type": "number", "minimum": 0.0, "maximum": 1.0
+                }
+            elif field_name == "description":
+                schema["properties"]["enhanced_fields"]["properties"]["description"] = {
+                    "type": ["string", "null"],
+                    "description": "Enhanced event description"
+                }
+                schema["properties"]["field_confidence"]["properties"]["description"] = {
+                    "type": "number", "minimum": 0.0, "maximum": 1.0
+                }
+            elif field_name == "participants":
+                schema["properties"]["enhanced_fields"]["properties"]["participants"] = {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Enhanced participant list"
+                }
+                schema["properties"]["field_confidence"]["properties"]["participants"] = {
+                    "type": "number", "minimum": 0.0, "maximum": 1.0
+                }
+        
+        return schema
+    
+    def _get_field_enhancement_system_prompt(self, locked_fields: Dict[str, Any]) -> str:
+        """Get system prompt for field-specific enhancement."""
+        locked_field_names = ', '.join(locked_fields.keys()) if locked_fields else "none"
+        
+        return f"""You are an AI assistant that enhances specific low-confidence event fields.
+
+CRITICAL CONSTRAINTS:
+- Temperature = 0 for deterministic results
+- NEVER modify these locked high-confidence fields: {locked_field_names}
+- Only enhance the specific fields requested
+- Use function calling schema for structured output
+- Set locked_fields_preserved=true to confirm compliance
+
+Your job is to:
+1. Enhance ONLY the requested low-confidence fields
+2. Provide confidence scores for your enhancements
+3. Confirm that locked fields were not modified
+4. Be conservative - don't invent information not in the text
+
+Output must match the function calling schema exactly."""
+    
+    def _format_field_enhancement_prompt(self, 
+                                        residual_text: str,
+                                        fields_to_enhance: List[str],
+                                        field_results: Dict[str, FieldResult],
+                                        locked_fields: Dict[str, Any]) -> str:
+        """Format prompt for field-specific enhancement."""
+        prompt_parts = [
+            "Enhance the following low-confidence event fields:",
+            "",
+            f"Residual text (high-confidence spans removed): {residual_text}",
+            "",
+            f"Fields to enhance: {', '.join(fields_to_enhance)}",
+            "",
+            "Current field results:"
+        ]
+        
+        for field_name in fields_to_enhance:
+            if field_name in field_results:
+                result = field_results[field_name]
+                prompt_parts.append(f"- {field_name}: {result.value} (confidence: {result.confidence:.2f})")
+            else:
+                prompt_parts.append(f"- {field_name}: not extracted")
+        
+        if locked_fields:
+            prompt_parts.extend([
+                "",
+                "LOCKED high-confidence fields (DO NOT MODIFY):"
+            ])
+            for field_name, value in locked_fields.items():
+                prompt_parts.append(f"- {field_name}: {value}")
+        
+        prompt_parts.extend([
+            "",
+            "Please enhance only the requested fields and confirm locked fields were preserved."
+        ])
+        
+        return "\n".join(prompt_parts)
     
     def timeout_with_retry(self, 
                           system_prompt: str, 
@@ -1063,48 +1395,85 @@ Output must be valid JSON matching the provided schema."""
             return False
     
     def _create_field_enhancement_schema(self, fields_to_enhance: List[str], locked_fields: Dict[str, Any]) -> Dict[str, Any]:
-        """Create JSON schema for field enhancement with locked field constraints."""
-        properties = {}
-        required = []
+        """
+        Create dynamic schema for field-specific enhancement.
         
+        Generates a schema that only allows enhancement of specified low-confidence fields
+        while explicitly preventing modification of locked high-confidence fields.
+        
+        Args:
+            fields_to_enhance: List of field names that need enhancement
+            locked_fields: High-confidence fields that cannot be modified
+            
+        Returns:
+            Dynamic JSON schema for field enhancement
+        """
+        # Base schema structure
+        schema = {
+            "type": "object",
+            "properties": {
+                "enhanced_fields": {
+                    "type": "object",
+                    "description": f"Enhanced values for fields: {', '.join(fields_to_enhance)}",
+                    "properties": {},
+                    "additionalProperties": False
+                },
+                "field_confidence": {
+                    "type": "object",
+                    "description": "Confidence scores for enhanced fields",
+                    "properties": {},
+                    "additionalProperties": False
+                },
+                "locked_fields_preserved": {
+                    "type": "boolean",
+                    "description": f"Confirmation that locked fields were not modified: {', '.join(locked_fields.keys())}"
+                },
+                "enhancement_notes": {
+                    "type": "string",
+                    "description": "Notes about field enhancements"
+                }
+            },
+            "required": ["enhanced_fields", "field_confidence", "locked_fields_preserved", "enhancement_notes"],
+            "additionalProperties": False
+        }
+        
+        # Add properties for fields that can be enhanced
         for field_name in fields_to_enhance:
             if field_name == "title":
-                properties[field_name] = {
+                schema["properties"]["enhanced_fields"]["properties"]["title"] = {
                     "type": ["string", "null"],
-                    "description": "Enhanced event title (clean and descriptive)"
+                    "description": "Enhanced event title"
+                }
+                schema["properties"]["field_confidence"]["properties"]["title"] = {
+                    "type": "number", "minimum": 0.0, "maximum": 1.0
                 }
             elif field_name == "location":
-                properties[field_name] = {
+                schema["properties"]["enhanced_fields"]["properties"]["location"] = {
                     "type": ["string", "null"],
-                    "description": "Enhanced location information"
+                    "description": "Enhanced event location"
+                }
+                schema["properties"]["field_confidence"]["properties"]["location"] = {
+                    "type": "number", "minimum": 0.0, "maximum": 1.0
                 }
             elif field_name == "description":
-                properties[field_name] = {
+                schema["properties"]["enhanced_fields"]["properties"]["description"] = {
                     "type": ["string", "null"],
                     "description": "Enhanced event description"
                 }
+                schema["properties"]["field_confidence"]["properties"]["description"] = {
+                    "type": "number", "minimum": 0.0, "maximum": 1.0
+                }
             elif field_name == "participants":
-                properties[field_name] = {
+                schema["properties"]["enhanced_fields"]["properties"]["participants"] = {
                     "type": "array",
                     "items": {"type": "string"},
-                    "description": "List of event participants"
+                    "description": "Enhanced participant list"
                 }
-            # Note: datetime fields should not be in fields_to_enhance if locked_fields exist
+                schema["properties"]["field_confidence"]["properties"]["participants"] = {
+                    "type": "number", "minimum": 0.0, "maximum": 1.0
+                }
         
-        # Add confidence tracking
-        properties["confidence"] = {
-            "type": "object",
-            "properties": {field: {"type": "number", "minimum": 0.0, "maximum": 1.0} for field in fields_to_enhance},
-            "required": fields_to_enhance
-        }
-        required.append("confidence")
-        
-        return {
-            "type": "object",
-            "properties": properties,
-            "required": required,
-            "additionalProperties": False
-        }
+        return schema
     
     def _get_field_enhancement_system_prompt(self, locked_fields: Dict[str, Any]) -> str:
         """Get system prompt for field enhancement with locked field constraints."""
