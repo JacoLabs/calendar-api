@@ -79,6 +79,11 @@
 ## Phase 3: Enhanced LLM Processing with Guardrails
 
 - [ ] 6. Refactor LLM service with strict guardrails
+
+
+
+
+
   - Update LLMEnhancer with enhance_low_confidence_fields() method
   - Implement enforce_schema_constraints() to prevent modification of high-confidence fields
   - Add limit_context_to_residual() to reduce LLM context to unparsed text only

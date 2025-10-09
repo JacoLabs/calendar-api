@@ -5,13 +5,14 @@ Implements structured JSON schema output with temperature ≤0.2 for the hybrid 
 
 import json
 import logging
-from typing import Optional, Dict, Any, List, Union
+import re
+from typing import Optional, Dict, Any, List, Union, Tuple
 from datetime import datetime, timedelta
 from dataclasses import dataclass
 
 from services.llm_service import LLMService, LLMResponse
 from services.regex_date_extractor import DateTimeResult
-from models.event_models import TitleResult, ParsedEvent
+from models.event_models import TitleResult, ParsedEvent, FieldResult
 
 logger = logging.getLogger(__name__)
 
@@ -608,6 +609,456 @@ Output must be valid JSON matching the provided schema."""
         """Check if LLM enhancer is available."""
         return self.llm_service.is_available()
     
+    def enhance_low_confidence_fields(self, 
+                                     text: str, 
+                                     field_results: Dict[str, FieldResult],
+                                     locked_fields: Dict[str, Any],
+                                     confidence_threshold: float = 0.8) -> Dict[str, FieldResult]:
+        """
+        Enhance only low-confidence fields using LLM with strict guardrails.
+        
+        Args:
+            text: Original input text
+            field_results: Current field extraction results
+            locked_fields: High-confidence fields that cannot be modified
+            confidence_threshold: Threshold below which fields need enhancement
+            
+        Returns:
+            Dictionary of enhanced field results
+        """
+        if not self.llm_service.is_available():
+            logger.warning("LLM service not available for field enhancement")
+            return field_results
+        
+        # Identify fields that need enhancement
+        fields_to_enhance = []
+        for field_name, field_result in field_results.items():
+            if field_result.confidence < confidence_threshold and field_name not in locked_fields:
+                fields_to_enhance.append(field_name)
+        
+        if not fields_to_enhance:
+            logger.debug("No fields need LLM enhancement")
+            return field_results
+        
+        logger.info(f"Enhancing low-confidence fields: {fields_to_enhance}")
+        
+        try:
+            # Limit context to residual unparsed text
+            residual_text = self.limit_context_to_residual(text, field_results)
+            
+            # Create enhancement schema with locked fields
+            enhancement_schema = self._create_field_enhancement_schema(fields_to_enhance, locked_fields)
+            
+            # Prepare enhancement prompt
+            system_prompt = self._get_field_enhancement_system_prompt(locked_fields)
+            user_prompt = self._format_field_enhancement_prompt(
+                residual_text, fields_to_enhance, field_results, locked_fields
+            )
+            
+            # Call LLM with timeout and retry
+            response = self.timeout_with_retry(
+                system_prompt, user_prompt, enhancement_schema, timeout_seconds=3
+            )
+            
+            if response and response.success and response.data:
+                # Validate and apply enhancements
+                validated_data = self.enforce_schema_constraints(response.data, locked_fields)
+                enhanced_results = field_results.copy()
+                
+                # Update enhanced fields
+                for field_name in fields_to_enhance:
+                    if field_name in validated_data and validated_data[field_name] is not None:
+                        enhanced_results[field_name] = FieldResult(
+                            value=validated_data[field_name],
+                            source="llm_enhancement",
+                            confidence=min(0.7, field_results[field_name].confidence + 0.2),  # Boost but cap
+                            span=field_results[field_name].span,
+                            alternatives=field_results[field_name].alternatives,
+                            processing_time_ms=int(response.processing_time * 1000)
+                        )
+                
+                return enhanced_results
+            else:
+                logger.warning(f"LLM field enhancement failed: {response.error if response else 'No response'}")
+                return field_results
+        
+        except Exception as e:
+            logger.error(f"Field enhancement failed: {e}")
+            return field_results
+    
+    def enforce_schema_constraints(self, llm_output: Dict[str, Any], locked_fields: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Enforce schema constraints to prevent modification of high-confidence fields.
+        
+        Args:
+            llm_output: Raw LLM output data
+            locked_fields: Fields that cannot be modified
+            
+        Returns:
+            Validated output with locked fields removed/ignored
+        """
+        validated_output = {}
+        
+        for field_name, value in llm_output.items():
+            if field_name in locked_fields:
+                logger.warning(f"LLM attempted to modify locked field '{field_name}' - ignoring")
+                continue
+            
+            # Additional validation for datetime fields
+            if field_name in ['start_datetime', 'end_datetime', 'date', 'time']:
+                if locked_fields:  # If any fields are locked, don't allow datetime modification
+                    logger.warning(f"LLM attempted to modify datetime field '{field_name}' - ignoring")
+                    continue
+            
+            validated_output[field_name] = value
+        
+        return validated_output
+    
+    def limit_context_to_residual(self, text: str, field_results: Dict[str, FieldResult]) -> str:
+        """
+        Reduce LLM context to residual unparsed text only.
+        
+        Args:
+            text: Original input text
+            field_results: Extracted field results with spans
+            
+        Returns:
+            Residual text with extracted spans removed
+        """
+        if not field_results:
+            return text
+        
+        # Collect all extracted spans
+        extracted_spans = []
+        for field_result in field_results.values():
+            if field_result.span and field_result.span != (0, 0):
+                extracted_spans.append(field_result.span)
+        
+        if not extracted_spans:
+            return text
+        
+        # Sort spans by start position (reverse order for removal)
+        extracted_spans.sort(key=lambda x: x[0], reverse=True)
+        
+        # Remove extracted spans from text
+        residual_text = text
+        for start, end in extracted_spans:
+            if 0 <= start < end <= len(residual_text):
+                residual_text = residual_text[:start] + residual_text[end:]
+        
+        # Clean up extra whitespace
+        residual_text = re.sub(r'\s+', ' ', residual_text).strip()
+        
+        # If residual text is too short, return original text
+        if len(residual_text) < 10:
+            logger.debug("Residual text too short, using original text")
+            return text
+        
+        logger.debug(f"Limited context from {len(text)} to {len(residual_text)} characters")
+        return residual_text
+    
+    def timeout_with_retry(self, 
+                          system_prompt: str, 
+                          user_prompt: str, 
+                          schema: Dict[str, Any],
+                          timeout_seconds: int = 3) -> Optional[LLMResponse]:
+        """
+        Call LLM with timeout and single retry on failure.
+        
+        Args:
+            system_prompt: System prompt for LLM
+            user_prompt: User prompt for LLM
+            schema: JSON schema for validation
+            timeout_seconds: Timeout in seconds (default 3)
+            
+        Returns:
+            LLM response or None if failed after retry
+        """
+        import time
+        
+        for attempt in range(2):  # Initial attempt + 1 retry
+            try:
+                logger.debug(f"LLM call attempt {attempt + 1}/2")
+                start_time = time.time()
+                
+                # Call LLM with timeout simulation
+                response = self._call_llm_with_timeout(system_prompt, user_prompt, schema, timeout_seconds)
+                
+                elapsed_time = time.time() - start_time
+                
+                if response and response.success:
+                    logger.debug(f"LLM call succeeded on attempt {attempt + 1} ({elapsed_time:.2f}s)")
+                    return response
+                else:
+                    logger.warning(f"LLM call failed on attempt {attempt + 1}: {response.error if response else 'No response'}")
+            
+            except TimeoutError:
+                logger.warning(f"LLM call timed out on attempt {attempt + 1} (>{timeout_seconds}s)")
+            except Exception as e:
+                logger.warning(f"LLM call error on attempt {attempt + 1}: {e}")
+            
+            # Brief pause before retry (not on last attempt)
+            if attempt == 0:
+                time.sleep(0.1)
+        
+        logger.error("LLM call failed after retry - returning None")
+        return None
+    
+    def _call_llm_with_timeout(self, 
+                              system_prompt: str, 
+                              user_prompt: str, 
+                              schema: Dict[str, Any],
+                              timeout_seconds: int) -> Optional[LLMResponse]:
+        """
+        Call LLM with timeout using threading.
+        
+        Args:
+            system_prompt: System prompt
+            user_prompt: User prompt  
+            schema: JSON schema for validation
+            timeout_seconds: Timeout in seconds
+            
+        Returns:
+            LLM response or None if timeout
+        """
+        import threading
+        import time
+        
+        result = [None]  # Use list to allow modification in thread
+        exception = [None]
+        
+        def llm_call_thread():
+            try:
+                result[0] = self._call_llm_with_schema(
+                    system_prompt, 
+                    user_prompt, 
+                    schema, 
+                    0.0  # Temperature 0 for deterministic results
+                )
+            except Exception as e:
+                exception[0] = e
+        
+        # Start the LLM call in a separate thread
+        thread = threading.Thread(target=llm_call_thread)
+        thread.daemon = True
+        thread.start()
+        
+        # Wait for completion or timeout
+        thread.join(timeout=timeout_seconds)
+        
+        if thread.is_alive():
+            # Thread is still running - timeout occurred
+            logger.warning(f"LLM call timed out after {timeout_seconds}s")
+            raise TimeoutError(f"LLM call exceeded {timeout_seconds}s timeout")
+        
+        if exception[0]:
+            raise exception[0]
+        
+        return result[0]
+    
+    def validate_json_schema(self, json_text: str, schema: Dict[str, Any]) -> Tuple[bool, Optional[Dict[str, Any]], Optional[str]]:
+        """
+        Validate JSON text against a schema for structured output compliance.
+        
+        Args:
+            json_text: JSON text to validate
+            schema: JSON schema to validate against
+            
+        Returns:
+            Tuple of (is_valid, parsed_data, error_message)
+        """
+        try:
+            # Parse JSON
+            data = json.loads(json_text)
+        except json.JSONDecodeError as e:
+            return False, None, f"Invalid JSON: {e}"
+        
+        # Basic schema validation (simplified - could use jsonschema library for full validation)
+        try:
+            validation_result = self._validate_against_schema(data, schema)
+            if validation_result[0]:
+                return True, data, None
+            else:
+                return False, None, validation_result[1]
+        except Exception as e:
+            return False, None, f"Schema validation error: {e}"
+    
+    def _validate_against_schema(self, data: Dict[str, Any], schema: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
+        """
+        Simple schema validation (basic implementation).
+        
+        Args:
+            data: Data to validate
+            schema: Schema to validate against
+            
+        Returns:
+            Tuple of (is_valid, error_message)
+        """
+        if not isinstance(data, dict):
+            return False, "Data must be an object"
+        
+        # Check required fields
+        required_fields = schema.get('required', [])
+        for field in required_fields:
+            if field not in data:
+                return False, f"Missing required field: {field}"
+        
+        # Check field types
+        properties = schema.get('properties', {})
+        for field_name, field_value in data.items():
+            if field_name in properties:
+                field_schema = properties[field_name]
+                expected_type = field_schema.get('type')
+                
+                if expected_type:
+                    if isinstance(expected_type, list):
+                        # Handle union types like ["string", "null"]
+                        valid_type = False
+                        for t in expected_type:
+                            if self._check_type(field_value, t):
+                                valid_type = True
+                                break
+                        if not valid_type:
+                            return False, f"Field '{field_name}' has invalid type. Expected one of {expected_type}"
+                    else:
+                        if not self._check_type(field_value, expected_type):
+                            return False, f"Field '{field_name}' has invalid type. Expected {expected_type}"
+        
+        # Check additionalProperties
+        if schema.get('additionalProperties') is False:
+            allowed_fields = set(properties.keys())
+            actual_fields = set(data.keys())
+            extra_fields = actual_fields - allowed_fields
+            if extra_fields:
+                return False, f"Additional properties not allowed: {extra_fields}"
+        
+        return True, None
+    
+    def _check_type(self, value: Any, expected_type: str) -> bool:
+        """Check if value matches expected JSON schema type."""
+        if expected_type == "null":
+            return value is None
+        elif expected_type == "string":
+            return isinstance(value, str)
+        elif expected_type == "number":
+            return isinstance(value, (int, float))
+        elif expected_type == "integer":
+            return isinstance(value, int)
+        elif expected_type == "boolean":
+            return isinstance(value, bool)
+        elif expected_type == "array":
+            return isinstance(value, list)
+        elif expected_type == "object":
+            return isinstance(value, dict)
+        else:
+            return False
+    
+    def _create_field_enhancement_schema(self, fields_to_enhance: List[str], locked_fields: Dict[str, Any]) -> Dict[str, Any]:
+        """Create JSON schema for field enhancement with locked field constraints."""
+        properties = {}
+        required = []
+        
+        for field_name in fields_to_enhance:
+            if field_name == "title":
+                properties[field_name] = {
+                    "type": ["string", "null"],
+                    "description": "Enhanced event title (clean and descriptive)"
+                }
+            elif field_name == "location":
+                properties[field_name] = {
+                    "type": ["string", "null"],
+                    "description": "Enhanced location information"
+                }
+            elif field_name == "description":
+                properties[field_name] = {
+                    "type": ["string", "null"],
+                    "description": "Enhanced event description"
+                }
+            elif field_name == "participants":
+                properties[field_name] = {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "List of event participants"
+                }
+            # Note: datetime fields should not be in fields_to_enhance if locked_fields exist
+        
+        # Add confidence tracking
+        properties["confidence"] = {
+            "type": "object",
+            "properties": {field: {"type": "number", "minimum": 0.0, "maximum": 1.0} for field in fields_to_enhance},
+            "required": fields_to_enhance
+        }
+        required.append("confidence")
+        
+        return {
+            "type": "object",
+            "properties": properties,
+            "required": required,
+            "additionalProperties": False
+        }
+    
+    def _get_field_enhancement_system_prompt(self, locked_fields: Dict[str, Any]) -> str:
+        """Get system prompt for field enhancement with locked field constraints."""
+        locked_field_names = list(locked_fields.keys()) if locked_fields else []
+        
+        prompt = """You are an AI assistant that enhances specific low-confidence event fields.
+
+CRITICAL CONSTRAINTS:
+- Temperature = 0 for deterministic results
+- NEVER modify or reference these LOCKED fields: """ + str(locked_field_names) + """
+- Only enhance the specific fields requested
+- Be conservative - don't invent information not in the text
+- Maintain accuracy and avoid hallucination
+
+Your job is to:
+1. Enhance only the requested fields based on available context
+2. Provide confidence scores for your enhancements
+3. Return null for fields where no enhancement is possible
+
+Output must be valid JSON matching the provided schema."""
+        
+        return prompt
+    
+    def _format_field_enhancement_prompt(self, 
+                                        residual_text: str,
+                                        fields_to_enhance: List[str],
+                                        current_results: Dict[str, FieldResult],
+                                        locked_fields: Dict[str, Any]) -> str:
+        """Format prompt for field enhancement."""
+        prompt_parts = [
+            "Enhance the following low-confidence fields using the residual text:",
+            "",
+            f"Residual text: {residual_text}",
+            "",
+            f"Fields to enhance: {fields_to_enhance}",
+            ""
+        ]
+        
+        # Show current field values
+        prompt_parts.append("Current field values:")
+        for field_name in fields_to_enhance:
+            if field_name in current_results:
+                result = current_results[field_name]
+                prompt_parts.append(f"- {field_name}: {result.value} (confidence: {result.confidence:.2f})")
+            else:
+                prompt_parts.append(f"- {field_name}: None")
+        
+        prompt_parts.extend([
+            "",
+            "LOCKED fields (DO NOT modify or reference):"
+        ])
+        
+        for field_name, value in locked_fields.items():
+            prompt_parts.append(f"- {field_name}: {value}")
+        
+        prompt_parts.extend([
+            "",
+            "Provide enhanced values for the requested fields only.",
+            "Set confidence scores based on how certain you are about each enhancement."
+        ])
+        
+        return "\n".join(prompt_parts)
+    
     def get_status(self) -> Dict[str, Any]:
         """Get enhancer status."""
         return {
@@ -616,5 +1067,12 @@ Output must be valid JSON matching the provided schema."""
             'enhancement_mode': 'polish_only',
             'fallback_mode': 'full_extraction_low_confidence',
             'temperature_constraint': '≤0.2',
-            'datetime_constraint': 'never_modify'
+            'datetime_constraint': 'never_modify',
+            'guardrails': {
+                'field_enhancement': True,
+                'schema_constraints': True,
+                'context_limiting': True,
+                'timeout_retry': True,
+                'json_validation': True
+            }
         }
