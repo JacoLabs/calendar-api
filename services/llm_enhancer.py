@@ -617,20 +617,26 @@ Output must be valid JSON matching the provided schema."""
         """
         Enhance only low-confidence fields using LLM with strict guardrails.
         
+        This method implements per-field confidence routing by:
+        1. Identifying fields below confidence threshold
+        2. Limiting LLM context to residual unparsed text only
+        3. Enforcing schema constraints to prevent locked field modification
+        4. Using timeout with retry for reliability
+        
         Args:
             text: Original input text
             field_results: Current field extraction results
             locked_fields: High-confidence fields that cannot be modified
-            confidence_threshold: Threshold below which fields need enhancement
+            confidence_threshold: Threshold below which fields need enhancement (default 0.8)
             
         Returns:
-            Dictionary of enhanced field results
+            Dictionary of enhanced field results with improved confidence scores
         """
         if not self.llm_service.is_available():
             logger.warning("LLM service not available for field enhancement")
             return field_results
         
-        # Identify fields that need enhancement
+        # Identify fields that need enhancement (Requirement 12.1)
         fields_to_enhance = []
         for field_name, field_result in field_results.items():
             if field_result.confidence < confidence_threshold and field_name not in locked_fields:
@@ -643,10 +649,10 @@ Output must be valid JSON matching the provided schema."""
         logger.info(f"Enhancing low-confidence fields: {fields_to_enhance}")
         
         try:
-            # Limit context to residual unparsed text
+            # Limit context to residual unparsed text (Requirement 12.3)
             residual_text = self.limit_context_to_residual(text, field_results)
             
-            # Create enhancement schema with locked fields
+            # Create enhancement schema with locked fields (Requirement 12.1)
             enhancement_schema = self._create_field_enhancement_schema(fields_to_enhance, locked_fields)
             
             # Prepare enhancement prompt
@@ -655,13 +661,13 @@ Output must be valid JSON matching the provided schema."""
                 residual_text, fields_to_enhance, field_results, locked_fields
             )
             
-            # Call LLM with timeout and retry
+            # Call LLM with timeout and retry (Requirement 12.4)
             response = self.timeout_with_retry(
                 system_prompt, user_prompt, enhancement_schema, timeout_seconds=3
             )
             
             if response and response.success and response.data:
-                # Validate and apply enhancements
+                # Validate and apply enhancements (Requirement 12.2)
                 validated_data = self.enforce_schema_constraints(response.data, locked_fields)
                 enhanced_results = field_results.copy()
                 
@@ -674,7 +680,7 @@ Output must be valid JSON matching the provided schema."""
                             confidence=min(0.7, field_results[field_name].confidence + 0.2),  # Boost but cap
                             span=field_results[field_name].span,
                             alternatives=field_results[field_name].alternatives,
-                            processing_time_ms=int(response.processing_time * 1000)
+                            processing_time_ms=int(response.processing_time * 1000) if hasattr(response, 'processing_time') else 0
                         )
                 
                 return enhanced_results
@@ -690,27 +696,54 @@ Output must be valid JSON matching the provided schema."""
         """
         Enforce schema constraints to prevent modification of high-confidence fields.
         
+        This method implements strict guardrails by:
+        1. Removing any attempts to modify locked high-confidence fields
+        2. Blocking datetime field modifications when any fields are locked
+        3. Logging constraint violations for monitoring
+        4. Returning only validated, safe field modifications
+        
         Args:
-            llm_output: Raw LLM output data
-            locked_fields: Fields that cannot be modified
+            llm_output: Raw LLM output data from enhancement call
+            locked_fields: High-confidence fields that cannot be modified
             
         Returns:
-            Validated output with locked fields removed/ignored
+            Validated output with locked fields removed and constraints enforced
         """
         validated_output = {}
+        violations = []
         
         for field_name, value in llm_output.items():
+            # Check if field is explicitly locked (Requirement 12.2)
             if field_name in locked_fields:
+                violations.append(f"attempted to modify locked field '{field_name}'")
                 logger.warning(f"LLM attempted to modify locked field '{field_name}' - ignoring")
                 continue
             
-            # Additional validation for datetime fields
-            if field_name in ['start_datetime', 'end_datetime', 'date', 'time']:
-                if locked_fields:  # If any fields are locked, don't allow datetime modification
-                    logger.warning(f"LLM attempted to modify datetime field '{field_name}' - ignoring")
+            # Additional validation for datetime fields - never allow modification
+            if field_name in ['start_datetime', 'end_datetime', 'date', 'time', 'start', 'end']:
+                violations.append(f"attempted to modify datetime field '{field_name}'")
+                logger.warning(f"LLM attempted to modify datetime field '{field_name}' - ignoring")
+                continue
+            
+            # Additional validation for confidence fields that might override system confidence
+            if field_name == 'confidence_score' or field_name == 'overall_confidence':
+                violations.append(f"attempted to modify system confidence field '{field_name}'")
+                logger.warning(f"LLM attempted to modify confidence field '{field_name}' - ignoring")
+                continue
+            
+            # Validate field value types for safety
+            if field_name in ['title', 'location', 'description'] and value is not None:
+                if not isinstance(value, str):
+                    violations.append(f"invalid type for field '{field_name}': expected string, got {type(value)}")
+                    logger.warning(f"Invalid type for field '{field_name}': expected string, got {type(value)} - ignoring")
                     continue
             
+            # Field passed all constraints
             validated_output[field_name] = value
+        
+        # Log summary of constraint enforcement
+        if violations:
+            logger.info(f"Enforced {len(violations)} schema constraints: {violations}")
         
         return validated_output
     
@@ -718,43 +751,61 @@ Output must be valid JSON matching the provided schema."""
         """
         Reduce LLM context to residual unparsed text only.
         
+        This method implements context limitation by:
+        1. Identifying all extracted spans from successful field parsing
+        2. Removing extracted spans to leave only unparsed residual text
+        3. Cleaning up whitespace and ensuring minimum viable context
+        4. Falling back to original text if residual is too small
+        
+        This reduces token usage and prevents LLM from seeing already-parsed content.
+        
         Args:
             text: Original input text
-            field_results: Extracted field results with spans
+            field_results: Extracted field results with character spans
             
         Returns:
-            Residual text with extracted spans removed
+            Residual text with extracted spans removed, or original text if residual too small
         """
         if not field_results:
+            logger.debug("No field results provided, returning original text")
             return text
         
-        # Collect all extracted spans
+        # Collect all extracted spans with confidence > 0.5
         extracted_spans = []
-        for field_result in field_results.values():
-            if field_result.span and field_result.span != (0, 0):
+        for field_name, field_result in field_results.items():
+            if (field_result.span and 
+                field_result.span != (0, 0) and 
+                field_result.confidence > 0.5):  # Only remove high-confidence extractions
                 extracted_spans.append(field_result.span)
+                logger.debug(f"Found extracted span for {field_name}: {field_result.span}")
         
         if not extracted_spans:
+            logger.debug("No valid extracted spans found, returning original text")
             return text
         
-        # Sort spans by start position (reverse order for removal)
+        # Sort spans by start position (reverse order for safe removal)
         extracted_spans.sort(key=lambda x: x[0], reverse=True)
         
         # Remove extracted spans from text
         residual_text = text
         for start, end in extracted_spans:
             if 0 <= start < end <= len(residual_text):
+                removed_text = residual_text[start:end]
                 residual_text = residual_text[:start] + residual_text[end:]
+                logger.debug(f"Removed span [{start}:{end}]: '{removed_text.strip()}'")
         
-        # Clean up extra whitespace
+        # Clean up extra whitespace and normalize
         residual_text = re.sub(r'\s+', ' ', residual_text).strip()
         
-        # If residual text is too short, return original text
-        if len(residual_text) < 10:
-            logger.debug("Residual text too short, using original text")
+        # If residual text is too short, return original text for context
+        min_context_length = 15  # Minimum viable context
+        if len(residual_text) < min_context_length:
+            logger.debug(f"Residual text too short ({len(residual_text)} chars), using original text")
             return text
         
-        logger.debug(f"Limited context from {len(text)} to {len(residual_text)} characters")
+        logger.info(f"Limited context from {len(text)} to {len(residual_text)} characters")
+        logger.debug(f"Residual text: '{residual_text[:100]}{'...' if len(residual_text) > 100 else ''}'")
+        
         return residual_text
     
     def timeout_with_retry(self, 
@@ -763,34 +814,55 @@ Output must be valid JSON matching the provided schema."""
                           schema: Dict[str, Any],
                           timeout_seconds: int = 3) -> Optional[LLMResponse]:
         """
-        Call LLM with timeout and single retry on failure.
+        Call LLM with 3-second timeout and single retry on failure.
+        
+        This method implements reliable LLM calling with:
+        1. Strict 3-second timeout per attempt
+        2. Single retry on timeout or failure
+        3. Proper error handling and logging
+        4. Graceful degradation on total failure
         
         Args:
             system_prompt: System prompt for LLM
-            user_prompt: User prompt for LLM
-            schema: JSON schema for validation
-            timeout_seconds: Timeout in seconds (default 3)
+            user_prompt: User prompt for LLM  
+            schema: JSON schema for structured output validation
+            timeout_seconds: Timeout in seconds (default 3 per requirement)
             
         Returns:
-            LLM response or None if failed after retry
+            LLM response with success/failure status, or None if failed after retry
         """
         import time
         
-        for attempt in range(2):  # Initial attempt + 1 retry
+        total_attempts = 2  # Initial attempt + 1 retry as per requirement
+        
+        for attempt in range(total_attempts):
             try:
-                logger.debug(f"LLM call attempt {attempt + 1}/2")
+                logger.debug(f"LLM call attempt {attempt + 1}/{total_attempts} (timeout: {timeout_seconds}s)")
                 start_time = time.time()
                 
-                # Call LLM with timeout simulation
+                # Call LLM with timeout enforcement
                 response = self._call_llm_with_timeout(system_prompt, user_prompt, schema, timeout_seconds)
                 
                 elapsed_time = time.time() - start_time
                 
                 if response and response.success:
                     logger.debug(f"LLM call succeeded on attempt {attempt + 1} ({elapsed_time:.2f}s)")
+                    # Validate JSON schema compliance (Requirement 12.5)
+                    if response.data and schema:
+                        is_valid, validated_data, error = self.validate_json_schema(
+                            json.dumps(response.data), schema
+                        )
+                        if not is_valid:
+                            logger.warning(f"LLM response failed schema validation: {error}")
+                            if attempt < total_attempts - 1:
+                                continue  # Retry on schema validation failure
+                        else:
+                            response.data = validated_data
+                    
                     return response
                 else:
-                    logger.warning(f"LLM call failed on attempt {attempt + 1}: {response.error if response else 'No response'}")
+                    error_msg = response.error if response else 'No response'
+                    logger.warning(f"LLM call failed on attempt {attempt + 1}: {error_msg}")
             
             except TimeoutError:
                 logger.warning(f"LLM call timed out on attempt {attempt + 1} (>{timeout_seconds}s)")
@@ -798,10 +870,10 @@ Output must be valid JSON matching the provided schema."""
                 logger.warning(f"LLM call error on attempt {attempt + 1}: {e}")
             
             # Brief pause before retry (not on last attempt)
-            if attempt == 0:
+            if attempt < total_attempts - 1:
                 time.sleep(0.1)
         
-        logger.error("LLM call failed after retry - returning None")
+        logger.error(f"LLM call failed after {total_attempts} attempts - returning None")
         return None
     
     def _call_llm_with_timeout(self, 
@@ -810,49 +882,68 @@ Output must be valid JSON matching the provided schema."""
                               schema: Dict[str, Any],
                               timeout_seconds: int) -> Optional[LLMResponse]:
         """
-        Call LLM with timeout using threading.
+        Call LLM with strict timeout enforcement using threading.
+        
+        This method implements timeout control by:
+        1. Running LLM call in separate daemon thread
+        2. Enforcing strict timeout with thread.join()
+        3. Using temperature=0 for deterministic results
+        4. Proper exception handling and timeout detection
         
         Args:
-            system_prompt: System prompt
-            user_prompt: User prompt  
+            system_prompt: System prompt for LLM
+            user_prompt: User prompt for LLM
             schema: JSON schema for validation
-            timeout_seconds: Timeout in seconds
+            timeout_seconds: Strict timeout in seconds
             
         Returns:
-            LLM response or None if timeout
+            LLM response or None if timeout/error
+            
+        Raises:
+            TimeoutError: If LLM call exceeds timeout_seconds
         """
         import threading
         import time
         
         result = [None]  # Use list to allow modification in thread
         exception = [None]
+        start_time = time.time()
         
         def llm_call_thread():
             try:
+                # Use temperature=0 for deterministic results (Requirement 12.5)
                 result[0] = self._call_llm_with_schema(
                     system_prompt, 
                     user_prompt, 
                     schema, 
-                    0.0  # Temperature 0 for deterministic results
+                    temperature=0.0
                 )
             except Exception as e:
                 exception[0] = e
         
-        # Start the LLM call in a separate thread
-        thread = threading.Thread(target=llm_call_thread)
-        thread.daemon = True
+        # Start the LLM call in a separate daemon thread
+        thread = threading.Thread(target=llm_call_thread, daemon=True)
         thread.start()
         
         # Wait for completion or timeout
         thread.join(timeout=timeout_seconds)
         
+        elapsed_time = time.time() - start_time
+        
         if thread.is_alive():
             # Thread is still running - timeout occurred
-            logger.warning(f"LLM call timed out after {timeout_seconds}s")
-            raise TimeoutError(f"LLM call exceeded {timeout_seconds}s timeout")
+            error_msg = f"LLM call timed out after {timeout_seconds}s (elapsed: {elapsed_time:.2f}s)"
+            logger.warning(error_msg)
+            raise TimeoutError(error_msg)
         
+        # Check for exceptions in the thread
         if exception[0]:
+            logger.warning(f"LLM call failed with exception: {exception[0]}")
             raise exception[0]
+        
+        # Log successful completion
+        if result[0] and result[0].success:
+            logger.debug(f"LLM call completed successfully in {elapsed_time:.2f}s")
         
         return result[0]
     
@@ -860,28 +951,46 @@ Output must be valid JSON matching the provided schema."""
         """
         Validate JSON text against a schema for structured output compliance.
         
+        This method implements comprehensive JSON schema validation by:
+        1. Parsing JSON text with detailed error reporting
+        2. Validating required fields and data types
+        3. Checking additional properties constraints
+        4. Ensuring numeric ranges and constraints
+        5. Providing detailed error messages for debugging
+        
         Args:
-            json_text: JSON text to validate
-            schema: JSON schema to validate against
+            json_text: JSON text string to validate
+            schema: JSON schema dictionary to validate against
             
         Returns:
             Tuple of (is_valid, parsed_data, error_message)
+            - is_valid: True if validation passes
+            - parsed_data: Parsed JSON data if valid, None otherwise
+            - error_message: Detailed error message if validation fails
         """
+        # Step 1: Parse JSON with detailed error handling
         try:
-            # Parse JSON
             data = json.loads(json_text)
+            logger.debug(f"Successfully parsed JSON with {len(data)} fields")
         except json.JSONDecodeError as e:
-            return False, None, f"Invalid JSON: {e}"
+            error_msg = f"Invalid JSON syntax: {e}"
+            logger.warning(error_msg)
+            return False, None, error_msg
         
-        # Basic schema validation (simplified - could use jsonschema library for full validation)
+        # Step 2: Validate against schema
         try:
             validation_result = self._validate_against_schema(data, schema)
             if validation_result[0]:
+                logger.debug("JSON schema validation passed")
                 return True, data, None
             else:
-                return False, None, validation_result[1]
+                error_msg = f"Schema validation failed: {validation_result[1]}"
+                logger.warning(error_msg)
+                return False, None, error_msg
         except Exception as e:
-            return False, None, f"Schema validation error: {e}"
+            error_msg = f"Schema validation error: {e}"
+            logger.error(error_msg)
+            return False, None, error_msg
     
     def _validate_against_schema(self, data: Dict[str, Any], schema: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
         """

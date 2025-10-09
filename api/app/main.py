@@ -71,6 +71,7 @@ app = FastAPI(
     - Confidence scoring
     - Rate limiting and error handling
     - ICS file generation
+    - Per-field confidence routing with strict guardrails
     
     ## Rate Limits
     - 60 requests per minute per IP
@@ -78,8 +79,14 @@ app = FastAPI(
     
     ## Error Handling
     All errors return a consistent format with error codes and suggestions.
+    
+    ## Version 2.0 Updates
+    - Enhanced LLM service with strict guardrails
+    - Per-field confidence routing
+    - Improved parsing accuracy
+    - Better error handling and validation
     """,
-    version="1.0.0",
+    version="2.0.0",
     docs_url="/docs",
     redoc_url="/redoc"
 )
@@ -135,7 +142,7 @@ async def root():
     """Root endpoint with API information."""
     return {
         "name": "Text-to-Calendar Event Parser API",
-        "version": "1.0.0",
+        "version": "2.0.0",
         "status": "running",
         "endpoints": {
             "health": "/healthz",
@@ -534,17 +541,20 @@ async def api_info():
     """
     return {
         "name": "Text-to-Calendar Event Parser API",
-        "version": "1.0.0",
-        "description": "Parse natural language text into structured calendar events",
+        "version": "2.0.0",
+        "description": "Parse natural language text into structured calendar events with enhanced LLM guardrails",
         "features": [
             "Natural language parsing",
-            "LLM enhancement",
+            "LLM enhancement with strict guardrails",
+            "Per-field confidence routing",
             "Multiple date/time formats",
             "Location extraction",
-            "Confidence scoring",
+            "Advanced confidence scoring",
             "ICS file generation",
             "Rate limiting",
-            "Comprehensive error handling"
+            "Comprehensive error handling",
+            "Schema constraint enforcement",
+            "Timeout and retry mechanisms"
         ],
         "endpoints": {
             "parse": {

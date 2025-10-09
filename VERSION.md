@@ -1,14 +1,39 @@
 # Version Information
 
-## Current Version: 1.2.0
-**Release Date**: October 7, 2025
-**Codename**: "Hybrid Intelligence"
+## Current Version: 2.0.0
+**Release Date**: October 8, 2025
+**Codename**: "Guardrails & Precision"
 
-### Development Status: 1.2.1 (In Progress)
-**Focus**: Structured text parsing improvements
-**Target**: Bug fixes for complex event text extraction
+### Development Status: 2.0.0 (Stable)
+**Focus**: LLM guardrails and per-field confidence routing
+**Target**: Production-ready API with enhanced parsing accuracy
 
 ## Version History
+
+### v2.0.0 - "Guardrails & Precision" (2025-10-08)
+**Major Features**:
+- LLM service with strict guardrails and schema constraints
+- Per-field confidence routing for enhanced accuracy
+- Timeout and retry mechanisms for reliable LLM calls
+- JSON schema validation for structured output compliance
+- Context limiting to residual unparsed text only
+- Enhanced field-level processing with locked field protection
+
+**Key Components**:
+- `LLMEnhancer`: Enhanced with guardrails methods
+  - `enhance_low_confidence_fields()`: Targeted field enhancement
+  - `enforce_schema_constraints()`: Prevent high-confidence field modification
+  - `limit_context_to_residual()`: Reduce LLM context to unparsed text
+  - `timeout_with_retry()`: 3-second timeout with single retry
+  - `validate_json_schema()`: Structured output compliance
+- `FieldResult`: Enhanced field tracking with provenance
+- API V2: Production-ready with comprehensive error handling
+
+**API Improvements**:
+- Version 2.0.0 endpoints with enhanced features
+- Better error handling and validation
+- Improved deployment reliability (Render-compatible)
+- Optional heavy dependencies for faster startup
 
 ### v1.2.0 - "Hybrid Intelligence" (2025-10-07)
 **Major Features**:
@@ -50,11 +75,15 @@
 - `EventInformationExtractor`: v1.1.0 (stable)
 - `LLMService`: v1.1.0 (stable)
 
-### New in v1.2.0
-- `RegexDateExtractor`: v1.0.0 (new)
-- `TitleExtractor`: v1.0.0 (new)
-- `LLMEnhancer`: v1.0.0 (new)
-- `HybridEventParser`: v1.0.0 (new)
+### Enhanced in v2.0.0
+- `LLMEnhancer`: v2.0.0 (guardrails and precision)
+- `FieldResult`: v2.0.0 (enhanced field tracking)
+- `API`: v2.0.0 (production-ready)
+
+### Stable from v1.2.0
+- `RegexDateExtractor`: v1.0.0 (stable)
+- `TitleExtractor`: v1.0.0 (stable)
+- `HybridEventParser`: v1.0.0 (stable)
 
 ### Browser Extension
 - Extension: v1.2.0 (local API integration)
@@ -81,6 +110,12 @@
 
 ## Breaking Changes
 
+### v2.0.0
+- **API Version**: Updated to v2.0.0 (backward compatible endpoints)
+- **LLMEnhancer**: New guardrails methods (existing methods still work)
+- **Dependencies**: `recognizers-text` now optional (commented out in requirements.txt)
+- **TextMergeHelper**: Lazy loading for LLM dependencies
+
 ### v1.2.0
 - **Browser Extension**: Now requires local API server to be running
 - **EventParser**: New `parse_event_text()` method (old methods still work)
@@ -91,6 +126,13 @@
 - **Event Models**: Extended with confidence scoring and metadata
 
 ## Migration Guide
+
+### From v1.2.0 to v2.0.0
+1. **API Version**: Update API calls to use v2.0.0 endpoints (optional, v1 still works)
+2. **Dependencies**: Remove `recognizers-text` if not needed (now optional)
+3. **LLM Enhancements**: New guardrails methods available for advanced use cases
+4. **Deployment**: Improved Render compatibility with lighter dependencies
+5. **No breaking changes**: All existing functionality preserved
 
 ### From v1.1.0 to v1.2.0
 1. **Install new dependencies**: No new Python packages required
@@ -117,11 +159,17 @@
 - Personalized parsing preferences
 - Usage analytics and optimization
 
-### v2.0.0 - "Enterprise" (Planned)
+### v2.1.0 - "Advanced Routing" (Planned)
+- Enhanced per-field confidence routing
+- Advanced LLM function calling
+- Multi-provider LLM fallback chains
+- Performance optimizations
+
+### v3.0.0 - "Enterprise" (Planned)
 - Multi-user support
 - Team calendar integration
 - Advanced security features
-- Production deployment tools
+- Scalable deployment architecture
 
 ## Support
 
