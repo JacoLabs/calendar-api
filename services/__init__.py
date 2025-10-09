@@ -4,6 +4,7 @@ Services for text parsing, event processing, and calendar integration.
 
 from .calendar_service import CalendarService, CalendarServiceError, EventValidationError, EventCreationError
 from .per_field_confidence_router import PerFieldConfidenceRouter, ProcessingMethod, FieldAnalysis
+from .recurrence_processor import RecurrenceProcessor
 
 __all__ = [
     'CalendarService',
@@ -12,5 +13,6 @@ __all__ = [
     'EventCreationError',
     'PerFieldConfidenceRouter',
     'ProcessingMethod',
-    'FieldAnalysis'
+    'FieldAnalysis',
+    'RecurrenceProcessor'
 ]
