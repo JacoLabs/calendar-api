@@ -16,7 +16,12 @@
   - Write comprehensive unit tests for new data model serialization and validation
   - _Requirements: 10.4, 14.5, 15.4_
 
-- [ ] 2. Create Per-Field Confidence Router
+- [x] 2. Create Per-Field Confidence Router
+
+
+
+
+
   - Implement PerFieldConfidenceRouter class with field analysis capabilities
   - Add analyze_field_extractability() method to assess per-field confidence potential
   - Create route_processing_method() to choose between regex/deterministic/LLM based on confidence
@@ -27,7 +32,12 @@
 
 ## Phase 2: Deterministic Backup Layer
 
-- [ ] 3. Integrate Duckling parser as deterministic backup
+- [x] 3. Integrate Duckling parser as deterministic backup
+
+
+
+
+
   - Install and configure Duckling for date/time entity extraction
   - Create DucklingExtractor class with extract_with_duckling() method
   - Implement confidence scoring for Duckling results (0.6-0.8 range)
@@ -35,7 +45,13 @@
   - Create unit tests for Duckling integration and edge cases
   - _Requirements: 11.1, 11.3, 11.4_
 
-- [ ] 4. Integrate Microsoft Recognizers-Text as backup option
+- [x] 4. Integrate Microsoft Recognizers-Text as backup option
+
+
+
+
+
+
   - Install Microsoft Recognizers-Text Python library
   - Create RecognizersExtractor class with extract_with_recognizers() method
   - Implement multi-language entity recognition for dates, times, numbers
@@ -43,7 +59,13 @@
   - Create unit tests for Recognizers integration and language support
   - _Requirements: 11.1, 11.2, 11.4_
 
-- [ ] 5. Implement deterministic backup coordination
+- [-] 5. Implement deterministic backup coordination
+
+
+
+
+
+
   - Create DeterministicBackupLayer class to coordinate Duckling and Recognizers
   - Implement choose_best_span() method to select shortest valid span
   - Add validate_timezone_normalization() for datetime results

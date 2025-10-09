@@ -26,3 +26,10 @@ python-multipart>=0.0.6,<1.0.0
 
 # Core HTTP client (required for Ollama/Groq)
 requests>=2.31.0,<3.0.0
+
+# Deterministic backup parsers
+# Note: Duckling requires a separate Haskell service running on localhost:8000
+# Install with: stack install duckling && duckling-example-exe
+
+# Microsoft Recognizers-Text for multi-language entity recognition
+recognizers-text>=1.0.2,<2.0.0
