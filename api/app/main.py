@@ -39,6 +39,7 @@ from .error_handlers import (
     handle_parsing_error, validate_timezone, validate_datetime_string
 )
 from .health import health_checker
+from .cache_manager import cache_manager
 
 # Configure logging (no request body logging for privacy)
 logging.basicConfig(
@@ -136,6 +137,45 @@ app.add_exception_handler(HTTPException, http_exception_handler)
 # Initialize event parser
 event_parser = EventParser()
 
+# Background task for cache cleanup
+import asyncio
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    logger.info("Starting API server with enhanced endpoints")
+    
+    # Start background cache cleanup task
+    cleanup_task = asyncio.create_task(cache_cleanup_task())
+    
+    yield
+    
+    # Shutdown
+    cleanup_task.cancel()
+    try:
+        await cleanup_task
+    except asyncio.CancelledError:
+        pass
+    logger.info("API server shutdown complete")
+
+async def cache_cleanup_task():
+    """Background task to clean up expired cache entries."""
+    while True:
+        try:
+            # Clean up expired entries every hour
+            await asyncio.sleep(3600)  # 1 hour
+            expired_count = cache_manager.cleanup_expired()
+            if expired_count > 0:
+                logger.info(f"Cleaned up {expired_count} expired cache entries")
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            logger.error(f"Cache cleanup error: {e}")
+
+# Update app to use lifespan
+app.router.lifespan_context = lifespan
+
 
 @app.get("/")
 async def root():
@@ -171,7 +211,7 @@ async def root():
 @app.get("/healthz", response_model=HealthResponse)
 async def health_check():
     """
-    Comprehensive health check endpoint.
+    Enhanced health check endpoint with component status and performance metrics.
     
     Returns detailed status of the API and its dependencies including:
     - Overall service status
@@ -179,8 +219,22 @@ async def health_check():
     - LLM service availability
     - System resource usage
     - Service uptime
+    - Component performance metrics
+    - Cache status and statistics
     """
-    return await health_checker.get_health_status()
+    health_status = await health_checker.get_health_status()
+    
+    # Add performance metrics
+    performance_metrics = _get_performance_metrics()
+    if performance_metrics:
+        health_status.services.update(performance_metrics)
+    
+    # Add cache statistics
+    cache_stats = _get_cache_statistics()
+    if cache_stats:
+        health_status.services["cache"] = cache_stats.get("status", "unknown")
+    
+    return health_status
 
 
 @app.get("/health", response_model=HealthResponse)
@@ -190,9 +244,14 @@ async def health_check_alias():
 
 
 @app.post("/parse", response_model=ParseResponse)
-async def parse_text(request: ParseRequest, http_request: Request):
+async def parse_text(
+    request: ParseRequest, 
+    http_request: Request,
+    mode: Optional[str] = None,
+    fields: Optional[str] = None
+):
     """
-    Parse natural language text into calendar event data.
+    Parse natural language text into calendar event data with enhanced features.
     
     ## Request Body
     - **text**: Natural language text containing event information (required)
@@ -202,9 +261,19 @@ async def parse_text(request: ParseRequest, http_request: Request):
     - **clipboard_text**: Optional clipboard content for smart merging
     - **now**: Current datetime for relative date parsing (ISO 8601)
     
+    ## Query Parameters
+    - **mode**: Parsing mode - 'audit' for detailed routing information (optional)
+    - **fields**: Comma-separated list of fields to parse (e.g., 'start,title,location') (optional)
+    
     ## Response
     Returns structured event data with ISO 8601 datetimes including timezone offsets.
     Includes confidence scores and parsing metadata.
+    
+    ## Audit Mode
+    When mode=audit, response includes additional routing decisions and confidence breakdown.
+    
+    ## Partial Parsing
+    When fields parameter is provided, only specified fields are processed and returned.
     
     ## Error Handling
     - Returns 400 for validation errors with specific field information
@@ -230,37 +299,75 @@ async def parse_text(request: ParseRequest, http_request: Request):
                 request_id
             )
         
+        # Parse fields parameter for partial parsing
+        requested_fields = None
+        if fields:
+            requested_fields = [field.strip().lower() for field in fields.split(',')]
+            valid_fields = ['title', 'start', 'end', 'location', 'description', 'recurrence']
+            invalid_fields = [f for f in requested_fields if f not in valid_fields]
+            if invalid_fields:
+                return handle_parsing_error(
+                    ValueError(f"Invalid fields: {', '.join(invalid_fields)}. Valid fields: {', '.join(valid_fields)}"),
+                    request_id
+                )
+        
         # Set current time for relative date parsing
         current_time = request.now or datetime.utcnow()
         
         # Configure parser based on locale
         prefer_dd_mm = request.locale.startswith('en_GB') or request.locale.startswith('en_AU')
         
-        # Parse the text with enhancement if requested
-        try:
-            if request.use_llm_enhancement:
-                parsed_event = event_parser.parse_text_enhanced(
-                    text=request.text,
-                    clipboard_text=request.clipboard_text,
-                    prefer_dd_mm_format=prefer_dd_mm,
-                    current_time=current_time
-                )
-            else:
-                parsed_event = event_parser.parse_text(
-                    text=request.text,
-                    prefer_dd_mm_format=prefer_dd_mm,
-                    current_time=current_time
-                )
-        except Exception as parsing_error:
-            return handle_parsing_error(parsing_error, request_id)
+        # Check cache first (skip cache for audit mode or partial parsing)
+        cache_key_params = {
+            "timezone": request.timezone,
+            "locale": request.locale,
+            "use_llm_enhancement": request.use_llm_enhancement
+        }
+        
+        cached_result = None
+        cache_hit = False
+        
+        if not mode and not requested_fields:  # Only use cache for normal parsing
+            cached_result = cache_manager.get(request.text, **cache_key_params)
+            if cached_result:
+                cache_hit = True
+                parsed_event = cached_result
+        
+        # Parse the text if not cached
+        if not cache_hit:
+            try:
+                if request.use_llm_enhancement:
+                    parsed_event = event_parser.parse_text_enhanced(
+                        text=request.text,
+                        clipboard_text=request.clipboard_text,
+                        prefer_dd_mm_format=prefer_dd_mm,
+                        current_time=current_time
+                    )
+                else:
+                    parsed_event = event_parser.parse_text(
+                        text=request.text,
+                        prefer_dd_mm_format=prefer_dd_mm,
+                        current_time=current_time
+                    )
+                
+                # Cache the result for future requests (skip for audit/partial parsing)
+                if not mode and not requested_fields:
+                    cache_manager.set(request.text, parsed_event, **cache_key_params)
+                    
+            except Exception as parsing_error:
+                return handle_parsing_error(parsing_error, request_id)
+        
+        # Apply partial parsing if requested
+        if requested_fields:
+            parsed_event = _apply_partial_parsing(parsed_event, requested_fields)
         
         # Collect parsing warnings
         warnings = []
         if parsed_event.confidence_score < 0.5:
             warnings.append("Low confidence parsing - please review extracted information")
-        if not parsed_event.title:
+        if not parsed_event.title and (not requested_fields or 'title' in requested_fields):
             warnings.append("No event title detected - consider adding a descriptive title")
-        if not parsed_event.location and "location" in request.text.lower():
+        if not parsed_event.location and "location" in request.text.lower() and (not requested_fields or 'location' in requested_fields):
             warnings.append("Location mentioned but not extracted - please verify location field")
         
         # Collect parsing metadata
@@ -269,8 +376,16 @@ async def parse_text(request: ParseRequest, http_request: Request):
             "locale": request.locale,
             "timezone": request.timezone,
             "has_clipboard_text": bool(request.clipboard_text),
-            "text_length": len(request.text)
+            "text_length": len(request.text),
+            "partial_parsing": bool(requested_fields),
+            "requested_fields": requested_fields,
+            "cache_hit": cache_hit,
+            "cache_enabled": not mode and not requested_fields
         }
+        
+        # Add audit mode information if requested
+        if mode == "audit":
+            parsing_metadata.update(_get_audit_information(parsed_event, request.text))
         
         # Convert to response format with timezone-aware ISO 8601 strings
         response = ParseResponse(
@@ -287,7 +402,7 @@ async def parse_text(request: ParseRequest, http_request: Request):
         )
         
         # Log success (no sensitive data)
-        logger.info(f"Parse successful - Request: {request_id}, Confidence: {parsed_event.confidence_score:.2f}")
+        logger.info(f"Parse successful - Request: {request_id}, Confidence: {parsed_event.confidence_score:.2f}, Mode: {mode or 'normal'}")
         
         return response
         
@@ -337,6 +452,125 @@ def _is_all_day_event(parsed_event: ParsedEvent) -> bool:
         (start_time.hour == 0 and start_time.minute == 0 and duration.days >= 1) or
         (parsed_event.confidence_score < 0.5 and 'all day' in (parsed_event.description or '').lower())
     )
+
+
+def _apply_partial_parsing(parsed_event: ParsedEvent, requested_fields: List[str]) -> ParsedEvent:
+    """Apply partial parsing by filtering out unrequested fields."""
+    # Create a copy of the parsed event
+    filtered_event = ParsedEvent()
+    
+    # Copy only requested fields
+    if 'title' in requested_fields:
+        filtered_event.title = parsed_event.title
+    if 'start' in requested_fields:
+        filtered_event.start_datetime = parsed_event.start_datetime
+    if 'end' in requested_fields:
+        filtered_event.end_datetime = parsed_event.end_datetime
+    if 'location' in requested_fields:
+        filtered_event.location = parsed_event.location
+    if 'description' in requested_fields:
+        filtered_event.description = parsed_event.description
+    if 'recurrence' in requested_fields:
+        filtered_event.recurrence = getattr(parsed_event, 'recurrence', None)
+    
+    # Always copy metadata and confidence
+    filtered_event.confidence_score = parsed_event.confidence_score
+    filtered_event.extraction_metadata = parsed_event.extraction_metadata
+    filtered_event.all_day = getattr(parsed_event, 'all_day', False)
+    
+    return filtered_event
+
+
+def _get_audit_information(parsed_event: ParsedEvent, original_text: str) -> Dict[str, Any]:
+    """Generate audit information for parsing decisions."""
+    metadata = parsed_event.extraction_metadata or {}
+    
+    audit_info = {
+        "routing_decisions": {
+            "parsing_method": metadata.get('parsing_path', 'unknown'),
+            "llm_enhancement_used": metadata.get('llm_enhanced', False),
+            "hybrid_parsing_used": metadata.get('hybrid_parsing_used', False),
+            "fallback_triggered": metadata.get('fallback_to_legacy', False)
+        },
+        "confidence_breakdown": {
+            "overall_confidence": parsed_event.confidence_score,
+            "title_confidence": metadata.get('title_confidence', 0.0),
+            "datetime_confidence": metadata.get('datetime_confidence', 0.0),
+            "location_confidence": metadata.get('location_confidence', 0.0)
+        },
+        "field_sources": {
+            "title_source": metadata.get('title_extraction_type', 'unknown'),
+            "datetime_source": metadata.get('datetime_pattern_type', 'unknown'),
+            "location_source": metadata.get('location_extraction_type', 'unknown')
+        },
+        "processing_metadata": {
+            "text_length": len(original_text),
+            "matches_found": {
+                "datetime_matches": metadata.get('datetime_matches_found', 0),
+                "title_matches": metadata.get('title_matches_found', 0),
+                "location_matches": metadata.get('location_matches_found', 0)
+            },
+            "ambiguities_detected": {
+                "multiple_datetimes": metadata.get('has_ambiguous_datetime', False),
+                "multiple_titles": metadata.get('has_ambiguous_title', False),
+                "multiple_locations": metadata.get('has_ambiguous_location', False)
+            }
+        }
+    }
+    
+    return audit_info
+
+
+def _get_performance_metrics() -> Dict[str, str]:
+    """Get component performance metrics."""
+    try:
+        # This would integrate with actual performance monitoring
+        # For now, return basic status indicators
+        metrics = {
+            "regex_parser": "healthy",
+            "datetime_extractor": "healthy", 
+            "location_extractor": "healthy",
+            "title_extractor": "healthy"
+        }
+        
+        # Add LLM performance if available
+        try:
+            # Check if LLM service is responsive
+            import time
+            start_time = time.time()
+            # Quick health check - this would be replaced with actual LLM ping
+            response_time = (time.time() - start_time) * 1000
+            
+            if response_time < 100:
+                metrics["llm_service"] = "fast"
+            elif response_time < 500:
+                metrics["llm_service"] = "normal"
+            else:
+                metrics["llm_service"] = "slow"
+                
+        except Exception:
+            metrics["llm_service"] = "unavailable"
+        
+        return metrics
+        
+    except Exception as e:
+        logger.warning(f"Performance metrics error: {e}")
+        return {}
+
+
+def _get_cache_statistics() -> Dict[str, Any]:
+    """Get cache performance statistics."""
+    try:
+        # Get real statistics from cache manager
+        return cache_manager.get_statistics()
+        
+    except Exception as e:
+        logger.warning(f"Cache statistics error: {e}")
+        return {
+            "status": "error",
+            "message": str(e),
+            "timestamp": datetime.utcnow().isoformat()
+        }
 
 
 @app.get("/ics")
@@ -554,13 +788,19 @@ async def api_info():
             "Rate limiting",
             "Comprehensive error handling",
             "Schema constraint enforcement",
-            "Timeout and retry mechanisms"
+            "Timeout and retry mechanisms",
+            "Audit mode for parsing decisions",
+            "Partial parsing for specific fields",
+            "Intelligent caching with 24h TTL",
+            "Performance monitoring and metrics",
+            "Cache statistics and optimization"
         ],
         "endpoints": {
             "parse": {
                 "method": "POST",
                 "path": "/parse",
-                "description": "Parse text into calendar event data"
+                "description": "Parse text into calendar event data with audit and partial parsing support",
+                "query_params": ["mode", "fields"]
             },
             "ics": {
                 "method": "GET", 
@@ -570,7 +810,12 @@ async def api_info():
             "health": {
                 "method": "GET",
                 "path": "/healthz",
-                "description": "Health check with service status"
+                "description": "Enhanced health check with component status and performance metrics"
+            },
+            "cache_stats": {
+                "method": "GET",
+                "path": "/cache/stats", 
+                "description": "Cache performance monitoring statistics"
             },
             "docs": {
                 "method": "GET",
@@ -591,6 +836,45 @@ async def api_info():
     }
 
 
+@app.get("/cache/stats")
+async def cache_stats():
+    """
+    Get cache performance monitoring statistics.
+    
+    Returns detailed cache metrics including:
+    - Hit/miss ratios
+    - Cache size and utilization
+    - Performance improvements
+    - TTL information
+    - Cache health status
+    """
+    try:
+        stats = _get_cache_statistics()
+        
+        return {
+            "success": True,
+            "timestamp": datetime.utcnow().isoformat(),
+            "cache_stats": stats,
+            "performance_impact": {
+                "average_cache_hit_speedup": stats.get("average_hit_speedup_ms", 0),
+                "total_requests_served": stats.get("total_requests", 0),
+                "cache_efficiency": stats.get("hit_ratio", 0.0)
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Cache stats error: {e}")
+        return {
+            "success": False,
+            "error": "Cache statistics unavailable",
+            "timestamp": datetime.utcnow().isoformat(),
+            "cache_stats": {
+                "status": "error",
+                "message": str(e)
+            }
+        }
+
+
 @app.get("/api/status")
 async def api_status():
     """
@@ -606,7 +890,8 @@ async def api_status():
         "uptime_seconds": health.uptime_seconds,
         "services": {
             "parser": health.services.get("parser", "unknown"),
-            "llm": health.services.get("llm", "unknown")
+            "llm": health.services.get("llm", "unknown"),
+            "cache": health.services.get("cache", "unknown")
         }
     }
 

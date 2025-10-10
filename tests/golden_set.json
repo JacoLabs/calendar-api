@@ -1,0 +1,150 @@
+{
+  "version": "1.0",
+  "created": "2025-10-10T19:11:51.450734",
+  "test_cases": [
+    {
+      "id": "basic_001",
+      "input_text": "Meeting tomorrow at 2pm",
+      "expected_title": "Meeting",
+      "expected_start": "2025-01-02T14:00:00",
+      "expected_end": "2025-01-02T15:00:00",
+      "expected_location": null,
+      "expected_description": "",
+      "category": "date_time",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "id": "basic_002",
+      "input_text": "Lunch with John next Friday from 12:30-1:30 at Cafe Downtown",
+      "expected_title": "Lunch with John",
+      "expected_start": "2025-01-10T12:30:00",
+      "expected_end": "2025-01-10T13:30:00",
+      "expected_location": "Cafe Downtown",
+      "expected_description": "",
+      "category": "location",
+      "difficulty": "medium",
+      "notes": ""
+    },
+    {
+      "id": "basic_003",
+      "input_text": "Team standup every Monday at 9am",
+      "expected_title": "Team standup",
+      "expected_start": "2025-01-06T09:00:00",
+      "expected_end": "2025-01-06T10:00:00",
+      "expected_location": null,
+      "expected_description": "",
+      "category": "recurrence",
+      "difficulty": "medium",
+      "notes": ""
+    },
+    {
+      "id": "complex_001",
+      "input_text": "Indigenous Legacy Gathering\nMonday, Sep 29, 2025\n2–3pm\nNathan Phillips Square",
+      "expected_title": "Indigenous Legacy Gathering",
+      "expected_start": "2025-09-29T14:00:00",
+      "expected_end": "2025-09-29T15:00:00",
+      "expected_location": "Nathan Phillips Square",
+      "expected_description": "",
+      "category": "complex",
+      "difficulty": "medium",
+      "notes": ""
+    },
+    {
+      "id": "complex_002",
+      "input_text": "Project Review Meeting\n• Date: January 15, 2025\n• Time: 10:00 AM - 11:30 AM\n• Location: Conference Room B\n• Attendees: Team leads",
+      "expected_title": "Project Review Meeting",
+      "expected_start": "2025-01-15T10:00:00",
+      "expected_end": "2025-01-15T11:30:00",
+      "expected_location": "Conference Room B",
+      "expected_description": "",
+      "category": "complex",
+      "difficulty": "hard",
+      "notes": ""
+    },
+    {
+      "id": "typo_001",
+      "input_text": "Dentist appointment tommorow at 9a.m",
+      "expected_title": "Dentist appointment",
+      "expected_start": "2025-01-02T09:00:00",
+      "expected_end": "2025-01-02T10:00:00",
+      "expected_location": null,
+      "expected_description": "",
+      "category": "typo",
+      "difficulty": "medium",
+      "notes": ""
+    },
+    {
+      "id": "typo_002",
+      "input_text": "Meeting on 01/15/2025 at 2 PM for 45 minutes",
+      "expected_title": "Meeting",
+      "expected_start": "2025-01-15T14:00:00",
+      "expected_end": "2025-01-15T14:45:00",
+      "expected_location": null,
+      "expected_description": "",
+      "category": "duration",
+      "difficulty": "medium",
+      "notes": ""
+    },
+    {
+      "id": "relative_001",
+      "input_text": "Doctor appointment next week Tuesday at noon",
+      "expected_title": "Doctor appointment",
+      "expected_start": "2025-01-07T12:00:00",
+      "expected_end": "2025-01-07T13:00:00",
+      "expected_location": null,
+      "expected_description": "",
+      "category": "relative_date",
+      "difficulty": "medium",
+      "notes": ""
+    },
+    {
+      "id": "relative_002",
+      "input_text": "Conference call in two weeks at 3:30 PM",
+      "expected_title": "Conference call",
+      "expected_start": "2025-01-15T15:30:00",
+      "expected_end": "2025-01-15T16:30:00",
+      "expected_location": null,
+      "expected_description": "",
+      "category": "relative_date",
+      "difficulty": "hard",
+      "notes": ""
+    },
+    {
+      "id": "duration_001",
+      "input_text": "Workshop all day on March 1st",
+      "expected_title": "Workshop",
+      "expected_start": "2025-03-01T00:00:00",
+      "expected_end": "2025-03-01T23:59:00",
+      "expected_location": null,
+      "expected_description": "",
+      "category": "all_day",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "id": "duration_002",
+      "input_text": "Training session from 9am until noon on Friday",
+      "expected_title": "Training session",
+      "expected_start": "2025-01-03T09:00:00",
+      "expected_end": "2025-01-03T12:00:00",
+      "expected_location": null,
+      "expected_description": "",
+      "category": "duration",
+      "difficulty": "medium",
+      "notes": ""
+    },
+    {
+      "id": "demo_001",
+      "input_text": "Team meeting tomorrow at 2pm in Conference Room A",
+      "expected_title": "Team meeting",
+      "expected_start": "2025-01-02T14:00:00",
+      "expected_end": "2025-01-02T15:00:00",
+      "expected_location": "Conference Room A",
+      "expected_description": "",
+      "category": "demo",
+      "difficulty": "medium",
+      "notes": ""
+    }
+  ]
+}

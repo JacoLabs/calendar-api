@@ -1,9 +1,10 @@
 """
 Hybrid Event Parser - Integration focal point for Task 26.4.
 Implements regex-first datetime extraction with LLM enhancement/fallback pipeline.
-Enhanced with per-field confidence routing and caching capabilities.
+Enhanced with per-field confidence routing, caching capabilities, and performance optimizations.
 """
 
+import asyncio
 import logging
 import hashlib
 from typing import Optional, Dict, Any, List, Tuple
@@ -15,6 +16,7 @@ from services.title_extractor import TitleExtractor
 from services.llm_enhancer import LLMEnhancer, EnhancementResult
 from services.advanced_location_extractor import AdvancedLocationExtractor
 from services.per_field_confidence_router import PerFieldConfidenceRouter, ProcessingMethod
+from services.performance_optimizer import get_performance_optimizer
 from models.event_models import ParsedEvent, TitleResult, FieldResult, CacheEntry, ValidationResult
 
 logger = logging.getLogger(__name__)
@@ -46,33 +48,61 @@ class HybridEventParser:
     
     def __init__(self, current_time: Optional[datetime] = None):
         """
-        Initialize the hybrid parser with per-field routing capabilities.
+        Initialize the hybrid parser with per-field routing capabilities and performance optimizations.
         
         Args:
             current_time: Current datetime for relative date resolution
         """
         self.current_time = current_time or datetime.now()
         
-        # Initialize components
+        # Get performance optimizer for lazy loading and optimizations
+        self.performance_optimizer = get_performance_optimizer()
+        
+        # Initialize core components (non-lazy)
         self.regex_extractor = RegexDateExtractor(current_time=self.current_time)
         self.title_extractor = TitleExtractor()
-        self.location_extractor = AdvancedLocationExtractor()
-        self.llm_enhancer = LLMEnhancer()
         self.confidence_router = PerFieldConfidenceRouter()
+        
+        # Lazy-loaded components (will be loaded on first use)
+        self._location_extractor = None
+        self._llm_enhancer = None
         
         # Initialize cache
         self.cache: Dict[str, CacheEntry] = {}
         self.cache_ttl_hours = 24
         
-        # Configuration
+        # Configuration with performance optimizations
         self.config = {
             'regex_confidence_threshold': 0.8,  # Threshold for LLM enhancement vs fallback
             'warning_confidence_threshold': 0.6,  # Threshold for warning flags
             'default_mode': 'hybrid',  # hybrid|regex_only|llm_only
             'enable_telemetry': True,
             'enable_caching': True,
-            'max_processing_time': 30.0  # seconds
+            'max_processing_time': 30.0,  # seconds
+            'enable_concurrent_processing': True,  # Enable concurrent field processing
+            'field_processing_timeout': 10.0,  # Timeout for individual field processing
+            'enable_partial_results': True,  # Return partial results on timeout
         }
+    
+    @property
+    def location_extractor(self) -> AdvancedLocationExtractor:
+        """Lazy-loaded location extractor."""
+        if self._location_extractor is None:
+            self._location_extractor = self.performance_optimizer.get_lazy_module('location_extractor')
+            if self._location_extractor is None:
+                # Fallback to direct instantiation
+                self._location_extractor = AdvancedLocationExtractor()
+        return self._location_extractor
+    
+    @property
+    def llm_enhancer(self) -> LLMEnhancer:
+        """Lazy-loaded LLM enhancer."""
+        if self._llm_enhancer is None:
+            self._llm_enhancer = self.performance_optimizer.get_lazy_module('llm_enhancer')
+            if self._llm_enhancer is None:
+                # Fallback to direct instantiation
+                self._llm_enhancer = LLMEnhancer()
+        return self._llm_enhancer
     
     def parse_event_text(self, 
                         text: str, 
@@ -127,7 +157,26 @@ class HybridEventParser:
             elif mode == "regex_only":
                 return self._regex_only_parsing(cleaned_text, fields, warnings, processing_metadata)
             else:  # hybrid mode with per-field routing
-                return self._per_field_routing_parsing(cleaned_text, fields, timezone_offset, warnings, processing_metadata)
+                # Use concurrent processing if enabled and in async context
+                if self.config['enable_concurrent_processing']:
+                    try:
+                        # Try to run concurrent processing
+                        loop = asyncio.get_event_loop()
+                        if loop.is_running():
+                            # We're in an async context, use concurrent processing
+                            return asyncio.create_task(
+                                self._per_field_routing_parsing_concurrent(
+                                    cleaned_text, fields, timezone_offset, warnings, processing_metadata
+                                )
+                            ).result()
+                        else:
+                            # Not in async context, fall back to sequential
+                            return self._per_field_routing_parsing(cleaned_text, fields, timezone_offset, warnings, processing_metadata)
+                    except RuntimeError:
+                        # No event loop, fall back to sequential
+                        return self._per_field_routing_parsing(cleaned_text, fields, timezone_offset, warnings, processing_metadata)
+                else:
+                    return self._per_field_routing_parsing(cleaned_text, fields, timezone_offset, warnings, processing_metadata)
         
         except Exception as e:
             logger.error(f"Parsing failed: {e}")
@@ -488,6 +537,314 @@ class HybridEventParser:
         }
         
         return telemetry
+    
+    async def parse_event_text_async(self, 
+                                   text: str, 
+                                   mode: str = "hybrid",
+                                   fields: Optional[List[str]] = None,
+                                   timezone_offset: Optional[int] = None,
+                                   current_time: Optional[datetime] = None) -> HybridParsingResult:
+        """
+        Async version of main parsing orchestration with performance optimizations.
+        
+        Args:
+            text: Input text to parse
+            mode: Parsing mode ("hybrid", "regex_only", "llm_only")
+            fields: Optional list of specific fields to parse (for partial parsing)
+            timezone_offset: Timezone offset in hours for relative date resolution
+            current_time: Current datetime context (overrides instance current_time)
+            
+        Returns:
+            HybridParsingResult with parsed event and metadata
+            
+        Requirements:
+        - 16.4: Concurrent field processing with asyncio.gather()
+        - 16.5: Timeout handling that returns partial results
+        """
+        start_time = datetime.now()
+        
+        # Update current time context if provided
+        if current_time:
+            self.current_time = current_time
+            self.regex_extractor.set_current_time(current_time)
+        
+        # Pre-clean text using precompiled patterns if available
+        cleaned_text = self._pre_clean_text_optimized(text)
+        
+        # Check cache first
+        if self.config['enable_caching']:
+            cache_result = self._check_cache(cleaned_text, fields)
+            if cache_result:
+                return cache_result
+        
+        # Initialize result tracking
+        warnings = []
+        processing_metadata = {
+            'original_text': text,
+            'cleaned_text': cleaned_text,
+            'mode': mode,
+            'fields_requested': fields,
+            'current_time': self.current_time.isoformat(),
+            'timezone_offset': timezone_offset,
+            'processing_start': start_time.isoformat(),
+            'concurrent_processing_enabled': self.config['enable_concurrent_processing']
+        }
+        
+        try:
+            # Execute parsing with timeout handling
+            async def parsing_operation():
+                if mode == "llm_only":
+                    return self._llm_only_parsing(cleaned_text, fields, warnings, processing_metadata)
+                elif mode == "regex_only":
+                    return self._regex_only_parsing(cleaned_text, fields, warnings, processing_metadata)
+                else:  # hybrid mode with concurrent per-field routing
+                    return await self._per_field_routing_parsing_concurrent(
+                        cleaned_text, fields, timezone_offset, warnings, processing_metadata
+                    )
+            
+            # Execute with timeout
+            result = await self.performance_optimizer.execute_with_timeout(
+                parsing_operation,
+                timeout_seconds=self.config['max_processing_time'],
+                fallback_result=self._create_fallback_result(text, warnings, processing_metadata)
+            )
+            
+            return result
+        
+        except Exception as e:
+            logger.error(f"Async parsing failed: {e}")
+            
+            # Create fallback result
+            fallback_event = ParsedEvent(
+                description=text,
+                confidence_score=0.0,
+                extraction_metadata={
+                    'error': str(e),
+                    'parsing_path': 'error_fallback'
+                }
+            )
+            
+            processing_metadata['error'] = str(e)
+            processing_metadata['processing_time'] = (datetime.now() - start_time).total_seconds()
+            
+            return HybridParsingResult(
+                parsed_event=fallback_event,
+                parsing_path="error_fallback",
+                confidence_score=0.0,
+                warnings=["Async parsing failed with error"],
+                processing_metadata=processing_metadata
+            )
+    
+    def _pre_clean_text_optimized(self, text: str) -> str:
+        """
+        Pre-clean text using precompiled regex patterns for better performance.
+        
+        Args:
+            text: Input text to clean
+            
+        Returns:
+            Cleaned text
+        """
+        if not text:
+            return ""
+        
+        # Basic cleaning
+        cleaned = text.strip()
+        
+        # Use precompiled patterns if available
+        time_12hour_pattern = self.performance_optimizer.get_regex_pattern('time_12hour_colon')
+        if time_12hour_pattern:
+            # Use precompiled pattern for time normalization
+            cleaned = time_12hour_pattern.sub(
+                lambda m: m.group(0).replace('.', '').replace(' ', ''),
+                cleaned
+            )
+        else:
+            # Fallback to manual regex
+            import re
+            cleaned = re.sub(r'(\d+)\s*a\.?\s*m\.?', r'\1 AM', cleaned, flags=re.IGNORECASE)
+            cleaned = re.sub(r'(\d+)\s*p\.?\s*m\.?', r'\1 PM', cleaned, flags=re.IGNORECASE)
+            cleaned = re.sub(r'(\d+:\d+)\s*a\.?\s*m\.?', r'\1 AM', cleaned, flags=re.IGNORECASE)
+            cleaned = re.sub(r'(\d+:\d+)\s*p\.?\s*m\.?', r'\1 PM', cleaned, flags=re.IGNORECASE)
+        
+        # Normalize whitespace
+        import re
+        cleaned = re.sub(r'\s+', ' ', cleaned)
+        
+        return cleaned
+    
+    def _create_fallback_result(self, 
+                              text: str, 
+                              warnings: List[str], 
+                              processing_metadata: Dict[str, Any]) -> HybridParsingResult:
+        """
+        Create a fallback result when parsing fails or times out.
+        
+        Args:
+            text: Original input text
+            warnings: Current warnings list
+            processing_metadata: Processing metadata
+            
+        Returns:
+            Fallback HybridParsingResult
+        """
+        fallback_event = ParsedEvent(
+            title=self._extract_fallback_title(text),
+            description=text,
+            confidence_score=0.1,
+            extraction_metadata={
+                'parsing_path': 'timeout_fallback',
+                'fallback_reason': 'Processing timeout or error'
+            }
+        )
+        
+        warnings.append("Using fallback result due to processing timeout or error")
+        
+        return HybridParsingResult(
+            parsed_event=fallback_event,
+            parsing_path="timeout_fallback",
+            confidence_score=0.1,
+            warnings=warnings,
+            processing_metadata=processing_metadata
+        )
+    
+    async def _per_field_routing_parsing_concurrent(self,
+                                                  text: str,
+                                                  fields: Optional[List[str]],
+                                                  timezone_offset: Optional[int],
+                                                  warnings: List[str],
+                                                  processing_metadata: Dict[str, Any]) -> HybridParsingResult:
+        """
+        Execute per-field confidence routing parsing with concurrent processing.
+        
+        Requirements:
+        - 16.4: Concurrent field processing with asyncio.gather()
+        - 16.5: Timeout handling that returns partial results
+        """
+        
+        # Step 1: Analyze field confidence potential
+        field_analyses = self.analyze_field_confidence(text)
+        processing_metadata['field_analyses'] = {
+            field: {
+                'confidence_potential': analysis.confidence_potential,
+                'recommended_method': analysis.recommended_method.value,
+                'complexity_score': analysis.complexity_score,
+                'pattern_matches': analysis.pattern_matches
+            }
+            for field, analysis in field_analyses.items()
+        }
+        
+        # Step 2: Determine which fields to process
+        if fields:
+            target_fields = fields
+        else:
+            # Include all fields that have analysis results, plus essential fields
+            target_fields = list(field_analyses.keys())
+            essential_fields = ['title', 'start_datetime', 'end_datetime']
+            for field in essential_fields:
+                if field not in target_fields:
+                    target_fields.append(field)
+        
+        # Step 3: Optimize processing order
+        optimized_fields = self.confidence_router.optimize_processing_order(target_fields)
+        processing_metadata['processing_order'] = optimized_fields
+        
+        # Step 4: Create field processors for concurrent execution
+        field_processors = {}
+        for field in optimized_fields:
+            field_analysis = field_analyses.get(field)
+            field_processors[field] = lambda t, f=field, a=field_analysis: self.route_field_processing(
+                f, t, timezone_offset, a
+            )
+        
+        # Step 5: Process fields concurrently with timeout handling
+        try:
+            if self.config['enable_concurrent_processing']:
+                field_results = await self.performance_optimizer.process_fields_with_optimization(
+                    field_processors, text, self.config['field_processing_timeout']
+                )
+            else:
+                # Fallback to sequential processing
+                field_results = {}
+                for field in optimized_fields:
+                    field_result = self.route_field_processing(field, text, timezone_offset, field_analyses.get(field))
+                    if field_result:
+                        field_results[field] = field_result
+        
+        except asyncio.TimeoutError:
+            # Handle timeout with partial results
+            warnings.append(f"Field processing timed out after {self.config['field_processing_timeout']}s")
+            if self.config['enable_partial_results']:
+                # Try to get partial results from completed fields
+                field_results = await self._get_partial_field_results(field_processors, text, optimized_fields[:3])
+                warnings.append("Returning partial results due to timeout")
+            else:
+                # Return empty results
+                field_results = {}
+        
+        processing_metadata['field_processing_times'] = {
+            field: result.processing_time_ms for field, result in field_results.items()
+            if hasattr(result, 'processing_time_ms')
+        }
+        
+        # Step 6: Aggregate results
+        parsed_event = self.aggregate_field_results(field_results, text)
+        
+        # Step 7: Validate and cache
+        validation_result = self.validate_and_cache(text, parsed_event)
+        if not validation_result.is_valid:
+            warnings.extend(validation_result.warnings)
+            parsed_event.needs_confirmation = True
+        
+        # Calculate overall confidence and parsing path
+        confidence_score = self._calculate_overall_confidence(field_results)
+        parsing_path = self._determine_parsing_path(field_results)
+        
+        # Add warnings based on confidence
+        if confidence_score < self.config['warning_confidence_threshold']:
+            warnings.append(f"Overall confidence below threshold ({confidence_score:.2f})")
+        
+        processing_metadata['processing_time'] = (datetime.now() - datetime.fromisoformat(processing_metadata['processing_start'])).total_seconds()
+        
+        return HybridParsingResult(
+            parsed_event=parsed_event,
+            parsing_path=parsing_path,
+            confidence_score=confidence_score,
+            warnings=warnings,
+            processing_metadata=processing_metadata
+        )
+    
+    async def _get_partial_field_results(self, 
+                                       field_processors: Dict[str, Any],
+                                       text: str,
+                                       priority_fields: List[str]) -> Dict[str, FieldResult]:
+        """
+        Get partial results from high-priority fields when timeout occurs.
+        
+        Args:
+            field_processors: Field processing functions
+            text: Input text
+            priority_fields: High-priority fields to process first
+            
+        Returns:
+            Dictionary of partial field results
+        """
+        partial_results = {}
+        
+        # Process only high-priority fields with shorter timeout
+        priority_processors = {
+            field: processor for field, processor in field_processors.items()
+            if field in priority_fields
+        }
+        
+        try:
+            partial_results = await self.performance_optimizer.process_fields_with_optimization(
+                priority_processors, text, timeout_seconds=3.0  # Shorter timeout for partial results
+            )
+        except Exception as e:
+            logger.warning(f"Partial field processing failed: {e}")
+        
+        return partial_results
     
     def _per_field_routing_parsing(self,
                                   text: str,

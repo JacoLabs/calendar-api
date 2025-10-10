@@ -76,7 +76,7 @@ class TitleExtractor:
                 re.IGNORECASE
             ),
             'appointment_with': re.compile(
-                r'\b(?:appointment|visit)\s+(?:with\s+)?([^,\n\r\.]+)',
+                r'\b(?:appointment|visit)\s+with\s+([^,\n\r\.]+?)(?:\s+(?:DATE|TIME|LOCATION|WHEN|WHERE|AT)\s|[,\n\r\.]|$)',
                 re.IGNORECASE
             ),
             'interview_with': re.compile(
@@ -85,8 +85,17 @@ class TitleExtractor:
             )
         }
         
-        # Event type patterns
+        # Event type patterns (ordered by priority - structured_event first)
         self.event_type_patterns = {
+            # Highest priority: structured event text (like event pages)
+            'structured_event': re.compile(
+                r'^([^,\n\r\.]+?)(?:\s+(?:DATE|TIME|LOCATION|WHEN|WHERE|AT)\s)',
+                re.IGNORECASE
+            ),
+            'party_celebration': re.compile(
+                r'\b([^,\n\r\.]*(?:party|celebration|birthday|anniversary|wedding)[^,\n\r\.]*?)(?:\s+(?:DATE|TIME|LOCATION|WHEN|WHERE|AT)\s|[,\n\r\.]|$)',
+                re.IGNORECASE
+            ),
             'conference': re.compile(
                 r'\b([^,\n\r\.]*(?:conference|summit|workshop|seminar|webinar)[^,\n\r\.]*)',
                 re.IGNORECASE
@@ -95,21 +104,12 @@ class TitleExtractor:
                 r'\b([^,\n\r\.]*(?:class|course|lesson|training|tutorial)[^,\n\r\.]*)',
                 re.IGNORECASE
             ),
-            'party_celebration': re.compile(
-                r'\b([^,\n\r\.]*(?:party|celebration|birthday|anniversary|wedding)[^,\n\r\.]*)',
-                re.IGNORECASE
-            ),
             'medical': re.compile(
                 r'\b([^,\n\r\.]*(?:doctor|dentist|appointment|checkup|surgery)[^,\n\r\.]*)',
                 re.IGNORECASE
             ),
             'travel': re.compile(
                 r'\b([^,\n\r\.]*(?:flight|trip|vacation|travel|departure|arrival)[^,\n\r\.]*)',
-                re.IGNORECASE
-            ),
-            # New pattern for structured event text (like event pages)
-            'structured_event': re.compile(
-                r'^([^A-Z]{3,}?)(?:\s+(?:DATE|TIME|LOCATION|WHEN|WHERE|AT)\s)',
                 re.IGNORECASE
             )
         }

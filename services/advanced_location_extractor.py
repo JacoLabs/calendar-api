@@ -108,7 +108,7 @@ class AdvancedLocationExtractor:
                 re.IGNORECASE
             ),
             'at_symbol': re.compile(r'@\s*([^,\n.!?;]+?)(?:\s*[,.]|\s*$)', re.IGNORECASE),
-            'location_colon': re.compile(r'\blocation:?\s*([^,\n.!?;]+)', re.IGNORECASE),
+            'location_colon': re.compile(r'\blocation:?\s*(.+?)(?=\s+(?:DATE|TIME|WHEN|WHERE|AT)\s|\s*$)', re.IGNORECASE),
             'venue_colon': re.compile(r'\bvenue:?\s*([^,\n.!?;]+)', re.IGNORECASE),
             'address_colon': re.compile(r'\baddress:?\s*([^,\n.!?;]+)', re.IGNORECASE),
             'meet_at': re.compile(r'\bmeet\s+at\s+([^,\n.!?;]+?)(?=\s+(?:at\s+\d+|on\s+\w+|tomorrow|today)|[.!?]|\s*$)', re.IGNORECASE)
@@ -471,8 +471,15 @@ class AdvancedLocationExtractor:
         if not locations:
             return locations
         
-        # Sort by confidence (highest first)
-        sorted_locations = sorted(locations, key=lambda x: x.confidence, reverse=True)
+        # Sort by confidence and preference for context locations with structured keywords
+        def sort_key(location):
+            confidence = location.confidence
+            # Boost confidence for context locations with structured keywords (LOCATION, etc.)
+            if 'context_location_colon' in location.extraction_method:
+                confidence += 0.25  # Boost to prefer structured context over combined addresses
+            return confidence
+        
+        sorted_locations = sorted(locations, key=sort_key, reverse=True)
         
         filtered = []
         for location in sorted_locations:

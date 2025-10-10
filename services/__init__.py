@@ -6,6 +6,7 @@ from .calendar_service import CalendarService, CalendarServiceError, EventValida
 from .per_field_confidence_router import PerFieldConfidenceRouter, ProcessingMethod, FieldAnalysis
 from .recurrence_processor import RecurrenceProcessor
 from .duration_processor import DurationProcessor
+from .cache_manager import CacheManager, CacheStats, get_cache_manager, initialize_cache_manager
 
 __all__ = [
     'CalendarService',
@@ -16,5 +17,9 @@ __all__ = [
     'ProcessingMethod',
     'FieldAnalysis',
     'RecurrenceProcessor',
-    'DurationProcessor'
+    'DurationProcessor',
+    'CacheManager',
+    'CacheStats',
+    'get_cache_manager',
+    'initialize_cache_manager'
 ]

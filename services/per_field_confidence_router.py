@@ -99,6 +99,11 @@ class PerFieldConfidenceRouter:
         
         # Location field patterns
         self.location_patterns = {
+            'structured_location': [
+                re.compile(r'\bLOCATION\s+', re.IGNORECASE),
+                re.compile(r'\bVENUE\s*:\s*', re.IGNORECASE),
+                re.compile(r'\bADDRESS\s*:\s*', re.IGNORECASE)
+            ],
             'explicit_address': [
                 re.compile(r'\b\d+\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\s+(Street|St|Avenue|Ave|Road|Rd|Boulevard|Blvd|Drive|Dr|Lane|Ln)\b', re.IGNORECASE),
                 re.compile(r'\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\s+(Square|Park|Center|Centre|Hall|Building|Tower)\b', re.IGNORECASE)
@@ -345,7 +350,9 @@ class PerFieldConfidenceRouter:
                 if matches:
                     pattern_matches.append(f"{pattern_type}: {len(matches)} matches")
                     
-                    if pattern_type == 'explicit_address':
+                    if pattern_type == 'structured_location':
+                        confidence_score = max(confidence_score, 0.95)  # Highest confidence for structured keywords
+                    elif pattern_type == 'explicit_address':
                         confidence_score = max(confidence_score, 0.9)
                     elif pattern_type == 'venue_keywords':
                         confidence_score = max(confidence_score, 0.8)
