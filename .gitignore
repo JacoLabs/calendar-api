@@ -51,3 +51,33 @@ runtime.txt
 # Project-specific (safe to ignore, regenerated automatically)
 .kiro/
 .pytest_cache/
+
+# Golden Test Suite & Generated Test Files
+tests/golden_set.json
+tests/regression_baseline.json
+test_results/
+*_performance_report.json
+demo_performance_report.json
+comprehensive_test_report.json
+
+# Generated Diagrams & Reports
+reliability_diagram.png
+demo_reliability.png
+test_reliability.png
+*_reliability.png
+
+# Performance & Benchmark Data
+performance_benchmarks/
+benchmark_results/
+latency_profiles/
+accuracy_reports/
+
+# LLM Service Generated Files
+llm_cache/
+model_outputs/
+confidence_calibration_data/
+
+# Temporary Test Data
+test_*.json
+debug_*.json
+temp_test_cases.json
