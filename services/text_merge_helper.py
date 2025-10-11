@@ -8,7 +8,7 @@ from models.event_models import ParsedEvent
 _llm_text_enhancer = None
 _TextEnhancement = None
 
-logger = logging.getLogger(**name**)
+logger = logging.getLogger(__name__)
 
 def _get_llm_text_enhancer():
 global _llm_text_enhancer, _TextEnhancement
