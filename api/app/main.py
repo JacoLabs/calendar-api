@@ -42,23 +42,16 @@ from .error_handlers import (
 from .health import health_checker
 from .cache_manager import cache_manager
 
-# Configure logging (no request body logging for privacy)
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+# Configure enhanced logging for production
+from .logging_config import setup_logging, get_logger, parsing_logger
+from .metrics import metrics_collector, track_request_metrics, track_component_timing
 
-# Disable request body logging for privacy
-class NoBodyLoggingFilter(logging.Filter):
-    def filter(self, record):
-        # Filter out any log messages that might contain request bodies
-        if hasattr(record, 'msg') and isinstance(record.msg, str):
-            if 'body' in record.msg.lower() or 'text' in record.msg.lower():
-                return False
-        return True
+# Setup logging based on environment
+log_level = os.getenv('LOG_LEVEL', 'INFO')
+log_dir = os.getenv('LOG_DIR', 'logs')
+setup_logging(log_level=log_level, log_dir=log_dir)
 
-logging.getLogger("uvicorn.access").addFilter(NoBodyLoggingFilter())
+logger = get_logger('api.main')
 
 # Create FastAPI app with enhanced configuration
 app = FastAPI(
@@ -236,6 +229,51 @@ async def health_check():
         health_status.services["cache"] = cache_stats.get("status", "unknown")
     
     return health_status
+
+
+@app.get("/metrics")
+async def get_metrics():
+    """
+    Prometheus metrics endpoint for monitoring and alerting.
+    
+    Returns metrics in Prometheus text format including:
+    - HTTP request metrics (count, duration, status codes)
+    - Parsing performance metrics (accuracy, confidence, latency)
+    - Component latency metrics (regex, LLM, deterministic backup)
+    - Cache performance metrics (hit rate, size, operations)
+    - System resource metrics (memory, CPU usage)
+    - Error metrics (parsing errors, API errors)
+    """
+    from .metrics import metrics_collector
+    
+    metrics_content = metrics_collector.get_metrics()
+    content_type = metrics_collector.get_content_type()
+    
+    return Response(content=metrics_content, media_type=content_type)
+
+
+@app.get("/cache/stats")
+async def get_cache_stats():
+    """
+    Detailed cache performance statistics endpoint.
+    
+    Returns comprehensive cache metrics including:
+    - Hit/miss ratios and counts
+    - Cache size and utilization
+    - Entry count and TTL information
+    - Performance impact metrics
+    - Cache cleanup statistics
+    """
+    cache_stats = _get_cache_statistics()
+    
+    # Add additional performance context
+    cache_stats["performance_impact"] = {
+        "estimated_speedup_ms": cache_stats.get("average_hit_speedup_ms", 0),
+        "total_requests_served": cache_stats.get("cache_hits", 0) + cache_stats.get("cache_misses", 0),
+        "bandwidth_saved_estimate": cache_stats.get("cache_hits", 0) * 1024  # Rough estimate
+    }
+    
+    return cache_stats
 
 
 @app.get("/health", response_model=HealthResponse)

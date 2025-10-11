@@ -1,0 +1,303 @@
+[
+  {
+    "report_timestamp": "2025-10-10T23:13:51.014951",
+    "validation_interval_seconds": 300,
+    "metrics": {
+      "accuracy": {
+        "timestamp": "2025-10-10T23:13:51.014951",
+        "total_test_cases": 10,
+        "overall_accuracy": 0.8399999999999999,
+        "field_accuracies": {
+          "title": {
+            "mean": 0.89,
+            "median": 0.9,
+            "min": 0.8,
+            "max": 1.0,
+            "count": 10
+          },
+          "start_datetime": {
+            "mean": 0.86,
+            "median": 0.87,
+            "min": 0.77,
+            "max": 0.97,
+            "count": 10
+          },
+          "end_datetime": {
+            "mean": 0.86,
+            "median": 0.87,
+            "min": 0.77,
+            "max": 0.97,
+            "count": 10
+          },
+          "location": {
+            "mean": 1.0,
+            "median": 1.0,
+            "min": 1.0,
+            "max": 1.0,
+            "count": 10
+          }
+        },
+        "performance_stats": {
+          "mean_processing_time_ms": 240.0,
+          "median_processing_time_ms": 250,
+          "p95_processing_time_ms": 330,
+          "p99_processing_time_ms": 330
+        },
+        "confidence_predictions": 10,
+        "results": [
+          {
+            "test_case_id": "basic_dt_001",
+            "accuracy_score": 0.75,
+            "field_accuracies": {
+              "title": 0.8,
+              "start_datetime": 0.77,
+              "end_datetime": 0.77,
+              "location": 1.0
+            },
+            "errors": [
+              "Low confidence parsing"
+            ],
+            "processing_time_ms": 150,
+            "confidence_score": 0.75
+          },
+          {
+            "test_case_id": "basic_dt_002",
+            "accuracy_score": 0.85,
+            "field_accuracies": {
+              "title": 0.9,
+              "start_datetime": 0.87,
+              "end_datetime": 0.87,
+              "location": 1.0
+            },
+            "errors": [],
+            "processing_time_ms": 170,
+            "confidence_score": 0.85
+          },
+          {
+            "test_case_id": "basic_dt_003",
+            "accuracy_score": 0.95,
+            "field_accuracies": {
+              "title": 1.0,
+              "start_datetime": 0.97,
+              "end_datetime": 0.97,
+              "location": 1.0
+            },
+            "errors": [],
+            "processing_time_ms": 190,
+            "confidence_score": 0.95
+          },
+          {
+            "test_case_id": "basic_dt_004",
+            "accuracy_score": 0.75,
+            "field_accuracies": {
+              "title": 0.8,
+              "start_datetime": 0.77,
+              "end_datetime": 0.77,
+              "location": 1.0
+            },
+            "errors": [
+              "Low confidence parsing"
+            ],
+            "processing_time_ms": 210,
+            "confidence_score": 0.75
+          },
+          {
+            "test_case_id": "basic_dt_005",
+            "accuracy_score": 0.85,
+            "field_accuracies": {
+              "title": 0.9,
+              "start_datetime": 0.87,
+              "end_datetime": 0.87,
+              "location": 1.0
+            },
+            "errors": [],
+            "processing_time_ms": 230,
+            "confidence_score": 0.85
+          },
+          {
+            "test_case_id": "basic_dt_006",
+            "accuracy_score": 0.95,
+            "field_accuracies": {
+              "title": 1.0,
+              "start_datetime": 0.97,
+              "end_datetime": 0.97,
+              "location": 1.0
+            },
+            "errors": [],
+            "processing_time_ms": 250,
+            "confidence_score": 0.95
+          },
+          {
+            "test_case_id": "basic_dt_007",
+            "accuracy_score": 0.75,
+            "field_accuracies": {
+              "title": 0.8,
+              "start_datetime": 0.77,
+              "end_datetime": 0.77,
+              "location": 1.0
+            },
+            "errors": [
+              "Low confidence parsing"
+            ],
+            "processing_time_ms": 270,
+            "confidence_score": 0.75
+          },
+          {
+            "test_case_id": "basic_dt_008",
+            "accuracy_score": 0.85,
+            "field_accuracies": {
+              "title": 0.9,
+              "start_datetime": 0.87,
+              "end_datetime": 0.87,
+              "location": 1.0
+            },
+            "errors": [],
+            "processing_time_ms": 290,
+            "confidence_score": 0.85
+          },
+          {
+            "test_case_id": "misc_001",
+            "accuracy_score": 0.95,
+            "field_accuracies": {
+              "title": 1.0,
+              "start_datetime": 0.97,
+              "end_datetime": 0.97,
+              "location": 1.0
+            },
+            "errors": [],
+            "processing_time_ms": 310,
+            "confidence_score": 0.95
+          },
+          {
+            "test_case_id": "misc_002",
+            "accuracy_score": 0.75,
+            "field_accuracies": {
+              "title": 0.8,
+              "start_datetime": 0.77,
+              "end_datetime": 0.77,
+              "location": 1.0
+            },
+            "errors": [
+              "Low confidence parsing"
+            ],
+            "processing_time_ms": 330,
+            "confidence_score": 0.75
+          }
+        ]
+      },
+      "latency": {
+        "timestamp": "2025-10-10T23:13:51.014951",
+        "component_metrics": {
+          "regex_extractor_duration_ms": [
+            45,
+            52,
+            38,
+            41,
+            49
+          ],
+          "llm_enhancer_duration_ms": [
+            850,
+            920,
+            780,
+            890,
+            810
+          ],
+          "deterministic_backup_duration_ms": [
+            120,
+            135,
+            115,
+            128,
+            122
+          ],
+          "overall_parsing_duration_ms": [
+            980,
+            1050,
+            920,
+            1010,
+            940
+          ]
+        },
+        "health_data": {
+          "status": "healthy",
+          "services": {
+            "regex_parser": "healthy",
+            "llm_service": "healthy",
+            "deterministic_backup": "healthy"
+          }
+        },
+        "system_metrics": {
+          "cpu_usage_percent": 45.2,
+          "memory_usage_percent": 62.8,
+          "disk_usage_percent": 78.5
+        }
+      },
+      "calibration": {
+        "timestamp": "2025-10-10T23:13:51.015950",
+        "total_predictions": 10,
+        "expected_calibration_error": 0.0,
+        "reliability_points": [
+          {
+            "confidence_bin": 0.75,
+            "predicted_confidence": 0.75,
+            "actual_accuracy": 0.75,
+            "count": 4
+          },
+          {
+            "confidence_bin": 0.8500000000000001,
+            "predicted_confidence": 0.85,
+            "actual_accuracy": 0.85,
+            "count": 3
+          },
+          {
+            "confidence_bin": 0.95,
+            "predicted_confidence": 0.95,
+            "actual_accuracy": 0.95,
+            "count": 3
+          }
+        ],
+        "confidence_distribution": {
+          "low": 0,
+          "medium": 4,
+          "high": 6
+        },
+        "accuracy_by_confidence_bin": {
+          "low": 0.0,
+          "medium": 0.75,
+          "high": 0.8999999999999999
+        }
+      },
+      "cache": {
+        "timestamp": "2025-10-10T23:13:51.015950",
+        "cache_stats": {
+          "hit_rate": 0.72,
+          "cache_hits": 720,
+          "cache_misses": 280,
+          "cache_size": 450,
+          "max_cache_size": 1000,
+          "average_hit_speedup_ms": 480,
+          "total_requests": 1000,
+          "cache_efficiency": 0.85
+        },
+        "performance_analysis": {
+          "performance_grade": "good",
+          "recommendations": [],
+          "efficiency_metrics": {
+            "requests_served_from_cache": 720,
+            "cache_efficiency_ratio": 0.72,
+            "estimated_latency_savings_ms": 360000,
+            "cache_utilization": 0.45
+          }
+        }
+      }
+    },
+    "summary": {
+      "overall_status": "healthy",
+      "accuracy_status": "excellent",
+      "performance_status": "excellent",
+      "cache_status": "good",
+      "calibration_status": "excellent",
+      "alerts": [],
+      "recommendations": []
+    }
+  }
+]

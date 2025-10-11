@@ -1,0 +1,89 @@
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  # Application logs
+  - job_name: calendar-api-logs
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: calendar-api
+          service: calendar-api
+          __path__: /var/log/app/*.log
+
+    pipeline_stages:
+      # Parse JSON logs
+      - json:
+          expressions:
+            timestamp: timestamp
+            level: level
+            message: message
+            request_id: request_id
+            component: component
+            duration_ms: duration_ms
+
+      # Extract labels
+      - labels:
+          level:
+          component:
+          request_id:
+
+      # Parse timestamp
+      - timestamp:
+          source: timestamp
+          format: RFC3339
+
+      # Add metrics
+      - metrics:
+          log_lines_total:
+            type: Counter
+            description: "Total number of log lines"
+            config:
+              action: inc
+          
+          error_lines_total:
+            type: Counter
+            description: "Total number of error log lines"
+            config:
+              match_all: true
+              count_entry_bytes: false
+              action: inc
+            source: level
+            config:
+              value: "ERROR"
+
+          request_duration_seconds:
+            type: Histogram
+            description: "Request duration in seconds"
+            source: duration_ms
+            config:
+              buckets: [0.1, 0.5, 1.0, 2.0, 5.0, 10.0]
+
+  # System logs (if available)
+  - job_name: system-logs
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: system
+          __path__: /var/log/syslog
+
+    pipeline_stages:
+      - regex:
+          expression: '^(?P<timestamp>\S+\s+\d+\s+\d+:\d+:\d+)\s+(?P<hostname>\S+)\s+(?P<service>\S+):\s+(?P<message>.*)$'
+      
+      - labels:
+          hostname:
+          service:
+      
+      - timestamp:
+          source: timestamp
+          format: "Jan 2 15:04:05"
