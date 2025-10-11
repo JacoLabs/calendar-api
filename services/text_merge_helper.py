@@ -1,7 +1,7 @@
-“””
+"""
 Python equivalent of the Android TextMergeHelper with LLM enhancement integration.
 Handles text preprocessing, clipboard merging, and smart text enhancement for better parsing.
-“””
+"""
 
 import re
 import logging
@@ -52,13 +52,13 @@ clipboard_text: Optional[str]
 metadata: Dict[str, Any]
 
 class TextMergeHelper:
-“””
+"""
 Python text merge helper that provides:
 1. Smart clipboard merging for fragmented Gmail selections
 2. LLM-based text enhancement for better parsing
 3. Context detection to prevent bad merges
 4. Safer defaults for incomplete information
-“””
+"""
 
 ```
 def __init__(self, use_llm: bool = True):
