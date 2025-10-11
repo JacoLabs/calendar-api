@@ -152,6 +152,24 @@ def handle_parsing_error(error: Exception, request_id: str = None) -> JSONRespon
             request_id=request_id
         )
     
+    elif "timeout" in error_message or "asyncio.timeout" in error_message:
+        return create_error_response(
+            error_code=ErrorCode.TIMEOUT_ERROR,
+            message="Request processing timeout",
+            status_code=408,
+            suggestion="The request took too long to process. Please try again with simpler text",
+            request_id=request_id
+        )
+    
+    elif "concurrent" in error_message or "asyncio" in error_message:
+        return create_error_response(
+            error_code=ErrorCode.CONCURRENT_PROCESSING_ERROR,
+            message="Error in concurrent processing",
+            status_code=500,
+            suggestion="Please try again. If the problem persists, contact support",
+            request_id=request_id
+        )
+    
     elif "llm" in error_message or "model" in error_message:
         return create_error_response(
             error_code=ErrorCode.LLM_UNAVAILABLE,

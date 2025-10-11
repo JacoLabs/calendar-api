@@ -1,0 +1,637 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Text-to-Calendar Event Parser API",
+    "description": "\n    Stateless API for parsing natural language text into calendar events.\n    \n    ## Features\n    - Natural language parsing with LLM enhancement\n    - Support for multiple date/time formats\n    - Location and title extraction\n    - Confidence scoring\n    - Rate limiting and error handling\n    - ICS file generation\n    - Per-field confidence routing with strict guardrails\n    \n    ## Rate Limits\n    - 60 requests per minute per IP\n    - 1000 requests per hour per IP\n    \n    ## Error Handling\n    All errors return a consistent format with error codes and suggestions.\n    \n    ## Version 2.0 Updates\n    - Enhanced LLM service with strict guardrails\n    - Per-field confidence routing\n    - Improved parsing accuracy\n    - Better error handling and validation\n    ",
+    "version": "2.0.0"
+  },
+  "paths": {
+    "/": {
+      "get": {
+        "summary": "Root",
+        "description": "Root endpoint with API information.",
+        "operationId": "root__get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/healthz": {
+      "get": {
+        "summary": "Health Check",
+        "description": "Enhanced health check endpoint with component status and performance metrics.\n\nReturns detailed status of the API and its dependencies including:\n- Overall service status\n- Parser service status  \n- LLM service availability\n- System resource usage\n- Service uptime\n- Component performance metrics\n- Cache status and statistics",
+        "operationId": "health_check_healthz_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "summary": "Health Check Alias",
+        "description": "Alias for /healthz endpoint.",
+        "operationId": "health_check_alias_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/parse": {
+      "post": {
+        "summary": "Parse Text",
+        "description": "Parse natural language text into calendar event data with enhanced features.\n\n## Request Body\n- **text**: Natural language text containing event information (required)\n- **timezone**: Timezone for date interpretation (default: UTC)\n- **locale**: Locale for date format preferences (default: en_US)\n- **use_llm_enhancement**: Whether to use LLM for better parsing (default: true)\n- **clipboard_text**: Optional clipboard content for smart merging\n- **now**: Current datetime for relative date parsing (ISO 8601)\n\n## Query Parameters\n- **mode**: Parsing mode - 'audit' for detailed routing information (optional)\n- **fields**: Comma-separated list of fields to parse (e.g., 'start,title,location') (optional)\n\n## Async Processing Features\n- **Concurrent Field Processing**: Fields are processed concurrently for improved performance\n- **Timeout Handling**: Requests timeout after 10 seconds with partial results returned\n- **Thread Pool Execution**: CPU-intensive parsing runs in thread pools to avoid blocking\n\n## Response\nReturns structured event data with ISO 8601 datetimes including timezone offsets.\nIncludes confidence scores and parsing metadata.\n\n## Audit Mode\nWhen mode=audit, response includes additional routing decisions and confidence breakdown.\n\n## Partial Parsing\nWhen fields parameter is provided, only specified fields are processed and returned.\n\n## Error Handling\n- Returns 400 for validation errors with specific field information\n- Returns 503 when LLM service is unavailable (falls back to regex parsing)\n- Returns 429 when rate limit is exceeded\n\nStateless operation - no data is stored.",
+        "operationId": "parse_text_parse_post",
+        "parameters": [
+          {
+            "name": "mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Mode"
+            }
+          },
+          {
+            "name": "fields",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Fields"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ParseRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ParseResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ics": {
+      "get": {
+        "summary": "Generate Ics",
+        "description": "Generate an ICS (iCalendar) file for Apple Calendar and other calendar applications.\n\n## Query Parameters\n- **title**: Event title (optional, defaults to \"Calendar Event\")\n- **start**: Start datetime in ISO 8601 format (optional, defaults to current time)\n- **end**: End datetime in ISO 8601 format (optional, defaults to start + 1 hour)\n- **location**: Event location (optional)\n- **description**: Event description (optional)\n- **allday**: Whether this is an all-day event (optional, default: false)\n\n## Response\nReturns an ICS file that can be downloaded or opened directly in calendar applications.\nCompatible with Apple Calendar, Google Calendar, Outlook, and other iCalendar-compliant apps.\n\n## Error Handling\n- Returns 400 for invalid datetime formats\n- Returns 500 for ICS generation failures",
+        "operationId": "generate_ics_ics_get",
+        "parameters": [
+          {
+            "name": "title",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Title"
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Start"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "End"
+            }
+          },
+          {
+            "name": "location",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Location"
+            }
+          },
+          {
+            "name": "description",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Description"
+            }
+          },
+          {
+            "name": "allday",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": false,
+              "title": "Allday"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/cache/stats": {
+      "get": {
+        "summary": "Cache Stats",
+        "description": "Get cache performance monitoring statistics.\n\nReturns detailed cache metrics including:\n- Hit/miss ratios\n- Cache size and utilization\n- Performance improvements\n- TTL information\n- Cache health status",
+        "operationId": "cache_stats_cache_stats_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/info": {
+      "get": {
+        "summary": "Api Info",
+        "description": "Get API information and usage statistics.\n\nReturns basic API information, version, and available endpoints.",
+        "operationId": "api_info_api_info_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/status": {
+      "get": {
+        "summary": "Api Status",
+        "description": "Get current API status and basic metrics.\n\nReturns simplified status information for monitoring systems.",
+        "operationId": "api_status_api_status_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "HealthResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "description": "Service status",
+            "example": "healthy"
+          },
+          "timestamp": {
+            "type": "string",
+            "title": "Timestamp",
+            "description": "Check timestamp in ISO format"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version",
+            "description": "API version",
+            "example": "1.0.0"
+          },
+          "services": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Services",
+            "description": "Status of dependent services",
+            "example": {
+              "llm": "available",
+              "parser": "healthy"
+            }
+          },
+          "uptime_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uptime Seconds",
+            "description": "Service uptime in seconds"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "timestamp",
+          "version",
+          "services",
+          "uptime_seconds"
+        ],
+        "title": "HealthResponse",
+        "description": "Health check response model."
+      },
+      "ParseRequest": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "maxLength": 10000,
+            "minLength": 1,
+            "title": "Text",
+            "description": "Natural language text to parse",
+            "example": "Meeting with John tomorrow at 2pm in Conference Room A"
+          },
+          "clipboard_text": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 10000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Clipboard Text",
+            "description": "Optional clipboard content for smart merging"
+          },
+          "timezone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timezone",
+            "description": "Timezone for date interpretation (e.g., 'America/New_York')",
+            "default": "UTC",
+            "example": "America/New_York"
+          },
+          "locale": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Locale",
+            "description": "Locale for date format preferences (e.g., 'en_US', 'en_GB')",
+            "default": "en_US",
+            "example": "en_US"
+          },
+          "now": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Now",
+            "description": "Current datetime for relative date parsing (ISO 8601)"
+          },
+          "use_llm_enhancement": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Use Llm Enhancement",
+            "description": "Whether to use LLM enhancement for better parsing",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "title": "ParseRequest",
+        "description": "Request model for text parsing."
+      },
+      "ParseResponse": {
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "title": "Success",
+            "default": true
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title",
+            "description": "Extracted event title",
+            "example": "Meeting with John"
+          },
+          "start_datetime": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Datetime",
+            "description": "Start datetime in ISO 8601 format with timezone",
+            "example": "2024-01-16T14:00:00-05:00"
+          },
+          "end_datetime": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Datetime",
+            "description": "End datetime in ISO 8601 format with timezone",
+            "example": "2024-01-16T15:00:00-05:00"
+          },
+          "location": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location",
+            "description": "Extracted location",
+            "example": "Conference Room A"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description",
+            "description": "Event description or original text"
+          },
+          "confidence_score": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence Score",
+            "description": "Parsing confidence score (0.0 to 1.0)",
+            "example": 0.85
+          },
+          "all_day": {
+            "type": "boolean",
+            "title": "All Day",
+            "description": "Whether this is an all-day event",
+            "default": false
+          },
+          "timezone": {
+            "type": "string",
+            "title": "Timezone",
+            "description": "Timezone used for parsing",
+            "example": "America/New_York"
+          },
+          "parsing_metadata": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parsing Metadata",
+            "description": "Additional parsing information for debugging"
+          },
+          "warnings": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Warnings",
+            "description": "Non-critical parsing warnings"
+          }
+        },
+        "type": "object",
+        "required": [
+          "title",
+          "start_datetime",
+          "end_datetime",
+          "location",
+          "description",
+          "confidence_score",
+          "timezone"
+        ],
+        "title": "ParseResponse",
+        "description": "Response model for parsed event data."
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
+}
