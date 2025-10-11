@@ -128,8 +128,9 @@ def enhance_text_for_parsing(self, text: str, clipboard_text: Optional[str] = No
                         'llm_metadata': enhancement.metadata
                     })
                     logger.info(f"Applied LLM enhancement: {enhancement.enhancement_type}")
-                else:
-                    metadata['llm_enhancement_skipped'] = f"Low confidence: {enhancement.confidence}"
+            else:
+                # LLM not available, skip enhancement
+                pass
             else:
                 # LLM enhancer not available
                 metadata['llm_enhancement_skipped'] = 'LLM enhancer not available'
