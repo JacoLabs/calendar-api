@@ -18,7 +18,7 @@ _TextEnhancement = None
 logger = logging.getLogger(**name**)
 
 def _get_llm_text_enhancer():
-“”“Lazily import and initialize LLM text enhancer to avoid heavy ML dependencies at startup.”””
+""" Lazily import and initialize LLM text enhancer to avoid heavy ML dependencies at startup."""
 global _llm_text_enhancer, _TextEnhancement
 
 ```
