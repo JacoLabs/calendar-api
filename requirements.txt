@@ -18,14 +18,23 @@ httpx>=0.25.0,<0.28.0
 # Form data handling
 python-multipart>=0.0.6,<1.0.0
 
+# Core HTTP client (required for Ollama/Groq)
+requests>=2.31.0,<3.0.0
+
+# Production monitoring and metrics
+prometheus_client>=0.17.0,<1.0.0
+psutil>=5.9.0,<6.0.0
+aiohttp>=3.8.0,<4.0.0
+
+# Data processing and visualization (for production dashboard)
+numpy>=1.24.0,<2.0.0
+matplotlib>=3.7.0,<4.0.0
+
 # LLM integration for text enhancement (all optional)
 # Install based on your preferred provider:
 # pip install openai  # For OpenAI API
 # pip install requests  # For Ollama/Groq APIs
 # pip install transformers torch  # For local Hugging Face models
-
-# Core HTTP client (required for Ollama/Groq)
-requests>=2.31.0,<3.0.0
 
 # Deterministic backup parsers
 # Note: Duckling requires a separate Haskell service running on localhost:8000
