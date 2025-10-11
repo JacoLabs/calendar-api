@@ -6,7 +6,7 @@ class ApiService {
     
     private init() {}
     
-    func parseText(_ text: String, completion: @escaping (Result<ParsedEvent, Error>) -> Void) {
+    func parseText(_ text: String, mode: String? = nil, fields: [String]? = nil, completion: @escaping (Result<ParsedEvent, Error>) -> Void) {
         // Validate input
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             completion(.failure(ApiError.validationError("Please provide text containing event information.")))
@@ -18,7 +18,23 @@ class ApiService {
             return
         }
         
-        guard let url = URL(string: "\(baseURL)/parse") else {
+        // Build URL with query parameters for enhanced features
+        var urlComponents = URLComponents(string: "\(baseURL)/parse")!
+        var queryItems: [URLQueryItem] = []
+        
+        if let mode = mode {
+            queryItems.append(URLQueryItem(name: "mode", value: mode))
+        }
+        
+        if let fields = fields, !fields.isEmpty {
+            queryItems.append(URLQueryItem(name: "fields", value: fields.joined(separator: ",")))
+        }
+        
+        if !queryItems.isEmpty {
+            urlComponents.queryItems = queryItems
+        }
+        
+        guard let url = urlComponents.url else {
             completion(.failure(ApiError.invalidURL))
             return
         }
@@ -27,7 +43,7 @@ class ApiService {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.setValue("CalendarEventApp-iOS/1.0", forHTTPHeaderField: "User-Agent")
+        request.setValue("CalendarEventApp-iOS/2.0", forHTTPHeaderField: "User-Agent")
         request.timeoutInterval = 30.0
         
         // Enhanced request body with timezone and locale
@@ -119,6 +135,23 @@ class ApiService {
                         } else {
                             // Try direct parsing
                             let event = try JSONDecoder().decode(ParsedEvent.self, from: data)
+                            
+                            // Handle enhanced API response format
+                            if let fieldResults = json["field_results"] as? [String: Any] {
+                                print("Field confidence scores: \(fieldResults)")
+                            }
+                            
+                            if let parsingPath = json["parsing_path"] as? String {
+                                print("Parsing method used: \(parsingPath)")
+                            }
+                            
+                            if let cacheHit = json["cache_hit"] as? Bool, cacheHit {
+                                print("Result served from cache")
+                            }
+                            
+                            if let warnings = json["warnings"] as? [String], !warnings.isEmpty {
+                                print("Parsing warnings: \(warnings)")
+                            }
                             
                             // Validate the parsed result
                             if let validationError = self?.validateParseResult(event, originalText: request.httpBody.flatMap { String(data: $0, encoding: .utf8) } ?? "") {

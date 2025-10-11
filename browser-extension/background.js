@@ -9,12 +9,17 @@ chrome.runtime.onInstalled.addListener(() => {
   });
 });
 
-// Handle context menu clicks
+// Handle context menu clicks with enhanced API features
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (info.menuItemId === 'createCalendarEvent' && info.selectionText) {
     try {
-      // Use our hybrid parsing system
-      const parseResult = await parseTextWithHybridSystem(info.selectionText);
+      // Use enhanced parsing with performance optimizations
+      const parseResult = await parseTextWithHybridSystem(info.selectionText, { mode: 'audit' });
+      
+      // Log performance metrics for debugging
+      if (parseResult.processing_time_ms) {
+        console.log(`Parsing completed in ${parseResult.processing_time_ms}ms`);
+      }
       
       // Create Google Calendar URL with parsed data
       const calendarUrl = buildGoogleCalendarUrl(parseResult);
@@ -23,36 +28,60 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       chrome.tabs.create({ url: calendarUrl });
       
     } catch (error) {
-      console.error('Parsing failed:', error);
+      console.error('Enhanced parsing failed:', error);
       
-      // Fallback to simple parsing
-      const title = info.selectionText.substring(0, 50);
-      const params = new URLSearchParams();
-      params.set('action', 'TEMPLATE');
-      params.set('text', title);
-      
-      const calendarUrl = `https://calendar.google.com/calendar/render?${params.toString()}`;
-      chrome.tabs.create({ url: calendarUrl });
+      // Try partial parsing for essential fields only
+      try {
+        const partialResult = await parseTextWithHybridSystem(info.selectionText, { 
+          fields: ['title', 'start_datetime', 'end_datetime'] 
+        });
+        
+        const calendarUrl = buildGoogleCalendarUrl(partialResult);
+        chrome.tabs.create({ url: calendarUrl });
+        
+      } catch (partialError) {
+        console.error('Partial parsing also failed:', partialError);
+        
+        // Final fallback to simple parsing
+        const title = info.selectionText.substring(0, 50);
+        const params = new URLSearchParams();
+        params.set('action', 'TEMPLATE');
+        params.set('text', title);
+        
+        const calendarUrl = `https://calendar.google.com/calendar/render?${params.toString()}`;
+        chrome.tabs.create({ url: calendarUrl });
+      }
     }
   }
 });
 
-// Parse text using our hybrid regex/LLM system with timeout and fallback
-async function parseTextWithHybridSystem(text) {
-  // Add timeout to prevent hanging - increased for LLM processing
+// Parse text using enhanced API with audit mode and partial parsing support
+async function parseTextWithHybridSystem(text, options = {}) {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout for LLM
+  const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout for enhanced processing
   
   try {
-    const response = await fetch(`${API_BASE_URL}/parse`, {
+    // Build URL with query parameters for enhanced features
+    const url = new URL(`${API_BASE_URL}/parse`);
+    if (options.mode === 'audit') {
+      url.searchParams.set('mode', 'audit');
+    }
+    if (options.fields && options.fields.length > 0) {
+      url.searchParams.set('fields', options.fields.join(','));
+    }
+    
+    const response = await fetch(url.toString(), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'User-Agent': 'CalendarEventExtension/2.0'
       },
       body: JSON.stringify({
         text: text,
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        now: new Date().toISOString()
+        now: new Date().toISOString(),
+        use_llm_enhancement: true
       }),
       signal: controller.signal
     });
@@ -60,18 +89,40 @@ async function parseTextWithHybridSystem(text) {
     clearTimeout(timeoutId);
     
     if (!response.ok) {
-      throw new Error(`API error: ${response.status}`);
+      // Enhanced error handling for new API responses
+      const errorData = await response.json().catch(() => ({}));
+      const errorMessage = errorData.error?.message || `API error: ${response.status}`;
+      throw new Error(errorMessage);
     }
     
-    return await response.json();
+    const result = await response.json();
+    
+    // Handle enhanced API response format
+    if (result.field_results) {
+      console.log('Field confidence scores:', result.field_results);
+    }
+    
+    if (result.parsing_path) {
+      console.log('Parsing method used:', result.parsing_path);
+    }
+    
+    if (result.cache_hit) {
+      console.log('Result served from cache');
+    }
+    
+    // Log warnings for debugging
+    if (result.warnings && result.warnings.length > 0) {
+      console.warn('Parsing warnings:', result.warnings);
+    }
+    
+    return result;
   } catch (error) {
     clearTimeout(timeoutId);
     
-    // Only use local fallback for network errors, not timeouts
     if (error.name === 'AbortError') {
-      console.warn('API request timed out after 10 seconds, using local fallback');
+      console.warn('API request timed out after 15 seconds, using local fallback');
     } else {
-      console.warn('API parsing failed, using local fallback:', error);
+      console.warn('Enhanced API parsing failed, using local fallback:', error);
     }
     return parseTextLocally(text);
   }

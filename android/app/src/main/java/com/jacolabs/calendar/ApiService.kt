@@ -3,6 +3,7 @@ package com.jacolabs.calendar
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.*
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
@@ -29,13 +30,15 @@ class ApiService {
         .build()
 
     /**
-     * Parse text using the remote API with comprehensive error handling.
+     * Parse text using the enhanced API with audit mode and partial parsing support.
      */
     suspend fun parseText(
         text: String,
         timezone: String,
         locale: String,
-        now: Date
+        now: Date,
+        mode: String? = null,
+        fields: List<String>? = null
     ): ParseResult = withContext(Dispatchers.IO) {
         
         // Check network connectivity first
@@ -55,6 +58,16 @@ class ApiService {
             throw ApiException("Text is too long. Please limit to 10,000 characters.")
         }
         
+        // Build URL with query parameters for enhanced features
+        val urlBuilder = PARSE_ENDPOINT.toHttpUrl().newBuilder()
+        
+        mode?.let { urlBuilder.addQueryParameter("mode", it) }
+        fields?.let { fieldList ->
+            if (fieldList.isNotEmpty()) {
+                urlBuilder.addQueryParameter("fields", fieldList.joinToString(","))
+            }
+        }
+        
         // Create request body
         val requestBody = JSONObject().apply {
             put("text", preprocessedText)
@@ -68,11 +81,11 @@ class ApiService {
         val body = requestBody.toString().toRequestBody(mediaType)
         
         val request = Request.Builder()
-            .url(PARSE_ENDPOINT)
+            .url(urlBuilder.build())
             .post(body)
             .addHeader("Content-Type", "application/json")
             .addHeader("Accept", "application/json")
-            .addHeader("User-Agent", "CalendarEventApp-Android/1.0")
+            .addHeader("User-Agent", "CalendarEventApp-Android/2.0")
             .build()
         
         var retryCount = 0
@@ -88,6 +101,27 @@ class ApiService {
                     when (resp.code) {
                         200 -> {
                             val result = parseApiResponse(responseBody)
+                            
+                            // Handle enhanced API response format
+                            result.fieldResults?.let { fieldResults ->
+                                println("Field confidence scores: $fieldResults")
+                            }
+                            
+                            result.parsingPath?.let { path ->
+                                println("Parsing method used: $path")
+                            }
+                            
+                            if (result.cacheHit == true) {
+                                println("Result served from cache")
+                            }
+                            
+                            // Log warnings for debugging
+                            result.warnings?.let { warnings ->
+                                if (warnings.isNotEmpty()) {
+                                    println("Parsing warnings: $warnings")
+                                }
+                            }
+                            
                             // Validate the parsed result
                             validateParseResult(result, preprocessedText)
                             return@withContext result
@@ -244,6 +278,33 @@ class ApiService {
     private fun parseApiResponse(jsonResponse: String): ParseResult {
         val json = JSONObject(jsonResponse)
         
+        // Parse field results if available
+        val fieldResults = json.optJSONObject("field_results")?.let { fieldResultsJson ->
+            mutableMapOf<String, FieldResult>().apply {
+                fieldResultsJson.keys().forEach { key ->
+                    val fieldJson = fieldResultsJson.getJSONObject(key)
+                    this[key] = FieldResult(
+                        value = fieldJson.opt("value"),
+                        source = fieldJson.optString("source", "unknown"),
+                        confidence = fieldJson.optDouble("confidence", 0.0),
+                        span = fieldJson.optJSONArray("span")?.let { spanArray ->
+                            Pair(spanArray.optInt(0, 0), spanArray.optInt(1, 0))
+                        },
+                        processingTimeMs = fieldJson.optInt("processing_time_ms", 0)
+                    )
+                }
+            }
+        }
+        
+        // Parse warnings array
+        val warnings = json.optJSONArray("warnings")?.let { warningsArray ->
+            mutableListOf<String>().apply {
+                for (i in 0 until warningsArray.length()) {
+                    add(warningsArray.getString(i))
+                }
+            }
+        }
+        
         return ParseResult(
             title = json.optString("title").takeIf { it.isNotEmpty() },
             startDateTime = json.optString("start_datetime").takeIf { it.isNotEmpty() },
@@ -252,7 +313,14 @@ class ApiService {
             description = json.optString("description").takeIf { it.isNotEmpty() },
             confidenceScore = json.optDouble("confidence_score", 0.0),
             allDay = json.optBoolean("all_day", false),
-            timezone = json.optString("timezone", "UTC")
+            timezone = json.optString("timezone", "UTC"),
+            // Enhanced fields
+            fieldResults = fieldResults,
+            parsingPath = json.optString("parsing_path").takeIf { it.isNotEmpty() },
+            processingTimeMs = json.optInt("processing_time_ms", 0),
+            cacheHit = json.optBoolean("cache_hit", false),
+            warnings = warnings,
+            needsConfirmation = json.optBoolean("needs_confirmation", false)
         )
     }
 
@@ -339,7 +407,7 @@ class ApiService {
 }
 
 /**
- * Data class representing the API response.
+ * Data class representing the enhanced API response.
  */
 data class ParseResult(
     val title: String?,
@@ -349,7 +417,25 @@ data class ParseResult(
     val description: String?,
     val confidenceScore: Double,
     val allDay: Boolean,
-    val timezone: String
+    val timezone: String,
+    // Enhanced fields
+    val fieldResults: Map<String, FieldResult>? = null,
+    val parsingPath: String? = null,
+    val processingTimeMs: Int = 0,
+    val cacheHit: Boolean? = null,
+    val warnings: List<String>? = null,
+    val needsConfirmation: Boolean = false
+)
+
+/**
+ * Data class representing per-field parsing results.
+ */
+data class FieldResult(
+    val value: Any?,
+    val source: String,
+    val confidence: Double,
+    val span: Pair<Int, Int>?,
+    val processingTimeMs: Int
 )
 
 /**

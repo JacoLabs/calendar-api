@@ -94,12 +94,29 @@ struct ContentView: View {
         isLoading = true
         errorMessage = nil
         
-        ApiService.shared.parseText(inputText) { result in
+        ApiService.shared.parseText(inputText, mode: "audit") { result in
             DispatchQueue.main.async {
                 isLoading = false
                 
                 switch result {
                 case .success(let event):
+                    // Log enhanced API response data
+                    if let processingTime = event.processingTimeMs, processingTime > 0 {
+                        print("Parsing completed in \(processingTime)ms")
+                    }
+                    
+                    if let parsingPath = event.parsingPath {
+                        print("Parsing method used: \(parsingPath)")
+                    }
+                    
+                    if let cacheHit = event.cacheHit, cacheHit {
+                        print("Result served from cache")
+                    }
+                    
+                    if let warnings = event.warnings, !warnings.isEmpty {
+                        print("Parsing warnings: \(warnings)")
+                    }
+                    
                     parsedEvent = event
                     showingResult = true
                 case .failure(let error):

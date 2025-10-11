@@ -8,6 +8,17 @@ struct EventResultView: View {
     @State private var showingCalendar = false
     @State private var calendarError: String?
     
+    private var confidenceColor: Color {
+        let confidence = Int(event.confidenceScore * 100)
+        if confidence >= 70 {
+            return .green
+        } else if confidence >= 30 {
+            return .orange
+        } else {
+            return .red
+        }
+    }
+    
     var body: some View {
         NavigationView {
             VStack(spacing: 20) {
@@ -21,9 +32,17 @@ struct EventResultView: View {
                         .font(.title2)
                         .fontWeight(.semibold)
                     
-                    Text("Confidence: \(Int(event.confidenceScore * 100))%")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                    HStack {
+                        Text("Confidence: \(Int(event.confidenceScore * 100))%")
+                            .font(.caption)
+                            .foregroundColor(confidenceColor)
+                        
+                        if let needsConfirmation = event.needsConfirmation, needsConfirmation {
+                            Text("⚠️ Review recommended")
+                                .font(.caption)
+                                .foregroundColor(.orange)
+                        }
+                    }
                 }
                 
                 // Event Details
@@ -67,6 +86,25 @@ struct EventResultView: View {
                 .padding()
                 .background(Color(.systemGray6))
                 .cornerRadius(12)
+                
+                // Show parsing warnings if any
+                if let warnings = event.warnings, !warnings.isEmpty {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Parsing Notes:")
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.orange)
+                        
+                        ForEach(warnings, id: \.self) { warning in
+                            Text("• \(warning)")
+                                .font(.caption)
+                                .foregroundColor(.orange)
+                        }
+                    }
+                    .padding()
+                    .background(Color.orange.opacity(0.1))
+                    .cornerRadius(8)
+                }
                 
                 if let calendarError = calendarError {
                     Text(calendarError)
@@ -219,7 +257,13 @@ struct EventDetailRow: View {
             description: "Discuss project updates",
             confidenceScore: 0.85,
             allDay: false,
-            timezone: "UTC"
+            timezone: "UTC",
+            fieldResults: nil,
+            parsingPath: nil,
+            processingTimeMs: nil,
+            cacheHit: nil,
+            warnings: nil,
+            needsConfirmation: nil
         ),
         onDismiss: {}
     )

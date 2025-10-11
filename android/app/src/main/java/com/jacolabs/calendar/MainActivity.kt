@@ -176,8 +176,22 @@ fun MainScreen(apiService: ApiService, lifecycleScope: androidx.lifecycle.Lifecy
                             text = textInput,
                             timezone = timezone,
                             locale = locale,
-                            now = now
+                            now = now,
+                            mode = "audit" // Use audit mode for enhanced debugging
                         )
+                        
+                        // Log enhanced API response data
+                        result.processingTimeMs.let { time ->
+                            if (time > 0) println("Parsing completed in ${time}ms")
+                        }
+                        
+                        result.parsingPath?.let { path ->
+                            println("Parsing method used: $path")
+                        }
+                        
+                        if (result.cacheHit == true) {
+                            println("Result served from cache")
+                        }
                         
                         parseResult = result
                         
@@ -290,14 +304,28 @@ fun MainScreen(apiService: ApiService, lifecycleScope: androidx.lifecycle.Lifecy
                         color = confidenceColor
                     )
                     
-                    // Show warning for low confidence
-                    if (confidence < 30) {
+                    // Show warning for low confidence or needs confirmation
+                    if (confidence < 30 || result.needsConfirmation) {
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
                             "⚠️ Low confidence - consider rephrasing with clearer date/time",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.error
                         )
+                    }
+                    
+                    // Show parsing warnings if any
+                    result.warnings?.let { warnings ->
+                        if (warnings.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            warnings.forEach { warning ->
+                                Text(
+                                    "⚠️ $warning",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.tertiary
+                                )
+                            }
+                        }
                     }
                     
                     Spacer(modifier = Modifier.height(16.dp))
@@ -452,10 +480,16 @@ private fun parseClipboardContent(
             val locale = Locale.getDefault().toString()
             val now = Date()
             
-            // Use TextMergeHelper for enhanced processing
+            // Use TextMergeHelper for enhanced processing with audit mode
             val textMergeHelper = TextMergeHelper(context)
             val enhancedText = textMergeHelper.enhanceTextForParsing(text)
-            val result = apiService.parseText(enhancedText, timezone, locale, now)
+            val result = apiService.parseText(
+                text = enhancedText, 
+                timezone = timezone, 
+                locale = locale, 
+                now = now,
+                mode = "audit"
+            )
             val finalResult = textMergeHelper.applySaferDefaults(result, enhancedText)
             
             onResult(finalResult)
