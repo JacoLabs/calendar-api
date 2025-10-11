@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calendar API Tester</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+```
+    body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        padding: 20px;
+    }
+    
+    .container {
+        max-width: 600px;
+        margin: 0 auto;
+    }
+    
+    .card {
+        background: white;
+        border-radius: 16px;
+        padding: 24px;
+        margin-bottom: 20px;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+    }
+    
+    h1 {
+        color: #667eea;
+        margin-bottom: 8px;
+        font-size: 28px;
+    }
+    
+    .subtitle {
+        color: #666;
+        margin-bottom: 24px;
+        font-size: 14px;
+    }
+    
+    label {
+        display: block;
+        font-weight: 600;
+        margin-bottom: 8px;
+        color: #333;
+        font-size: 14px;
+    }
+    
+    textarea, select {
+        width: 100%;
+        padding: 12px;
+        border: 2px solid #e0e0e0;
+        border-radius: 8px;
+        font-size: 16px;
+        font-family: inherit;
+        margin-bottom: 16px;
+        transition: border-color 0.3s;
+    }
+    
+    textarea {
+        min-height: 100px;
+        resize: vertical;
+    }
+    
+    textarea:focus, select:focus {
+        outline: none;
+        border-color: #667eea;
+    }
+    
+    button {
+        width: 100%;
+        padding: 14px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+    
+    button:active {
+        transform: scale(0.98);
+    }
+    
+    button:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+    
+    .loading {
+        text-align: center;
+        color: #667eea;
+        padding: 20px;
+        font-weight: 500;
+    }
+    
+    .result {
+        background: #f8f9ff;
+        border-radius: 8px;
+        padding: 16px;
+        margin-top: 16px;
+    }
+    
+    .result-item {
+        margin-bottom: 12px;
+        padding-bottom: 12px;
+        border-bottom: 1px solid #e0e0e0;
+    }
+    
+    .result-item:last-child {
+        border-bottom: none;
+        margin-bottom: 0;
+        padding-bottom: 0;
+    }
+    
+    .result-label {
+        font-weight: 600;
+        color: #667eea;
+        font-size: 12px;
+        text-transform: uppercase;
+        margin-bottom: 4px;
+    }
+    
+    .result-value {
+        color: #333;
+        font-size: 15px;
+    }
+    
+    .confidence {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 11px;
+        font-weight: 600;
+        margin-left: 8px;
+    }
+    
+    .confidence-high {
+        background: #d4edda;
+        color: #155724;
+    }
+    
+    .confidence-medium {
+        background: #fff3cd;
+        color: #856404;
+    }
+    
+    .confidence-low {
+        background: #f8d7da;
+        color: #721c24;
+    }
+    
+    .error {
+        background: #f8d7da;
+        color: #721c24;
+        padding: 16px;
+        border-radius: 8px;
+        margin-top: 16px;
+        border-left: 4px solid #721c24;
+    }
+    
+    .examples {
+        font-size: 13px;
+        color: #666;
+        margin-top: 8px;
+    }
+    
+    .examples strong {
+        color: #333;
+    }
+</style>
+```
+
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <h1>📅 Calendar API Tester</h1>
+            <p class="subtitle">Test your event parsing API</p>
+
+```
+        <label for="eventText">Event Description</label>
+        <textarea 
+            id="eventText" 
+            placeholder="e.g., Meeting with Sarah tomorrow at 2pm in Conference Room A"
+        >Meeting with Sarah tomorrow at 2pm</textarea>
+        
+        <div class="examples">
+            <strong>Try these:</strong><br>
+            • Lunch with John next Tuesday at 12:30<br>
+            • Team standup every weekday at 9am<br>
+            • Doctor appointment on March 15th at 3pm
+        </div>
+        
+        <label for="timezone" style="margin-top: 16px;">Timezone</label>
+        <select id="timezone">
+            <option value="America/New_York">Eastern Time</option>
+            <option value="America/Chicago">Central Time</option>
+            <option value="America/Denver">Mountain Time</option>
+            <option value="America/Los_Angeles">Pacific Time</option>
+            <option value="Europe/London">London</option>
+            <option value="Europe/Paris">Paris</option>
+            <option value="Asia/Tokyo">Tokyo</option>
+        </select>
+        
+        <button id="parseBtn" onclick="parseEvent()">Parse Event</button>
+        
+        <div id="loading" class="loading" style="display: none;">
+            Parsing...
+        </div>
+        
+        <div id="results"></div>
+    </div>
+</div>
+
+<script>
+    const API_URL = 'https://calendar-api-wrxz.onrender.com/parse';
+    
+    async function parseEvent() {
+        const text = document.getElementById('eventText').value.trim();
+        const timezone = document.getElementById('timezone').value;
+        const resultsDiv = document.getElementById('results');
+        const loadingDiv = document.getElementById('loading');
+        const parseBtn = document.getElementById('parseBtn');
+        
+        if (!text) {
+            resultsDiv.innerHTML = '<div class="error">Please enter an event description</div>';
+            return;
+        }
+        
+        // Show loading state
+        loadingDiv.style.display = 'block';
+        resultsDiv.innerHTML = '';
+        parseBtn.disabled = true;
+        
+        try {
+            const response = await fetch(API_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    text: text,
+                    timezone: timezone,
+                    mode: 'audit'
+                })
+            });
+            
+            if (!response.ok) {
+                throw new Error(`API returned ${response.status}: ${response.statusText}`);
+            }
+            
+            const data = await response.json();
+            displayResults(data);
+            
+        } catch (error) {
+            resultsDiv.innerHTML = `
+                <div class="error">
+                    <strong>Error:</strong> ${error.message}<br><br>
+                    ${error.message.includes('CORS') || error.message.includes('Failed to fetch') 
+                        ? 'This might be a CORS issue. Your API needs to allow requests from web pages.' 
+                        : 'Check that your API is running and accessible.'}
+                </div>
+            `;
+        } finally {
+            loadingDiv.style.display = 'none';
+            parseBtn.disabled = false;
+        }
+    }
+    
+    function displayResults(data) {
+        const resultsDiv = document.getElementById('results');
+        
+        let html = '<div class="result">';
+        
+        // Title
+        if (data.title) {
+            html += `
+                <div class="result-item">
+                    <div class="result-label">Title</div>
+                    <div class="result-value">${data.title.value || 'Not found'}</div>
+                </div>
+            `;
+        }
+        
+        // Start datetime
+        if (data.start_datetime) {
+            const confidence = getConfidenceBadge(data.start_datetime.confidence);
+            html += `
+                <div class="result-item">
+                    <div class="result-label">Start Time ${confidence}</div>
+                    <div class="result-value">${data.start_datetime.value || 'Not found'}</div>
+                    <div style="font-size: 12px; color: #666; margin-top: 4px;">
+                        Source: ${data.start_datetime.source || 'unknown'}
+                    </div>
+                </div>
+            `;
+        }
+        
+        // End datetime
+        if (data.end_datetime) {
+            const confidence = getConfidenceBadge(data.end_datetime.confidence);
+            html += `
+                <div class="result-item">
+                    <div class="result-label">End Time ${confidence}</div>
+                    <div class="result-value">${data.end_datetime.value || 'Not found'}</div>
+                </div>
+            `;
+        }
+        
+        // Location
+        if (data.location) {
+            html += `
+                <div class="result-item">
+                    <div class="result-label">Location</div>
+                    <div class="result-value">${data.location.value || 'Not found'}</div>
+                </div>
+            `;
+        }
+        
+        // All day
+        if (data.all_day !== undefined) {
+            html += `
+                <div class="result-item">
+                    <div class="result-label">All Day Event</div>
+                    <div class="result-value">${data.all_day ? 'Yes' : 'No'}</div>
+                </div>
+            `;
+        }
+        
+        // Recurrence
+        if (data.recurrence && data.recurrence.value) {
+            html += `
+                <div class="result-item">
+                    <div class="result-label">Recurrence</div>
+                    <div class="result-value">${data.recurrence.value}</div>
+                </div>
+            `;
+        }
+        
+        html += '</div>';
+        
+        // Show audit data if available
+        if (data.audit_data && data.audit_data.field_routing_decisions) {
+            html += '<div class="result" style="margin-top: 12px;">';
+            html += '<div class="result-label">Processing Details</div>';
+            html += '<div style="font-size: 12px; color: #666; margin-top: 8px;">';
+            
+            for (const [field, decision] of Object.entries(data.audit_data.field_routing_decisions)) {
+                html += `<div style="margin-bottom: 4px;">
+                    <strong>${field}:</strong> ${decision.method} 
+                    (confidence: ${(decision.confidence * 100).toFixed(0)}%)
+                </div>`;
+            }
+            
+            html += '</div></div>';
+        }
+        
+        resultsDiv.innerHTML = html;
+    }
+    
+    function getConfidenceBadge(confidence) {
+        if (!confidence) return '';
+        
+        const value = confidence * 100;
+        let className = 'confidence-low';
+        
+        if (value >= 80) className = 'confidence-high';
+        else if (value >= 60) className = 'confidence-medium';
+        
+        return `<span class="confidence ${className}">${value.toFixed(0)}%</span>`;
+    }
+    
+    // Allow Enter key to submit (but Shift+Enter for new line)
+    document.getElementById('eventText').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            parseEvent();
+        }
+    });
+</script>
+```
+
+</body>
+</html>
