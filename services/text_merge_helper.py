@@ -11,26 +11,26 @@ _TextEnhancement = None
 logger = logging.getLogger(__name__)
 
 def _get_llm_text_enhancer():
-global _llm_text_enhancer, _TextEnhancement
+    global _llm_text_enhancer, _TextEnhancement
 
-```
-if _llm_text_enhancer is None:
-    try:
-        from services.llm_text_enhancer import LLMTextEnhancer, TextEnhancement
-        _llm_text_enhancer = LLMTextEnhancer(provider="auto")
-        _TextEnhancement = TextEnhancement
-        logger.info("LLM text enhancer loaded successfully")
-    except ImportError as e:
-        logger.warning(f"LLM text enhancer not available: {e}")
-        _llm_text_enhancer = None
-        _TextEnhancement = None
-    except Exception as e:
-        logger.warning(f"Failed to initialize LLM text enhancer: {e}")
-        _llm_text_enhancer = None
-        _TextEnhancement = None
+    ```
+    if _llm_text_enhancer is None:
+        try:
+            from services.llm_text_enhancer import LLMTextEnhancer, TextEnhancement
+            _llm_text_enhancer = LLMTextEnhancer(provider="auto")
+            _TextEnhancement = TextEnhancement
+            logger.info("LLM text enhancer loaded successfully")
+        except ImportError as e:
+            logger.warning(f"LLM text enhancer not available: {e}")
+            _llm_text_enhancer = None
+            _TextEnhancement = None
+        except Exception as e:
+            logger.warning(f"Failed to initialize LLM text enhancer: {e}")
+            _llm_text_enhancer = None
+            _TextEnhancement = None
 
-return _llm_text_enhancer, _TextEnhancement
-```
+    return _llm_text_enhancer, _TextEnhancement
+    ```
 
 @dataclass
 class MergeResult:
