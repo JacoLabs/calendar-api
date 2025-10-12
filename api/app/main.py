@@ -443,6 +443,7 @@ async def parse_text(
         
         # Log success (no sensitive data)
         logger.info(f"Parse successful - Request: {request_id}, Confidence: {parsed_event.confidence_score:.2f}, Mode: {mode or 'normal'}")
+        logger.info(f"Parsed fields - Title: {parsed_event.title}, Start: {parsed_event.start_datetime}, End: {parsed_event.end_datetime}, Location: {parsed_event.location}")
         
         return response
         
