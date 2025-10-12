@@ -32,7 +32,7 @@ matplotlib>=3.7.0,<4.0.0
 
 # LLM integration for text enhancement (all optional)
 # Install based on your preferred provider:
-# pip install openai  # For OpenAI API
+pip install openai  # For OpenAI API
 # pip install requests  # For Ollama/Groq APIs
 # pip install transformers torch  # For local Hugging Face models
 
