@@ -164,18 +164,18 @@ class TitleExtractor:
     
     def extract_title(self, text: str) -> TitleResult:
         # very first thing in extract_title(), before explicit patterns
-    line_title = self._extract_title_line_first(text)
-    if line_title:
-        cleaned = self._clean_title(line_title)
-        if cleaned:
-            return TitleResult(
-                title=cleaned,
-                confidence=0.98,
-                generation_method="explicit",
-                raw_text=line_title,
-                quality_score=self._calculate_title_quality(cleaned),
-                extraction_metadata={'pattern_type': 'title_line'}
-            )
+        line_title = self._extract_title_line_first(text)
+        if line_title:
+            cleaned = self._clean_title(line_title)
+            if cleaned:
+                return TitleResult(
+                    title=cleaned,
+                    confidence=0.98,
+                    generation_method="explicit",
+                    raw_text=line_title,
+                    quality_score=self._calculate_title_quality(cleaned),
+                    extraction_metadata={'pattern_type': 'title_line'}
+                )
         """
         Extract title from text using regex patterns and heuristics.
         
