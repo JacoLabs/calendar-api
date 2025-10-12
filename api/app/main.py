@@ -1149,7 +1149,34 @@ async def api_status():
             "cache": health.services.get("cache", "unknown")
         }
     }
+# add to your request model
+class ParseRequest(BaseModel):
+    text: str
+    timezone: str
+    locale: Optional[str] = "en_US"
+    audit: bool = False
+    no_cache: bool = False  # <-- add this
 
+# inside your POST /parse handler
+@app.post("/parse")
+async def parse(req: ParseRequest):
+    # ...
+    # if you have a cache, bypass it:
+    if req.no_cache:
+        cache_hit = False
+    else:
+        # your existing cache lookup here, set cache_hit True/False
+        ...
+
+    result = parser.parse(
+        text=req.text,
+        timezone=req.timezone,
+        locale=req.locale,
+        audit=req.audit,
+        no_cache=req.no_cache,   # <-- pass through
+    )
+
+    # include no_cache + cache_hit in your response metadata if you have it
 
 if __name__ == "__main__":
     # Development server
