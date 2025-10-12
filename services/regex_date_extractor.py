@@ -34,6 +34,7 @@ class RegexDateExtractor:
     
     Handles:
     - Explicit date formats (Oct 15, 2025, 10/15/2025, October 15th)
+    - Labeled dates like "Due Date: Oct 15, 2025" or "Deadline Oct 15"
     - Relative date parsing (tomorrow, next Friday, in 2 weeks)
     - Time range extraction (2–3pm, 9:30-10:30, from 2pm to 4pm)
     - Duration parsing (for 2 hours, 30 minutes long)
@@ -54,17 +55,33 @@ class RegexDateExtractor:
     
     def _compile_patterns(self):
         """Compile all regex patterns for datetime extraction."""
-        
+        # Common fragments
+        month_words = (
+            r'january|february|march|april|may|june|july|august|september|october|november|december|'
+            r'jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec'
+        )
+        label_prefix = r'(?:due(?:\s*date)?|deadline|date)\s*[:\-]?\s*'  # e.g., "Due Date:" / "Deadline - "
+
         # Explicit date patterns with high confidence
         self.explicit_date_patterns = {
             # Oct 15, 2025 | October 15th, 2025
             'month_day_year': re.compile(
-                r'\b(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\.?\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(\d{4})\b',
+                rf'\b({month_words})\.?\s+(\d{{1,2}})(?:st|nd|rd|th)?,?\s+(\d{{4}})\b',
+                re.IGNORECASE
+            ),
+            # Labeled: "Due Date: Oct 15, 2025"
+            'labeled_month_day_year': re.compile(
+                rf'\b{label_prefix}({month_words})\.?\s+(\d{{1,2}})(?:st|nd|rd|th)?,?\s+(\d{{4}})\b',
                 re.IGNORECASE
             ),
             # Oct 15 | October 15th (current year assumed)
             'month_day': re.compile(
-                r'\b(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\.?\s+(\d{1,2})(?:st|nd|rd|th)?\b',
+                rf'\b({month_words})\.?\s+(\d{{1,2}})(?:st|nd|rd|th)?\b',
+                re.IGNORECASE
+            ),
+            # Labeled: "Due Date: Oct 15" (current year assumed)
+            'labeled_month_day': re.compile(
+                rf'\b{label_prefix}({month_words})\.?\s+(\d{{1,2}})(?:st|nd|rd|th)?\b',
                 re.IGNORECASE
             ),
             # 10/15/2025 | 10-15-2025
@@ -169,30 +186,11 @@ class RegexDateExtractor:
             )
         }
         
-        # Duration patterns
-        self.duration_patterns = {
-            # for 2 hours | 2 hours long
-            'hours': re.compile(
-                r'\b(?:for\s+)?(\d+(?:\.\d+)?)\s+(hours?|hrs?)\b',
-                re.IGNORECASE
-            ),
-            # for 30 minutes | 30 minutes long
-            'minutes': re.compile(
-                r'\b(?:for\s+)?(\d+)\s+(minutes?|mins?)\b',
-                re.IGNORECASE
-            ),
-            # for 1 hour 30 minutes
-            'hours_minutes': re.compile(
-                r'\b(?:for\s+)?(\d+)\s+(hours?|hrs?)\s+(?:and\s+)?(\d+)\s+(minutes?|mins?)\b',
-                re.IGNORECASE
-            )
-        }
-        
-        # Month name mappings
+        # Month name mappings (added 'sept')
         self.month_names = {
             'january': 1, 'jan': 1, 'february': 2, 'feb': 2, 'march': 3, 'mar': 3,
             'april': 4, 'apr': 4, 'may': 5, 'june': 6, 'jun': 6,
-            'july': 7, 'jul': 7, 'august': 8, 'aug': 8, 'september': 9, 'sep': 9,
+            'july': 7, 'jul': 7, 'august': 8, 'aug': 8, 'september': 9, 'sep': 9, 'sept': 9,
             'october': 10, 'oct': 10, 'november': 11, 'nov': 11, 'december': 12, 'dec': 12
         }
         
@@ -407,9 +405,9 @@ class RegexDateExtractor:
             confidence = 0.9 if 'year' in pattern_name else 0.8
             
             return DateTimeResult(
-                start_datetime=datetime.combine(date_obj, time(9, 0)),  # Default 9 AM
-                end_datetime=datetime.combine(date_obj, time(17, 0)),   # Default 5 PM
-                confidence=confidence * 0.8,  # Reduce for assumed times
+                start_datetime=datetime.combine(date_obj, time(0, 0)),   # All-day: midnight
+                end_datetime=datetime.combine(date_obj, time(23, 59)),
+                confidence=confidence,
                 extraction_method="explicit",
                 raw_text=match.group(0),
                 pattern_type=f"date_only_{pattern_name}",
@@ -422,14 +420,14 @@ class RegexDateExtractor:
         """Parse a date match into a date object."""
         current_year = self.current_time.year
         
-        if pattern_name == 'month_day_year':
+        if pattern_name in ('month_day_year', 'labeled_month_day_year'):
             month_name = match.group(1).lower()
             day = int(match.group(2))
             year = int(match.group(3))
             month = self.month_names[month_name]
             return date(year, month, day)
         
-        elif pattern_name == 'month_day':
+        elif pattern_name in ('month_day', 'labeled_month_day'):
             month_name = match.group(1).lower()
             day = int(match.group(2))
             month = self.month_names[month_name]
@@ -501,12 +499,8 @@ class RegexDateExtractor:
                     if 'am_pm' in time_pattern:
                         confidence += 0.05  # Boost for explicit AM/PM
                     
-                    # Create combined text
-                    start_pos = min(date_match.start(), time_match.start())
-                    end_pos = max(date_match.end(), time_match.end())
                     combined_text = f"{date_match.group(0)} {time_match.group(0)}"
-                    
-                    best_combo = (date_obj, time_obj, confidence, combined_text)
+                    best_combo = (date_obj, time_obj, min(confidence, 0.97), combined_text)
                     min_distance = distance
         
         return best_combo
@@ -538,8 +532,8 @@ class RegexDateExtractor:
                         else:
                             # All-day relative date
                             return DateTimeResult(
-                                start_datetime=datetime.combine(target_date, time(9, 0)),
-                                end_datetime=datetime.combine(target_date, time(17, 0)),
+                                start_datetime=datetime.combine(target_date, time(0, 0)),
+                                end_datetime=datetime.combine(target_date, time(23, 59)),
                                 confidence=0.85,
                                 extraction_method="relative",
                                 raw_text=match.group(0),
