@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 def _get_llm_text_enhancer():
     global _llm_text_enhancer, _TextEnhancement
 
-    ```
+    
     if _llm_text_enhancer is None:
         try:
             from services.llm_text_enhancer import LLMTextEnhancer, TextEnhancement
@@ -30,7 +30,7 @@ def _get_llm_text_enhancer():
             _TextEnhancement = None
 
     return _llm_text_enhancer, _TextEnhancement
-    ```
+    
 
 @dataclass
 class MergeResult:
@@ -44,7 +44,7 @@ metadata: Dict[str, Any]
 
 class TextMergeHelper:
 
-```
+
 def __init__(self, use_llm: bool = True):
     self.use_llm = use_llm
     self.llm_enhancer = None
@@ -230,4 +230,3 @@ def set_config(self, **kwargs):
 
 def get_config(self) -> Dict[str, Any]:
     return self.config.copy()
-```
