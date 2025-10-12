@@ -163,6 +163,19 @@ class TitleExtractor:
         ]
     
     def extract_title(self, text: str) -> TitleResult:
+        # very first thing in extract_title(), before explicit patterns
+    line_title = self._extract_title_line_first(text)
+    if line_title:
+        cleaned = self._clean_title(line_title)
+        if cleaned:
+            return TitleResult(
+                title=cleaned,
+                confidence=0.98,
+                generation_method="explicit",
+                raw_text=line_title,
+                quality_score=self._calculate_title_quality(cleaned),
+                extraction_metadata={'pattern_type': 'title_line'}
+            )
         """
         Extract title from text using regex patterns and heuristics.
         
@@ -210,6 +223,31 @@ class TitleExtractor:
         # Generate fallback title from available context
         fallback_result = self._generate_fallback_title(text)
         return fallback_result
+        
+        # Before existing fallback_result = self._generate_fallback_title(text)
+    line = self._first_non_meta_line(text)
+    if line:
+        cleaned = self._clean_title(line)
+        if cleaned:
+            return TitleResult(
+                title=cleaned,
+                confidence=0.7,
+                generation_method="heuristic",
+                raw_text=line,
+                quality_score=self._calculate_title_quality(cleaned),
+                extraction_metadata={'pattern_type': 'first_non_meta_line'}
+            )
+    # 
+    #Add near the top with other compiled patterns
+    _TITLE_LINE = re.compile(r'(?mi)^\s*title\s*:\s*(.+?)\s*$', re.IGNORECASE)
+    _META_PREFIXES = tuple(s.lower() for s in ["item id:", "due date:", "deadline:", "date:"])
+
+    def _extract_title_line_first(self, text: str) -> Optional[str]:
+        """Fast path: exact 'Title:' line match, trimmed to the end of that line only."""
+        m = _TITLE_LINE.search(text)
+        if not m:
+            return None
+        return m.group(1).strip()
     
     def _extract_explicit_title(self, text: str) -> TitleResult:
         """Extract titles from explicit label patterns."""
@@ -444,6 +482,19 @@ class TitleExtractor:
             return cleaned
         
         return None
+    
+    def _first_non_meta_line(self, text: str) -> Optional[str]:
+    for line in text.splitlines():
+        s = line.strip()
+        if not s:
+            continue
+        if s.lower().startswith(_META_PREFIXES):
+            continue
+        # also avoid lines that are just labels like "DATE", "TIME"
+        if re.fullmatch(r'(?i)(date|time|location|when|where)\s*:?.*', s):
+            continue
+        return s
+    return None
     
     def _calculate_title_quality(self, title: str) -> float:
         """Calculate quality score for a title (0.0 to 1.0)."""
