@@ -11,6 +11,8 @@ from models.event_models import TitleResult
 # Strict Title: line match + meta prefixes
 _TITLE_LINE = re.compile(r'(?mi)^\s*title\s*:\s*(.+?)\s*$', re.IGNORECASE)
 _META_PREFIXES = tuple(s.lower() for s in ["item id:", "due date:", "deadline:", "date:"])
+ import logging
+logger = logging.getLogger("services.title_ 
 
 
 class TitleExtractor:
@@ -20,7 +22,7 @@ class TitleExtractor:
 
     def __init__(self):
         self._compile_patterns()
-
+       
     def _compile_patterns(self):
         self.explicit_label_patterns = {
             'title_colon': re.compile(
