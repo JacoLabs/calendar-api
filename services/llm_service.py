@@ -60,8 +60,12 @@ class LLMService:
             model: Model name (provider-specific)
             **kwargs: Additional configuration
         """
+        # Read provider from environment if not specified
+        if provider == "auto":
+            provider = os.getenv('LLM_PROVIDER', 'auto')
+        
         self.provider = provider
-        self.model = model
+        self.model = model or os.getenv('LLM_MODEL')
         self.config = kwargs
         self.prompt_templates = get_prompt_templates()
         
@@ -70,13 +74,14 @@ class LLMService:
         self.openai_client = None
         
         # Auto-detect best provider
-        if provider == "auto":
+        if self.provider == "auto":
             self.provider = self._detect_best_provider()
         
         # Initialize the selected provider
         self._initialize_provider()
         
         logger.info(f"LLM Service initialized: provider={self.provider}, model={self.model}")
+        logger.info(f"OpenAI available: {OPENAI_AVAILABLE}, API key configured: {bool(os.getenv('OPENAI_API_KEY'))}")
     
     def _detect_best_provider(self) -> str:
         """Detect the best available LLM provider."""

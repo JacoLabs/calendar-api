@@ -10,15 +10,38 @@ from typing import Dict, Optional, Any
 from functools import wraps
 from contextlib import contextmanager
 
-from prometheus_client import (
-    Counter, Histogram, Gauge, Info, CollectorRegistry, 
-    generate_latest, CONTENT_TYPE_LATEST
-)
+try:
+    from prometheus_client import (
+        Counter, Histogram, Gauge, Info, CollectorRegistry, 
+        generate_latest, CONTENT_TYPE_LATEST
+    )
+    PROMETHEUS_AVAILABLE = True
+except ImportError:
+    # Fallback for when prometheus_client is not available
+    PROMETHEUS_AVAILABLE = False
+    
+    # Mock classes for when prometheus is not available
+    class MockMetric:
+        def __init__(self, *args, **kwargs):
+            pass
+        def inc(self, *args, **kwargs):
+            pass
+        def observe(self, *args, **kwargs):
+            pass
+        def set(self, *args, **kwargs):
+            pass
+        def labels(self, *args, **kwargs):
+            return self
+    
+    Counter = Histogram = Gauge = Info = MockMetric
+    CollectorRegistry = lambda: None
+    generate_latest = lambda registry: ""
+    CONTENT_TYPE_LATEST = "text/plain"
 
 logger = logging.getLogger(__name__)
 
 # Create custom registry for our metrics
-registry = CollectorRegistry()
+registry = CollectorRegistry() if PROMETHEUS_AVAILABLE else None
 
 # HTTP request metrics
 http_requests_total = Counter(
@@ -303,6 +326,9 @@ class MetricsCollector:
     
     def get_metrics(self) -> str:
         """Get Prometheus metrics in text format."""
+        if not PROMETHEUS_AVAILABLE:
+            return "# Prometheus metrics not available\n"
+        
         # Update system metrics before returning
         self.update_system_metrics()
         return generate_latest(registry)

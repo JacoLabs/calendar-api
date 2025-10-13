@@ -219,11 +219,12 @@ class HybridEventParser:
         }
         
         # Step 2: Regex title extraction
-        title_result = self.title_extractor.extract_title(text)
+        title_matches = self.title_extractor.extract_title(text)
+        title_result = title_matches[0] if title_matches else None
         processing_metadata['regex_title'] = {
-            'confidence': title_result.confidence,
-            'generation_method': title_result.generation_method,
-            'quality_score': title_result.quality_score
+            'confidence': title_result.confidence if title_result else 0.0,
+            'generation_method': 'regex_extraction',
+            'quality_score': title_result.confidence if title_result else 0.0
         }
         
         # Step 3: Location extraction
@@ -388,7 +389,8 @@ class HybridEventParser:
         
         # Extract datetime with regex
         datetime_result = self.regex_extractor.extract_datetime(text)
-        title_result = self.title_extractor.extract_title(text)
+        title_matches = self.title_extractor.extract_title(text)
+        title_result = title_matches[0] if title_matches else None
         location_results = self.location_extractor.extract_locations(text)
         location = location_results[0].location if location_results else None
         
@@ -416,7 +418,7 @@ class HybridEventParser:
         if not datetime_result.start_datetime:
             warnings.append("No datetime information extracted")
         
-        if not title_result.title:
+        if not title_result or not title_result.title:
             warnings.append("No title extracted")
         
         parsed_event.confidence_score = confidence_score
@@ -1087,8 +1089,9 @@ class HybridEventParser:
                     span=(0, len(text))
                 )
         elif field == 'title':
-            title_result = self.title_extractor.extract_title(text)
-            if title_result.title:
+            title_matches = self.title_extractor.extract_title(text)
+            title_result = title_matches[0] if title_matches else None
+            if title_result and title_result.title:
                 return FieldResult(
                     value=title_result.title,
                     source="regex",

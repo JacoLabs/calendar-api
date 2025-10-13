@@ -518,7 +518,17 @@ def get_cache_manager() -> CacheManager:
     """
     global _cache_manager
     if _cache_manager is None:
-        _cache_manager = CacheManager()
+        # Read configuration from environment variables
+        import os
+        ttl_hours = int(os.getenv('CACHE_TTL_HOURS', '24'))
+        max_entries = int(os.getenv('CACHE_MAX_ENTRIES', '10000'))
+        cleanup_interval = int(os.getenv('CACHE_CLEANUP_INTERVAL_MINUTES', '60'))
+        
+        _cache_manager = CacheManager(
+            ttl_hours=ttl_hours,
+            max_entries=max_entries,
+            cleanup_interval_minutes=cleanup_interval
+        )
     return _cache_manager
 
 

@@ -31,4 +31,6 @@ services:
         value: 30
       - key: PERFORMANCE_MONITORING
         value: true
+      - key: OPENAI_API_KEY
+        sync: false
     healthCheckPath: /healthz

@@ -40,7 +40,7 @@ from .error_handlers import (
     handle_parsing_error, validate_timezone, validate_datetime_string
 )
 from .health import health_checker
-from .cache_manager import cache_manager
+from services.cache_manager import get_cache_manager
 
 # Configure enhanced logging for production
 from .logging_config import setup_logging, get_logger, parsing_logger
@@ -159,7 +159,7 @@ async def cache_cleanup_task():
         try:
             # Clean up expired entries every hour
             await asyncio.sleep(3600)  # 1 hour
-            expired_count = cache_manager.cleanup_expired()
+            expired_count = get_cache_manager().cleanup_expired()
             if expired_count > 0:
                 logger.info(f"Cleaned up {expired_count} expired cache entries")
         except asyncio.CancelledError:
@@ -372,7 +372,7 @@ async def parse_text(
         cache_hit = False
         
         if not mode and not requested_fields:  # Only use cache for normal parsing
-            cached_result = cache_manager.get(request.text, **cache_key_params)
+            cached_result = get_cache_manager().get(request.text)
             if cached_result:
                 cache_hit = True
                 parsed_event = cached_result
@@ -392,7 +392,7 @@ async def parse_text(
                 
                 # Cache the result for future requests (skip for audit/partial parsing)
                 if not mode and not requested_fields:
-                    cache_manager.set(request.text, parsed_event, **cache_key_params)
+                    get_cache_manager().put(request.text, parsed_event)
                     
             except Exception as parsing_error:
                 return handle_parsing_error(parsing_error, request_id)
@@ -603,7 +603,7 @@ def _get_cache_statistics() -> Dict[str, Any]:
     """Get cache performance statistics."""
     try:
         # Get real statistics from cache manager
-        return cache_manager.get_statistics()
+        return get_cache_manager().get_statistics()
         
     except Exception as e:
         logger.warning(f"Cache statistics error: {e}")
@@ -1149,34 +1149,7 @@ async def api_status():
             "cache": health.services.get("cache", "unknown")
         }
     }
-# add to your request model
-class ParseRequest(BaseModel):
-    text: str
-    timezone: str
-    locale: Optional[str] = "en_US"
-    audit: bool = False
-    no_cache: bool = False  # <-- add this
 
-# inside your POST /parse handler
-@app.post("/parse")
-async def parse(req: ParseRequest):
-    # ...
-    # if you have a cache, bypass it:
-    if req.no_cache:
-        cache_hit = False
-    else:
-        # your existing cache lookup here, set cache_hit True/False
-        ...
-
-    result = parser.parse(
-        text=req.text,
-        timezone=req.timezone,
-        locale=req.locale,
-        audit=req.audit,
-        no_cache=req.no_cache,   # <-- pass through
-    )
-
-    # include no_cache + cache_hit in your response metadata if you have it
 
 if __name__ == "__main__":
     # Development server

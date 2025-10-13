@@ -299,5 +299,915 @@
       "alerts": [],
       "recommendations": []
     }
+  },
+  {
+    "report_timestamp": "2025-10-10T23:24:01.749248",
+    "validation_interval_seconds": 300,
+    "metrics": {
+      "accuracy": {
+        "timestamp": "2025-10-10T23:24:07.942345",
+        "total_test_cases": 51,
+        "overall_accuracy": 0.0,
+        "field_accuracies": {},
+        "performance_stats": {
+          "mean_processing_time_ms": 119.79358803992177,
+          "median_processing_time_ms": 113.64102363586426,
+          "p95_processing_time_ms": 130.50949573516846,
+          "p99_processing_time_ms": 250.24068355560303
+        },
+        "confidence_predictions": 0,
+        "results": [
+          {
+            "test_case_id": "basic_dt_001",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 365.9212589263916
+          },
+          {
+            "test_case_id": "basic_dt_002",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 117.27380752563477
+          },
+          {
+            "test_case_id": "basic_dt_003",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 109.15112495422363
+          },
+          {
+            "test_case_id": "basic_dt_004",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 107.61451721191406
+          },
+          {
+            "test_case_id": "basic_dt_005",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 107.51962661743164
+          },
+          {
+            "test_case_id": "basic_dt_006",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 109.2383861541748
+          },
+          {
+            "test_case_id": "basic_dt_007",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 111.07349395751953
+          },
+          {
+            "test_case_id": "basic_dt_008",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 111.05847358703613
+          },
+          {
+            "test_case_id": "misc_001",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 116.74833297729492
+          },
+          {
+            "test_case_id": "misc_002",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 125.33688545227051
+          },
+          {
+            "test_case_id": "misc_003",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 112.4882698059082
+          },
+          {
+            "test_case_id": "complex_fmt_001",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 113.61050605773926
+          },
+          {
+            "test_case_id": "complex_fmt_002",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 117.21277236938477
+          },
+          {
+            "test_case_id": "complex_fmt_003",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 115.54503440856934
+          },
+          {
+            "test_case_id": "complex_fmt_004",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 116.14990234375
+          },
+          {
+            "test_case_id": "complex_fmt_005",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 113.58213424682617
+          },
+          {
+            "test_case_id": "complex_fmt_006",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 122.29371070861816
+          },
+          {
+            "test_case_id": "typo_001",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 112.79702186584473
+          },
+          {
+            "test_case_id": "typo_002",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 114.37821388244629
+          },
+          {
+            "test_case_id": "typo_003",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 126.8918514251709
+          },
+          {
+            "test_case_id": "typo_004",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 113.57712745666504
+          },
+          {
+            "test_case_id": "relative_001",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 130.2781105041504
+          },
+          {
+            "test_case_id": "relative_002",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 107.96642303466797
+          },
+          {
+            "test_case_id": "relative_003",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 130.74088096618652
+          },
+          {
+            "test_case_id": "relative_004",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 115.59700965881348
+          },
+          {
+            "test_case_id": "relative_005",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 121.59395217895508
+          },
+          {
+            "test_case_id": "duration_001",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 111.10973358154297
+          },
+          {
+            "test_case_id": "duration_002",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 118.15571784973145
+          },
+          {
+            "test_case_id": "duration_003",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 117.17438697814941
+          },
+          {
+            "test_case_id": "duration_004",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 116.52064323425293
+          },
+          {
+            "test_case_id": "duration_005",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 113.48581314086914
+          },
+          {
+            "test_case_id": "location_001",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 123.34489822387695
+          },
+          {
+            "test_case_id": "location_002",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 115.5235767364502
+          },
+          {
+            "test_case_id": "location_003",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 113.64102363586426
+          },
+          {
+            "test_case_id": "location_004",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 106.35685920715332
+          },
+          {
+            "test_case_id": "location_005",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 111.6933822631836
+          },
+          {
+            "test_case_id": "title_001",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 114.33124542236328
+          },
+          {
+            "test_case_id": "title_002",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 103.98697853088379
+          },
+          {
+            "test_case_id": "title_003",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 112.36333847045898
+          },
+          {
+            "test_case_id": "title_004",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 109.57670211791992
+          },
+          {
+            "test_case_id": "edge_001",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 134.56010818481445
+          },
+          {
+            "test_case_id": "edge_002",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 108.04271697998047
+          },
+          {
+            "test_case_id": "edge_003",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 109.6656322479248
+          },
+          {
+            "test_case_id": "edge_004",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 114.43972587585449
+          },
+          {
+            "test_case_id": "edge_005",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 117.88082122802734
+          },
+          {
+            "test_case_id": "edge_006",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 111.69648170471191
+          },
+          {
+            "test_case_id": "conf_high_001",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 106.61101341247559
+          },
+          {
+            "test_case_id": "conf_med_001",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 122.58720397949219
+          },
+          {
+            "test_case_id": "conf_low_001",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 106.41837120056152
+          },
+          {
+            "test_case_id": "warn_001",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 110.01062393188477
+          },
+          {
+            "test_case_id": "warn_002",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 114.65716361999512
+          }
+        ]
+      },
+      "latency": {
+        "error": "Failed to get metrics: 404"
+      },
+      "calibration": {
+        "error": "Insufficient data for calibration analysis"
+      },
+      "cache": {
+        "error": "Failed to get cache stats: 404"
+      }
+    },
+    "summary": {
+      "overall_status": "critical",
+      "accuracy_status": "poor",
+      "performance_status": "excellent",
+      "cache_status": "poor",
+      "calibration_status": "poor",
+      "alerts": [
+        "Low accuracy: 0.00%",
+        "Low cache hit rate: 0.00%",
+        "Poor confidence calibration: ECE=1.000"
+      ],
+      "recommendations": [
+        "Review golden test set and parsing logic",
+        "Review cache configuration and TTL settings",
+        "Review confidence scoring algorithm"
+      ]
+    }
+  },
+  {
+    "report_timestamp": "2025-10-10T23:25:42.114364",
+    "validation_interval_seconds": 300,
+    "metrics": {
+      "accuracy": {
+        "timestamp": "2025-10-10T23:25:48.003796",
+        "total_test_cases": 51,
+        "overall_accuracy": 0.0,
+        "field_accuracies": {},
+        "performance_stats": {
+          "mean_processing_time_ms": 114.27416988447601,
+          "median_processing_time_ms": 108.16383361816406,
+          "p95_processing_time_ms": 125.97990036010742,
+          "p99_processing_time_ms": 216.89820289611816
+        },
+        "confidence_predictions": 0,
+        "results": [
+          {
+            "test_case_id": "basic_dt_001",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 305.43971061706543
+          },
+          {
+            "test_case_id": "basic_dt_002",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 107.24544525146484
+          },
+          {
+            "test_case_id": "basic_dt_003",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 106.48298263549805
+          },
+          {
+            "test_case_id": "basic_dt_004",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 116.44244194030762
+          },
+          {
+            "test_case_id": "basic_dt_005",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 112.25509643554688
+          },
+          {
+            "test_case_id": "basic_dt_006",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 108.46662521362305
+          },
+          {
+            "test_case_id": "basic_dt_007",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 108.16049575805664
+          },
+          {
+            "test_case_id": "basic_dt_008",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 109.23171043395996
+          },
+          {
+            "test_case_id": "misc_001",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 110.50128936767578
+          },
+          {
+            "test_case_id": "misc_002",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 114.5639419555664
+          },
+          {
+            "test_case_id": "misc_003",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 108.16097259521484
+          },
+          {
+            "test_case_id": "complex_fmt_001",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 105.29756546020508
+          },
+          {
+            "test_case_id": "complex_fmt_002",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 105.35717010498047
+          },
+          {
+            "test_case_id": "complex_fmt_003",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 125.19288063049316
+          },
+          {
+            "test_case_id": "complex_fmt_004",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 107.00845718383789
+          },
+          {
+            "test_case_id": "complex_fmt_005",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 105.77392578125
+          },
+          {
+            "test_case_id": "complex_fmt_006",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 107.93352127075195
+          },
+          {
+            "test_case_id": "typo_001",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 106.20784759521484
+          },
+          {
+            "test_case_id": "typo_002",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 108.16383361816406
+          },
+          {
+            "test_case_id": "typo_003",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 104.90655899047852
+          },
+          {
+            "test_case_id": "typo_004",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 103.97958755493164
+          },
+          {
+            "test_case_id": "relative_001",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 125.33283233642578
+          },
+          {
+            "test_case_id": "relative_002",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 111.5880012512207
+          },
+          {
+            "test_case_id": "relative_003",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 128.3566951751709
+          },
+          {
+            "test_case_id": "relative_004",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 104.97188568115234
+          },
+          {
+            "test_case_id": "relative_005",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 112.89048194885254
+          },
+          {
+            "test_case_id": "duration_001",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 101.7923355102539
+          },
+          {
+            "test_case_id": "duration_002",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 118.58773231506348
+          },
+          {
+            "test_case_id": "duration_003",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 101.78279876708984
+          },
+          {
+            "test_case_id": "duration_004",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 115.05579948425293
+          },
+          {
+            "test_case_id": "duration_005",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 126.62696838378906
+          },
+          {
+            "test_case_id": "location_001",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 107.81121253967285
+          },
+          {
+            "test_case_id": "location_002",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 102.05888748168945
+          },
+          {
+            "test_case_id": "location_003",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 102.06246376037598
+          },
+          {
+            "test_case_id": "location_004",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 121.42705917358398
+          },
+          {
+            "test_case_id": "location_005",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 101.7293930053711
+          },
+          {
+            "test_case_id": "title_001",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 112.16497421264648
+          },
+          {
+            "test_case_id": "title_002",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 107.72109031677246
+          },
+          {
+            "test_case_id": "title_003",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 118.35432052612305
+          },
+          {
+            "test_case_id": "title_004",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 120.71824073791504
+          },
+          {
+            "test_case_id": "edge_001",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 105.82423210144043
+          },
+          {
+            "test_case_id": "edge_002",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 105.35216331481934
+          },
+          {
+            "test_case_id": "edge_003",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 109.16590690612793
+          },
+          {
+            "test_case_id": "edge_004",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 109.35688018798828
+          },
+          {
+            "test_case_id": "edge_005",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 108.77346992492676
+          },
+          {
+            "test_case_id": "edge_006",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 112.70546913146973
+          },
+          {
+            "test_case_id": "conf_high_001",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 112.31160163879395
+          },
+          {
+            "test_case_id": "conf_med_001",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 119.06695365905762
+          },
+          {
+            "test_case_id": "conf_low_001",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 102.43964195251465
+          },
+          {
+            "test_case_id": "warn_001",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 107.04350471496582
+          },
+          {
+            "test_case_id": "warn_002",
+            "accuracy_score": 0.0,
+            "errors": [
+              "API error: 404"
+            ],
+            "processing_time_ms": 108.13760757446289
+          }
+        ]
+      },
+      "latency": {
+        "error": "Failed to get metrics: 404"
+      },
+      "calibration": {
+        "error": "Insufficient data for calibration analysis"
+      },
+      "cache": {
+        "error": "Failed to get cache stats: 404"
+      }
+    },
+    "summary": {
+      "overall_status": "critical",
+      "accuracy_status": "poor",
+      "performance_status": "excellent",
+      "cache_status": "poor",
+      "calibration_status": "poor",
+      "alerts": [
+        "Low accuracy: 0.00%",
+        "Low cache hit rate: 0.00%",
+        "Poor confidence calibration: ECE=1.000"
+      ],
+      "recommendations": [
+        "Review golden test set and parsing logic",
+        "Review cache configuration and TTL settings",
+        "Review confidence scoring algorithm"
+      ]
+    }
   }
 ]

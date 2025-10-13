@@ -186,6 +186,26 @@ class RegexDateExtractor:
             )
         }
         
+        # Duration patterns
+        self.duration_patterns = {
+            'for_hours': re.compile(
+                r'\bfor\s+(\d+(?:\.\d+)?)\s+(hours?|hrs?|h)\b',
+                re.IGNORECASE
+            ),
+            'for_minutes': re.compile(
+                r'\bfor\s+(\d+(?:\.\d+)?)\s+(minutes?|mins?|m)\b',
+                re.IGNORECASE
+            ),
+            'duration_hours': re.compile(
+                r'\b(\d+(?:\.\d+)?)\s+(hours?|hrs?|h)\s+(?:long|duration)\b',
+                re.IGNORECASE
+            ),
+            'duration_minutes': re.compile(
+                r'\b(\d+(?:\.\d+)?)\s+(minutes?|mins?|m)\s+(?:long|duration)\b',
+                re.IGNORECASE
+            )
+        }
+        
         # Month name mappings (added 'sept')
         self.month_names = {
             'january': 1, 'jan': 1, 'february': 2, 'feb': 2, 'march': 3, 'mar': 3,
