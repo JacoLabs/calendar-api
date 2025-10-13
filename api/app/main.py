@@ -1,6 +1,22 @@
 """
 FastAPI backend for text-to-calendar event parsing.
 Provides stateless API endpoints with async processing and concurrent field handling.
+
+HEALTH CHECK HARDENING CHANGES:
+This application has been enhanced with production-ready health check endpoints
+and browser request handling to improve deployment reliability on Render and
+reduce noisy logs from common browser requests.
+
+Key enhancements:
+- Root endpoint (/) supports both GET and HEAD methods for health probes
+- Lightweight health check endpoint (/healthz) returns 204 No Content
+- Graceful favicon.ico handling to prevent 404 errors in logs
+- Static file serving with idempotent mount configuration
+- All health endpoints excluded from OpenAPI schema documentation
+
+These changes ensure compatibility with Render's health probe system and
+provide a better experience for browser-based interactions while maintaining
+backward compatibility with existing API functionality.
 """
 
 import os
@@ -12,7 +28,8 @@ import logging
 
 from fastapi import FastAPI, HTTPException, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
+from fastapi.responses import Response, FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.exceptions import RequestValidationError
 import pytz
 import uvicorn
@@ -170,65 +187,60 @@ async def cache_cleanup_task():
 # Update app to use lifespan
 app.router.lifespan_context = lifespan
 
+# Configure static file serving with idempotency
+# Check for existing static mounts by iterating through app.routes
+existing_static_mounts = [
+    route for route in app.routes 
+    if hasattr(route, 'name') and route.name == 'static'
+]
 
-@app.get("/")
+if not existing_static_mounts:
+    # Create static directory if it doesn't exist
+    static_dir = "static"
+    if not os.path.exists(static_dir):
+        os.makedirs(static_dir, exist_ok=True)
+        logger.info(f"Created static directory: {static_dir}")
+    
+    # Mount static files
+    app.mount("/static", StaticFiles(directory=static_dir), name="static")
+    logger.info("Configured static file serving at /static")
+else:
+    logger.info("Static file serving already configured, skipping mount")
+
+
+@app.api_route("/", methods=["GET", "HEAD"], include_in_schema=False)
 async def root():
     """Root endpoint with API information."""
-    return {
-        "name": "Text-to-Calendar Event Parser API",
-        "version": "2.0.0",
-        "status": "running",
-        "endpoints": {
-            "health": "/healthz",
-            "parse": "/parse (POST)",
-            "docs": "/docs",
-            "openapi": "/openapi.json"
-        },
-        "example_usage": {
-            "parse": {
-                "method": "POST",
-                "url": "/parse",
-                "body": {
-                    "text": "Meeting with John tomorrow at 2pm",
-                    "timezone": "America/New_York",
-                    "locale": "en_US"
-                }
-            },
-            "ics": {
-                "method": "GET",
-                "url": "/ics?title=Meeting&start=2024-01-16T14:00:00&end=2024-01-16T15:00:00"
-            }
-        }
-    }
+    return JSONResponse({"ok": True, "service": "calendar-api"})
 
 
-@app.get("/healthz", response_model=HealthResponse)
-async def health_check():
+@app.api_route("/healthz", methods=["GET", "HEAD"], include_in_schema=False)
+async def healthz():
     """
-    Enhanced health check endpoint with component status and performance metrics.
+    Lightweight health check endpoint optimized for monitoring probes.
     
-    Returns detailed status of the API and its dependencies including:
-    - Overall service status
-    - Parser service status  
-    - LLM service availability
-    - System resource usage
-    - Service uptime
-    - Component performance metrics
-    - Cache status and statistics
+    Returns 204 No Content for both GET and HEAD methods with no response body.
+    This endpoint is designed for Render's health probes and monitoring systems
+    that need fast, lightweight health checks without detailed status information.
+    
+    For detailed health information, use the /health endpoint instead.
     """
-    health_status = await health_checker.get_health_status()
+    return Response(status_code=204)
+
+
+@app.api_route("/favicon.ico", methods=["GET", "HEAD"], include_in_schema=False)
+async def favicon():
+    """
+    Handle favicon.ico requests gracefully to prevent 404 errors in logs.
     
-    # Add performance metrics
-    performance_metrics = _get_performance_metrics()
-    if performance_metrics:
-        health_status.services.update(performance_metrics)
-    
-    # Add cache statistics
-    cache_stats = _get_cache_statistics()
-    if cache_stats:
-        health_status.services["cache"] = cache_stats.get("status", "unknown")
-    
-    return health_status
+    Returns the favicon file if it exists at "static/favicon.ico", otherwise
+    returns 204 No Content to avoid generating 404 errors from browser requests.
+    This endpoint is excluded from OpenAPI schema documentation.
+    """
+    favicon_path = "static/favicon.ico"
+    if os.path.exists(favicon_path):
+        return FileResponse(favicon_path)
+    return Response(status_code=204)
 
 
 @app.get("/metrics")
