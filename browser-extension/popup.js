@@ -28,8 +28,8 @@ document.addEventListener('DOMContentLoaded', () => {
       // Use enhanced parsing with audit mode for debugging
       const parseResult = await parseTextWithHybridSystem(text, { mode: 'audit' });
       
-      // Show confidence warnings if needed
-      if (parseResult.needs_confirmation) {
+      // Show confidence warnings if needed (only for very low confidence)
+      if (parseResult.confidence_score && parseResult.confidence_score < 0.3) {
         const proceed = confirm(
           `Parsing confidence is low (${Math.round(parseResult.confidence_score * 100)}%). ` +
           `The extracted information might not be accurate. Do you want to proceed?`
@@ -42,6 +42,15 @@ document.addEventListener('DOMContentLoaded', () => {
       // Show warnings to user if any
       if (parseResult.warnings && parseResult.warnings.length > 0) {
         console.warn('Parsing warnings:', parseResult.warnings);
+        // Only show user dialog for very low confidence (< 25%)
+        if (parseResult.confidence_score < 0.25) {
+          const proceed = confirm(
+            `⚠️ Parsing Warning:\n${parseResult.warnings.join('\n')}\n\nConfidence: ${Math.round(parseResult.confidence_score * 100)}%\n\nDo you want to proceed anyway?`
+          );
+          if (!proceed) {
+            return;
+          }
+        }
       }
       
       // Create Google Calendar URL with parsed data
@@ -193,7 +202,7 @@ function parseTextLocally(text) {
     location: null,
     description: text,
     all_day: false,
-    confidence_score: 0.6
+    confidence_score: 0.7  // Start with reasonable confidence for local parsing
   };
   
   // Extract title (first part before time/date indicators)
@@ -263,6 +272,15 @@ function parseTextLocally(text) {
       break;
     }
   }
+  
+  // Adjust confidence based on what we successfully parsed
+  let confidence = 0.4; // Base confidence for local parsing
+  
+  if (result.title && result.title.length > 2) confidence += 0.2;
+  if (result.start_datetime) confidence += 0.3;
+  if (result.location) confidence += 0.1;
+  
+  result.confidence_score = Math.min(confidence, 0.8); // Cap at 80% for local parsing
   
   return result;
 }

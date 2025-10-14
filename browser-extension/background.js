@@ -168,7 +168,7 @@ function parseTextLocally(text) {
     location: null,
     description: text,
     all_day: false,
-    confidence_score: 0.7
+    confidence_score: 0.7  // Start with reasonable confidence for local parsing
   };
   
   // Clean up text first - remove extra whitespace and normalize
@@ -299,6 +299,15 @@ function parseTextLocally(text) {
     const words = cleanText.split(/\s+/);
     result.title = words.slice(0, Math.min(3, words.length)).join(' ');
   }
+  
+  // Adjust confidence based on what we successfully parsed
+  let confidence = 0.4; // Base confidence for local parsing
+  
+  if (result.title && result.title.length > 2) confidence += 0.2;
+  if (result.start_datetime) confidence += 0.3;
+  if (result.location) confidence += 0.1;
+  
+  result.confidence_score = Math.min(confidence, 0.8); // Cap at 80% for local parsing
   
   return result;
 }

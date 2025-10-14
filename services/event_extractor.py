@@ -381,7 +381,7 @@ class EventInformationExtractor:
         if not parsed_event.title:
             total_score *= 0.7  # 30% penalty for missing title
         if not parsed_event.start_datetime:
-            total_score *= 0.5  # 50% penalty for missing datetime
+            total_score *= 0.75  # 25% penalty for missing datetime (reduced from 50%)
         
         return min(1.0, max(0.0, total_score))
     
