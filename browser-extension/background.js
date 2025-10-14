@@ -335,12 +335,21 @@ function buildGoogleCalendarUrl(parseResult) {
       params.set('dates', `${formatDateTimeForGoogle(startDate)}/${formatDateTimeForGoogle(endDate)}`);
     }
   } else if (parseResult.title && parseResult.title.trim()) {
-    // No specific datetime found - create all-day event for today
-    // This allows user to adjust the date in Google Calendar
-    const today = new Date();
-    const tomorrow = new Date(today);
-    tomorrow.setDate(today.getDate() + 1);
-    params.set('dates', `${formatDateForGoogle(today)}/${formatDateForGoogle(tomorrow)}`);
+    // No specific datetime found - try to extract date from original text for all-day event
+    const extractedDate = extractDateFromText(parseResult.description || parseResult.title);
+    
+    if (extractedDate) {
+      // Use extracted date for all-day event
+      const nextDay = new Date(extractedDate);
+      nextDay.setDate(extractedDate.getDate() + 1);
+      params.set('dates', `${formatDateForGoogle(extractedDate)}/${formatDateForGoogle(nextDay)}`);
+    } else {
+      // Fallback to today if no date found
+      const today = new Date();
+      const tomorrow = new Date(today);
+      tomorrow.setDate(today.getDate() + 1);
+      params.set('dates', `${formatDateForGoogle(today)}/${formatDateForGoogle(tomorrow)}`);
+    }
   }
   
   if (parseResult.location) {
@@ -370,4 +379,47 @@ function formatDateTimeForGoogle(date) {
   const minutes = String(date.getMinutes()).padStart(2, '0');
   const seconds = String(date.getSeconds()).padStart(2, '0');
   return `${year}${month}${day}T${hours}${minutes}${seconds}`;
+}
+
+function extractDateFromText(text) {
+  if (!text) return null;
+  
+  // Enhanced date extraction patterns for common formats
+  const datePatterns = [
+    // "Due Date: Oct 15, 2025" or "Due Date: October 15, 2025"
+    /(?:due\s*date|deadline|date)\s*:?\s*((?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|january|february|march|april|may|june|july|august|september|october|november|december)\.?\s+\d{1,2},?\s+\d{4})/i,
+    
+    // "Oct 15, 2025" or "October 15, 2025"
+    /((?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|january|february|march|april|may|june|july|august|september|october|november|december)\.?\s+\d{1,2},?\s+\d{4})/i,
+    
+    // "10/15/2025" or "10-15-2025"
+    /(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4})/,
+    
+    // "2025-10-15" (ISO format)
+    /(\d{4}-\d{1,2}-\d{1,2})/
+  ];
+  
+  for (const pattern of datePatterns) {
+    const match = text.match(pattern);
+    if (match) {
+      try {
+        const dateStr = match[1];
+        console.log(`Extracted date string: "${dateStr}"`);
+        
+        // Try to parse the date
+        const parsedDate = new Date(dateStr);
+        
+        // Validate the date
+        if (!isNaN(parsedDate.getTime()) && parsedDate.getFullYear() > 2020) {
+          console.log(`Successfully parsed date: ${parsedDate}`);
+          return parsedDate;
+        }
+      } catch (error) {
+        console.warn(`Failed to parse date "${match[1]}":`, error);
+      }
+    }
+  }
+  
+  console.log('No date found in text:', text);
+  return null;
 }

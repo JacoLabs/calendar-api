@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Date Extraction</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-case { margin: 20px 0; padding: 15px; border: 1px solid #ddd; }
+        .success { background-color: #d4edda; }
+        .error { background-color: #f8d7da; }
+        button { padding: 10px 20px; margin: 5px; }
+        pre { background: #f8f9fa; padding: 10px; }
+    </style>
+</head>
+<body>
+    <h1>Date Extraction Test</h1>
+    
+    <div class="test-case">
+        <h3>Test Case 1: Original Problem Text</h3>
+        <button onclick="testExtraction('Item ID: 37131076518125 Title: COWA! Due Date: Oct 15, 2025')">
+            Test "Item ID: 37131076518125 Title: COWA! Due Date: Oct 15, 2025"
+        </button>
+        <div id="result1"></div>
+    </div>
+    
+    <div class="test-case">
+        <h3>Test Case 2: Simple Due Date</h3>
+        <button onclick="testExtraction('COWA Due Date: Oct 15, 2025')">
+            Test "COWA Due Date: Oct 15, 2025"
+        </button>
+        <div id="result2"></div>
+    </div>
+    
+    <div class="test-case">
+        <h3>Test Case 3: No Date</h3>
+        <button onclick="testExtraction('COWA meeting')">
+            Test "COWA meeting"
+        </button>
+        <div id="result3"></div>
+    </div>
+
+    <script>
+        let testCounter = 0;
+        
+        function testExtraction(text) {
+            testCounter++;
+            const resultId = `result${testCounter > 3 ? testCounter % 3 + 1 : testCounter}`;
+            const resultDiv = document.getElementById(resultId);
+            
+            console.log(`Testing: "${text}"`);
+            
+            const extractedDate = extractDateFromText(text);
+            
+            if (extractedDate) {
+                const nextDay = new Date(extractedDate);
+                nextDay.setDate(extractedDate.getDate() + 1);
+                
+                const googleDates = `${formatDateForGoogle(extractedDate)}/${formatDateForGoogle(nextDay)}`;
+                
+                resultDiv.className = 'test-case success';
+                resultDiv.innerHTML = `
+                    <strong>✅ SUCCESS</strong><br>
+                    <strong>Input:</strong> "${text}"<br>
+                    <strong>Extracted Date:</strong> ${extractedDate.toDateString()}<br>
+                    <strong>Google Calendar Dates:</strong> ${googleDates}<br>
+                    <strong>Calendar URL:</strong> <a href="https://calendar.google.com/calendar/render?action=TEMPLATE&text=COWA&dates=${googleDates}" target="_blank">Open Calendar</a>
+                `;
+            } else {
+                const today = new Date();
+                const tomorrow = new Date(today);
+                tomorrow.setDate(today.getDate() + 1);
+                const googleDates = `${formatDateForGoogle(today)}/${formatDateForGoogle(tomorrow)}`;
+                
+                resultDiv.className = 'test-case error';
+                resultDiv.innerHTML = `
+                    <strong>❌ NO DATE FOUND</strong><br>
+                    <strong>Input:</strong> "${text}"<br>
+                    <strong>Fallback:</strong> Using today (${today.toDateString()})<br>
+                    <strong>Google Calendar Dates:</strong> ${googleDates}<br>
+                    <strong>Calendar URL:</strong> <a href="https://calendar.google.com/calendar/render?action=TEMPLATE&text=COWA&dates=${googleDates}" target="_blank">Open Calendar</a>
+                `;
+            }
+        }
+        
+        // Copy the date extraction function
+        function extractDateFromText(text) {
+            if (!text) return null;
+            
+            // Enhanced date extraction patterns for common formats
+            const datePatterns = [
+                // "Due Date: Oct 15, 2025" or "Due Date: October 15, 2025"
+                /(?:due\s*date|deadline|date)\s*:?\s*((?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|january|february|march|april|may|june|july|august|september|october|november|december)\.?\s+\d{1,2},?\s+\d{4})/i,
+                
+                // "Oct 15, 2025" or "October 15, 2025"
+                /((?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|january|february|march|april|may|june|july|august|september|october|november|december)\.?\s+\d{1,2},?\s+\d{4})/i,
+                
+                // "10/15/2025" or "10-15-2025"
+                /(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4})/,
+                
+                // "2025-10-15" (ISO format)
+                /(\d{4}-\d{1,2}-\d{1,2})/
+            ];
+            
+            for (const pattern of datePatterns) {
+                const match = text.match(pattern);
+                if (match) {
+                    try {
+                        const dateStr = match[1];
+                        console.log(`Extracted date string: "${dateStr}"`);
+                        
+                        // Try to parse the date
+                        const parsedDate = new Date(dateStr);
+                        
+                        // Validate the date
+                        if (!isNaN(parsedDate.getTime()) && parsedDate.getFullYear() > 2020) {
+                            console.log(`Successfully parsed date: ${parsedDate}`);
+                            return parsedDate;
+                        }
+                    } catch (error) {
+                        console.warn(`Failed to parse date "${match[1]}":`, error);
+                    }
+                }
+            }
+            
+            console.log('No date found in text:', text);
+            return null;
+        }
+        
+        function formatDateForGoogle(date) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}${month}${day}`;
+        }
+    </script>
+</body>
+</html>
