@@ -144,7 +144,7 @@ class ApiService {
                                 retryCount++
                                 val delay = (retryCount * 1000L) // Exponential backoff
                                 kotlinx.coroutines.delay(delay)
-                                continue // Retry the request
+                                // Will retry in the next loop iteration
                             } else {
                                 throw ApiException("Server is temporarily unavailable. Please try again in a few minutes.")
                             }
@@ -159,7 +159,7 @@ class ApiService {
             } catch (e: java.net.SocketTimeoutException) {
                 if (retryCount < maxRetries) {
                     retryCount++
-                    continue // Retry on timeout
+                    // Will retry in the next loop iteration
                 } else {
                     throw ApiException("Request timed out after multiple attempts. Please check your internet connection and try again.")
                 }
@@ -170,7 +170,7 @@ class ApiService {
                     retryCount++
                     val delay = (retryCount * 2000L) // Longer delay for connection issues
                     kotlinx.coroutines.delay(delay)
-                    continue
+                    // Will retry in the next loop iteration
                 } else {
                     throw ApiException("Unable to connect to the server. Please check your internet connection and try again later.")
                 }
@@ -179,7 +179,7 @@ class ApiService {
                     e.message?.contains("timeout", ignoreCase = true) == true -> {
                         if (retryCount < maxRetries) {
                             retryCount++
-                            continue
+                            // Will retry in the next loop iteration
                         } else {
                             throw ApiException("Request timed out. Please check your internet connection and try again.")
                         }
