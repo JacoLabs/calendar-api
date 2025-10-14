@@ -4,7 +4,7 @@ to provide complete event parsing functionality from natural language text.
 """
 
 from typing import Optional, List, Dict, Any, Tuple, Union
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time
 import re
 
 from models.event_models import ParsedEvent, ValidationResult
@@ -135,20 +135,27 @@ class EventParser:
             best_datetime = datetime_matches[0]
             parsed_event.start_datetime = best_datetime.value
             
-            # Check if we have an explicit end time from a time range
-            end_time = self._find_explicit_end_time(datetime_matches, best_datetime)
-            
-            if end_time:
-                # Use explicit end time from time range
-                parsed_event.end_datetime = end_time
+            # Check if this should be an all-day event
+            if hasattr(best_datetime, 'is_all_day') and best_datetime.is_all_day:
+                parsed_event.all_day = True
+                # For all-day events, set end_datetime to next day at midnight
+                next_day = parsed_event.start_datetime.date() + timedelta(days=1)
+                parsed_event.end_datetime = datetime.combine(next_day, time(0, 0))
             else:
-                # Calculate end time from duration or use default
-                end_time = self._calculate_end_time(
-                    parsed_event.start_datetime, 
-                    duration_matches, 
-                    config['default_event_duration_minutes']
-                )
-                parsed_event.end_datetime = end_time
+                # Check if we have an explicit end time from a time range
+                end_time = self._find_explicit_end_time(datetime_matches, best_datetime)
+                
+                if end_time:
+                    # Use explicit end time from time range
+                    parsed_event.end_datetime = end_time
+                else:
+                    # Calculate end time from duration or use default
+                    end_time = self._calculate_end_time(
+                        parsed_event.start_datetime, 
+                        duration_matches, 
+                        config['default_event_duration_minutes']
+                    )
+                    parsed_event.end_datetime = end_time
         
         # Set location (highest confidence match)
         if location_matches:

@@ -18,6 +18,7 @@ class DateTimeMatch:
     end_pos: int
     matched_text: str
     pattern_type: str
+    is_all_day: bool = False  # True if this represents an all-day event
 
 
 @dataclass
@@ -223,19 +224,20 @@ class DateTimeParser:
         combined_matches = self._combine_date_time_matches(text, date_matches + relative_matches, time_matches)
         matches.extend(combined_matches)
         
-        # Add standalone dates (with default time)
+        # Add standalone dates (as all-day events)
         all_date_matches = date_matches + relative_matches
         for date_match in all_date_matches:
             if not any(abs(date_match.start_pos - match.start_pos) < 50 for match in combined_matches + time_range_matches):
-                # Create datetime with default time (9:00 AM)
-                dt = datetime.combine(date_match.value.date(), time(9, 0))
+                # Create all-day event starting at midnight
+                dt = datetime.combine(date_match.value.date(), time(0, 0))
                 matches.append(DateTimeMatch(
                     value=dt,
-                    confidence=date_match.confidence * 0.8,  # Lower confidence for assumed time
+                    confidence=date_match.confidence,  # Keep original confidence
                     start_pos=date_match.start_pos,
                     end_pos=date_match.end_pos,
                     matched_text=date_match.matched_text,
-                    pattern_type=f"{date_match.pattern_type}_default_time"
+                    pattern_type=f"{date_match.pattern_type}_all_day",
+                    is_all_day=True  # Mark as all-day event
                 ))
         
         # Add standalone times (with today's date)

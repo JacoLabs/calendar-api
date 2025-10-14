@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>All-Day Event Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-case { margin: 20px 0; padding: 15px; border: 1px solid #ddd; }
+        button { padding: 10px 20px; margin: 5px; }
+        .result { background: #f8f9fa; padding: 10px; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <h1>All-Day Event Test</h1>
+    
+    <div class="test-case">
+        <h3>Test Case 1: Event with no time (should be all-day)</h3>
+        <button onclick="testEvent('COWA')">Test "COWA"</button>
+        <div id="result1" class="result"></div>
+    </div>
+    
+    <div class="test-case">
+        <h3>Test Case 2: Event with specific time (should be timed)</h3>
+        <button onclick="testEvent('Meeting tomorrow at 2pm')">Test "Meeting tomorrow at 2pm"</button>
+        <div id="result2" class="result"></div>
+    </div>
+    
+    <div class="test-case">
+        <h3>Test Case 3: Another no-time event</h3>
+        <button onclick="testEvent('Team standup')">Test "Team standup"</button>
+        <div id="result3" class="result"></div>
+    </div>
+
+    <script>
+        let testCounter = 0;
+        
+        async function testEvent(text) {
+            testCounter++;
+            const resultId = `result${testCounter > 3 ? testCounter % 3 + 1 : testCounter}`;
+            const resultDiv = document.getElementById(resultId);
+            
+            resultDiv.innerHTML = `<strong>Testing: "${text}"</strong><br>Loading...`;
+            
+            try {
+                // Simulate API call (you can replace with actual API call)
+                const mockApiResponse = await simulateApiCall(text);
+                
+                // Build Google Calendar URL
+                const calendarUrl = buildGoogleCalendarUrl(mockApiResponse);
+                
+                // Extract dates parameter for analysis
+                const url = new URL(calendarUrl);
+                const datesParam = url.searchParams.get('dates');
+                
+                let eventType = 'Unknown';
+                if (datesParam) {
+                    if (datesParam.includes('T')) {
+                        eventType = 'Timed Event';
+                    } else {
+                        eventType = 'All-Day Event';
+                    }
+                } else {
+                    eventType = 'No Date Set';
+                }
+                
+                resultDiv.innerHTML = `
+                    <strong>Input:</strong> "${text}"<br>
+                    <strong>API Response:</strong><br>
+                    - Title: ${mockApiResponse.title}<br>
+                    - Start: ${mockApiResponse.start_datetime || 'null'}<br>
+                    - End: ${mockApiResponse.end_datetime || 'null'}<br>
+                    - All Day: ${mockApiResponse.all_day}<br>
+                    <strong>Event Type:</strong> <span style="color: ${eventType === 'All-Day Event' ? 'green' : eventType === 'Timed Event' ? 'blue' : 'red'}">${eventType}</span><br>
+                    <strong>Dates Parameter:</strong> ${datesParam || 'None'}<br>
+                    <strong>Calendar URL:</strong> <a href="${calendarUrl}" target="_blank">Open in Google Calendar</a>
+                `;
+                
+            } catch (error) {
+                resultDiv.innerHTML = `<strong>Error:</strong> ${error.message}`;
+            }
+        }
+        
+        async function simulateApiCall(text) {
+            // Simulate different API responses based on input
+            if (text.toLowerCase().includes('2pm') || text.toLowerCase().includes('tomorrow at')) {
+                return {
+                    title: text,
+                    start_datetime: "2025-10-15T14:00:00+00:00",
+                    end_datetime: "2025-10-15T15:00:00+00:00",
+                    location: null,
+                    description: text,
+                    all_day: false,
+                    confidence_score: 0.85
+                };
+            } else {
+                // No time specified
+                return {
+                    title: text,
+                    start_datetime: null,
+                    end_datetime: null,
+                    location: null,
+                    description: text,
+                    all_day: false,
+                    confidence_score: 0.21
+                };
+            }
+        }
+        
+        // Copy the fixed buildGoogleCalendarUrl function
+        function buildGoogleCalendarUrl(parseResult) {
+            const params = new URLSearchParams();
+            params.set('action', 'TEMPLATE');
+            
+            if (parseResult.title) {
+                params.set('text', parseResult.title);
+            }
+            
+            if (parseResult.start_datetime) {
+                const startDate = new Date(parseResult.start_datetime);
+                const endDate = parseResult.end_datetime ? 
+                    new Date(parseResult.end_datetime) : 
+                    new Date(startDate.getTime() + 60 * 60 * 1000);
+                
+                if (parseResult.all_day) {
+                    const nextDay = new Date(startDate);
+                    nextDay.setDate(nextDay.getDate() + 1);
+                    params.set('dates', `${formatDateForGoogle(startDate)}/${formatDateForGoogle(nextDay)}`);
+                } else {
+                    params.set('dates', `${formatDateTimeForGoogle(startDate)}/${formatDateTimeForGoogle(endDate)}`);
+                }
+            } else if (parseResult.title && parseResult.title.trim()) {
+                // No specific datetime found - create all-day event for today
+                // This allows user to adjust the date in Google Calendar
+                const today = new Date();
+                const tomorrow = new Date(today);
+                tomorrow.setDate(today.getDate() + 1);
+                params.set('dates', `${formatDateForGoogle(today)}/${formatDateForGoogle(tomorrow)}`);
+            }
+            
+            if (parseResult.location) {
+                params.set('location', parseResult.location);
+            }
+            
+            if (parseResult.description) {
+                params.set('details', parseResult.description);
+            }
+            
+            return `https://calendar.google.com/calendar/render?${params.toString()}`;
+        }
+        
+        function formatDateForGoogle(date) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}${month}${day}`;
+        }
+        
+        function formatDateTimeForGoogle(date) {
+            // Google Calendar expects local time format, not UTC
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+            const seconds = String(date.getSeconds()).padStart(2, '0');
+            return `${year}${month}${day}T${hours}${minutes}${seconds}`;
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug DateTime Formatting</title>
+</head>
+<body>
+    <h1>DateTime Formatting Debug</h1>
+    <div id="output"></div>
+
+    <script>
+        // Simulate API response
+        const apiResponse = {
+            start_datetime: "2025-10-15T14:00:00+00:00",
+            end_datetime: "2025-10-15T15:00:00+00:00"
+        };
+
+        function formatDateTimeForGoogle(date) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            const hours = String(date.getUTCHours()).padStart(2, '0');
+            const minutes = String(date.getUTCMinutes()).padStart(2, '0');
+            const seconds = String(date.getUTCSeconds()).padStart(2, '0');
+            return `${year}${month}${day}T${hours}${minutes}${seconds}Z`;
+        }
+
+        function formatDateTimeForGoogleFixed(date) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+            const seconds = String(date.getSeconds()).padStart(2, '0');
+            return `${year}${month}${day}T${hours}${minutes}${seconds}`;
+        }
+
+        // Test the formatting
+        const startDate = new Date(apiResponse.start_datetime);
+        const endDate = new Date(apiResponse.end_datetime);
+
+        const output = document.getElementById('output');
+        output.innerHTML = `
+            <h3>API Response:</h3>
+            <p>Start: ${apiResponse.start_datetime}</p>
+            <p>End: ${apiResponse.end_datetime}</p>
+            
+            <h3>JavaScript Date Objects:</h3>
+            <p>Start Date: ${startDate}</p>
+            <p>End Date: ${endDate}</p>
+            <p>Start Local Time: ${startDate.toLocaleString()}</p>
+            <p>End Local Time: ${endDate.toLocaleString()}</p>
+            
+            <h3>Current (Broken) Formatting:</h3>
+            <p>Start: ${formatDateTimeForGoogle(startDate)}</p>
+            <p>End: ${formatDateTimeForGoogle(endDate)}</p>
+            
+            <h3>Fixed Formatting:</h3>
+            <p>Start: ${formatDateTimeForGoogleFixed(startDate)}</p>
+            <p>End: ${formatDateTimeForGoogleFixed(endDate)}</p>
+            
+            <h3>Google Calendar URL:</h3>
+            <p>Current: dates=${formatDateTimeForGoogle(startDate)}/${formatDateTimeForGoogle(endDate)}</p>
+            <p>Fixed: dates=${formatDateTimeForGoogleFixed(startDate)}/${formatDateTimeForGoogleFixed(endDate)}</p>
+            
+            <h3>Timezone Info:</h3>
+            <p>User Timezone: ${Intl.DateTimeFormat().resolvedOptions().timeZone}</p>
+            <p>UTC Offset: ${startDate.getTimezoneOffset()} minutes</p>
+        `;
+    </script>
+</body>
+</html>

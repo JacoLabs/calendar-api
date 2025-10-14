@@ -968,25 +968,27 @@ class ComprehensiveDateTimeParser:
                 'issues': ['Date assumed to be today'] + best_range.get('issues', [])
             }
         
-        # Priority 5: Dates only (with default time)
+        # Priority 5: Dates only (all-day events)
         if date_results:
             best_date = max(date_results, key=lambda x: x['confidence'])
-            default_time = time(9, 0)  # 9:00 AM default
             
-            start_dt = datetime.combine(best_date['date'], default_time)
+            # Create all-day event starting at midnight
+            start_dt = datetime.combine(best_date['date'], time(0, 0))
+            end_dt = datetime.combine(best_date['date'] + timedelta(days=1), time(0, 0))
             
             return {
                 'start_datetime': start_dt,
-                'end_datetime': None,
-                'confidence': best_date['confidence'] * 0.7,  # Lower confidence for assumed time
-                'method': 'inferred',
+                'end_datetime': end_dt,
+                'confidence': best_date['confidence'],  # Keep original confidence
+                'method': 'all_day',
+                'is_all_day': True,  # Mark as all-day event
                 'field_confidence': {
                     'date': best_date['confidence'],
-                    'start_time': 0.5  # Assumed time
+                    'start_time': 1.0  # All-day events have perfect time confidence
                 },
                 'ambiguities': best_date.get('ambiguities', []),
-                'issues': ['Time assumed to be 9:00 AM'] + best_date.get('issues', []),
-                'suggestions': ['Please specify a time for this event']
+                'issues': best_date.get('issues', []),
+                'suggestions': ['This will be created as an all-day event']
             }
         
         # Priority 6: Times with durations (use today's date)
