@@ -1,4 +1,13 @@
-const API_BASE_URL = 'http://localhost:5000';
+// Dynamic API URL based on environment
+const API_BASE_URL = (() => {
+  // Try production first, fallback to local development
+  const PRODUCTION_URL = 'https://calendar-api-wrxz.onrender.com';
+  const DEVELOPMENT_URL = 'http://localhost:5000';
+  
+  // In production extension, use production URL
+  // In development, try local first
+  return PRODUCTION_URL;
+})();
 
 document.addEventListener('DOMContentLoaded', () => {
   const textInput = document.getElementById('textInput');
@@ -80,78 +89,99 @@ document.addEventListener('DOMContentLoaded', () => {
   textInput.focus();
 });
 
-// Parse text using enhanced API with audit mode and partial parsing support
+// Parse text using enhanced API with smart fallback between production and development
 async function parseTextWithHybridSystem(text, options = {}) {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout for enhanced processing
+  const urls = [
+    'https://calendar-api-wrxz.onrender.com',
+    'http://localhost:5000'
+  ];
   
-  try {
-    // Build URL with query parameters for enhanced features
-    const url = new URL(`${API_BASE_URL}/parse`);
-    if (options.mode === 'audit') {
-      url.searchParams.set('mode', 'audit');
+  // Try each URL in order
+  for (let i = 0; i < urls.length; i++) {
+    const baseUrl = urls[i];
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout per attempt
+    
+    try {
+      console.log(`Attempting API call to: ${baseUrl}`);
+      
+      // Build URL with query parameters for enhanced features
+      const url = new URL(`${baseUrl}/parse`);
+      if (options.mode === 'audit') {
+        url.searchParams.set('mode', 'audit');
+      }
+      if (options.fields && options.fields.length > 0) {
+        url.searchParams.set('fields', options.fields.join(','));
+      }
+      
+      const response = await fetch(url.toString(), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'User-Agent': 'CalendarEventExtension/2.0'
+        },
+        body: JSON.stringify({
+          text: text,
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          now: new Date().toISOString(),
+          use_llm_enhancement: true
+        }),
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeoutId);
+      
+      if (!response.ok) {
+        // Try next URL if this one fails
+        const errorData = await response.json().catch(() => ({}));
+        const errorMessage = errorData.error?.message || `API error: ${response.status}`;
+        console.warn(`API ${baseUrl} failed: ${errorMessage}`);
+        continue;
+      }
+      
+      const result = await response.json();
+      console.log(`Successfully parsed using: ${baseUrl}`);
+      
+      // Handle enhanced API response format
+      if (result.field_results) {
+        console.log('Field confidence scores:', result.field_results);
+      }
+      
+      if (result.parsing_path) {
+        console.log('Parsing method used:', result.parsing_path);
+      }
+      
+      if (result.cache_hit) {
+        console.log('Result served from cache');
+      }
+      
+      // Show warnings for low confidence fields
+      if (result.warnings && result.warnings.length > 0) {
+        console.warn('Parsing warnings:', result.warnings);
+      }
+      
+      return result;
+      
+    } catch (error) {
+      clearTimeout(timeoutId);
+      
+      if (error.name === 'AbortError') {
+        console.warn(`API ${baseUrl} timed out after 10 seconds`);
+      } else {
+        console.warn(`API ${baseUrl} failed:`, error);
+      }
+      
+      // Continue to next URL or fallback
+      if (i === urls.length - 1) {
+        console.warn('All API endpoints failed, using local fallback');
+        return parseTextLocally(text);
+      }
     }
-    if (options.fields && options.fields.length > 0) {
-      url.searchParams.set('fields', options.fields.join(','));
-    }
-    
-    const response = await fetch(url.toString(), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'User-Agent': 'CalendarEventExtension/2.0'
-      },
-      body: JSON.stringify({
-        text: text,
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        now: new Date().toISOString(),
-        use_llm_enhancement: true
-      }),
-      signal: controller.signal
-    });
-    
-    clearTimeout(timeoutId);
-    
-    if (!response.ok) {
-      // Enhanced error handling for new API responses
-      const errorData = await response.json().catch(() => ({}));
-      const errorMessage = errorData.error?.message || `API error: ${response.status}`;
-      throw new Error(errorMessage);
-    }
-    
-    const result = await response.json();
-    
-    // Handle enhanced API response format
-    if (result.field_results) {
-      // Process per-field confidence data
-      console.log('Field confidence scores:', result.field_results);
-    }
-    
-    if (result.parsing_path) {
-      console.log('Parsing method used:', result.parsing_path);
-    }
-    
-    if (result.cache_hit) {
-      console.log('Result served from cache');
-    }
-    
-    // Show warnings for low confidence fields
-    if (result.warnings && result.warnings.length > 0) {
-      console.warn('Parsing warnings:', result.warnings);
-    }
-    
-    return result;
-  } catch (error) {
-    clearTimeout(timeoutId);
-    
-    if (error.name === 'AbortError') {
-      console.warn('API request timed out after 15 seconds, using local fallback');
-    } else {
-      console.warn('Enhanced API parsing failed, using local fallback:', error);
-    }
-    return parseTextLocally(text);
   }
+  
+  // This shouldn't be reached, but just in case
+  return parseTextLocally(text);
 }
 
 // Local fallback parser for when API is unavailable or slow

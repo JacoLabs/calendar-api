@@ -182,10 +182,12 @@ python api_server.py
 
 ## API Integration
 
-The extension connects to the Calendar Event Creator API at:
-- Local: `http://localhost:5000` (recommended for best performance)
-- Production: `https://calendar-api-wrxz.onrender.com`
-- Endpoint: `POST /parse`
+The extension connects to the Calendar Event Creator API with smart fallback:
+- **Primary**: `https://calendar-api-wrxz.onrender.com` (Production FastAPI)
+- **Fallback**: `http://localhost:5000` (Local development)
+- **Final Fallback**: Local parsing (works offline)
+- **Endpoint**: `POST /parse`
+- **Health Check**: `GET /healthz`
 
 ### Request Format
 ```json

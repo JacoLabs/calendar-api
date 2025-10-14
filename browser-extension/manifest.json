@@ -10,7 +10,8 @@
   ],
   
   "host_permissions": [
-    "http://localhost:5000/*"
+    "http://localhost:5000/*",
+    "https://calendar-api-wrxz.onrender.com/*"
   ],
   
   "background": {

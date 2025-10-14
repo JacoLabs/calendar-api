@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>API Integration Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        .loading { background-color: #fff3cd; border-color: #ffeaa7; }
+        button { padding: 10px 20px; margin: 5px; }
+        textarea { width: 100%; height: 60px; margin: 10px 0; }
+        pre { background: #f8f9fa; padding: 10px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>Calendar Event Creator - API Integration Test</h1>
+    
+    <div class="test-section">
+        <h3>Test Input</h3>
+        <textarea id="testText" placeholder="Enter event text to test...">Meeting tomorrow at 2pm in conference room A</textarea>
+        <br>
+        <button onclick="testProduction()">Test Production API</button>
+        <button onclick="testLocal()">Test Local API</button>
+        <button onclick="testFallback()">Test Local Fallback</button>
+        <button onclick="testSmartFallback()">Test Smart Fallback</button>
+    </div>
+    
+    <div id="results"></div>
+
+    <script>
+        // API endpoints
+        const PRODUCTION_URL = 'https://calendar-api-wrxz.onrender.com';
+        const LOCAL_URL = 'http://localhost:5000';
+        
+        function addResult(title, content, type = 'loading') {
+            const results = document.getElementById('results');
+            const div = document.createElement('div');
+            div.className = `test-section ${type}`;
+            div.innerHTML = `<h3>${title}</h3><pre>${content}</pre>`;
+            results.appendChild(div);
+            return div;
+        }
+        
+        async function testAPI(baseUrl, text) {
+            const resultDiv = addResult(`Testing ${baseUrl}`, 'Loading...', 'loading');
+            
+            try {
+                const startTime = performance.now();
+                
+                const response = await fetch(`${baseUrl}/parse`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'User-Agent': 'CalendarEventExtension/2.0'
+                    },
+                    body: JSON.stringify({
+                        text: text,
+                        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                        now: new Date().toISOString(),
+                        use_llm_enhancement: true
+                    })
+                });
+                
+                const endTime = performance.now();
+                const responseTime = Math.round(endTime - startTime);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const result = await response.json();
+                
+                const output = `✅ SUCCESS (${responseTime}ms)
+                
+Response:
+${JSON.stringify(result, null, 2)}
+
+Calendar URL would be:
+${buildGoogleCalendarUrl(result)}`;
+                
+                resultDiv.className = 'test-section success';
+                resultDiv.innerHTML = `<h3>✅ ${baseUrl}</h3><pre>${output}</pre>`;
+                
+            } catch (error) {
+                const output = `❌ FAILED
+                
+Error: ${error.message}
+
+This endpoint is not available or returned an error.`;
+                
+                resultDiv.className = 'test-section error';
+                resultDiv.innerHTML = `<h3>❌ ${baseUrl}</h3><pre>${output}</pre>`;
+            }
+        }
+        
+        async function testProduction() {
+            const text = document.getElementById('testText').value;
+            await testAPI(PRODUCTION_URL, text);
+        }
+        
+        async function testLocal() {
+            const text = document.getElementById('testText').value;
+            await testAPI(LOCAL_URL, text);
+        }
+        
+        async function testFallback() {
+            const text = document.getElementById('testText').value;
+            const resultDiv = addResult('Testing Local Fallback Parser', 'Processing...', 'loading');
+            
+            try {
+                const result = parseTextLocally(text);
+                
+                const output = `✅ LOCAL FALLBACK SUCCESS
+                
+Result:
+${JSON.stringify(result, null, 2)}
+
+Calendar URL would be:
+${buildGoogleCalendarUrl(result)}`;
+                
+                resultDiv.className = 'test-section success';
+                resultDiv.innerHTML = `<h3>✅ Local Fallback Parser</h3><pre>${output}</pre>`;
+                
+            } catch (error) {
+                const output = `❌ LOCAL FALLBACK FAILED
+                
+Error: ${error.message}`;
+                
+                resultDiv.className = 'test-section error';
+                resultDiv.innerHTML = `<h3>❌ Local Fallback Parser</h3><pre>${output}</pre>`;
+            }
+        }
+        
+        async function testSmartFallback() {
+            const text = document.getElementById('testText').value;
+            const resultDiv = addResult('Testing Smart Fallback System', 'Processing...', 'loading');
+            
+            try {
+                const result = await parseTextWithSmartFallback(text);
+                
+                const output = `✅ SMART FALLBACK SUCCESS
+                
+Result:
+${JSON.stringify(result, null, 2)}
+
+Calendar URL would be:
+${buildGoogleCalendarUrl(result)}`;
+                
+                resultDiv.className = 'test-section success';
+                resultDiv.innerHTML = `<h3>✅ Smart Fallback System</h3><pre>${output}</pre>`;
+                
+            } catch (error) {
+                const output = `❌ SMART FALLBACK FAILED
+                
+Error: ${error.message}`;
+                
+                resultDiv.className = 'test-section error';
+                resultDiv.innerHTML = `<h3>❌ Smart Fallback System</h3><pre>${output}</pre>`;
+            }
+        }
+        
+        // Smart fallback function (same as in extension)
+        async function parseTextWithSmartFallback(text, options = {}) {
+            const urls = [PRODUCTION_URL, LOCAL_URL];
+            
+            for (let i = 0; i < urls.length; i++) {
+                const baseUrl = urls[i];
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 10000);
+                
+                try {
+                    console.log(`Attempting API call to: ${baseUrl}`);
+                    
+                    const url = new URL(`${baseUrl}/parse`);
+                    if (options.mode === 'audit') {
+                        url.searchParams.set('mode', 'audit');
+                    }
+                    
+                    const response = await fetch(url.toString(), {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'User-Agent': 'CalendarEventExtension/2.0'
+                        },
+                        body: JSON.stringify({
+                            text: text,
+                            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                            now: new Date().toISOString(),
+                            use_llm_enhancement: true
+                        }),
+                        signal: controller.signal
+                    });
+                    
+                    clearTimeout(timeoutId);
+                    
+                    if (!response.ok) {
+                        const errorData = await response.json().catch(() => ({}));
+                        const errorMessage = errorData.error?.message || `API error: ${response.status}`;
+                        console.warn(`API ${baseUrl} failed: ${errorMessage}`);
+                        continue;
+                    }
+                    
+                    const result = await response.json();
+                    console.log(`Successfully parsed using: ${baseUrl}`);
+                    result._source = baseUrl; // Add source info
+                    return result;
+                    
+                } catch (error) {
+                    clearTimeout(timeoutId);
+                    console.warn(`API ${baseUrl} failed:`, error);
+                    
+                    if (i === urls.length - 1) {
+                        console.warn('All API endpoints failed, using local fallback');
+                        const result = parseTextLocally(text);
+                        result._source = 'local_fallback';
+                        return result;
+                    }
+                }
+            }
+            
+            return parseTextLocally(text);
+        }
+        
+        // Local fallback parser (simplified version)
+        function parseTextLocally(text) {
+            const result = {
+                title: '',
+                start_datetime: null,
+                end_datetime: null,
+                location: null,
+                description: text,
+                all_day: false,
+                confidence_score: 0.6,
+                _source: 'local_fallback'
+            };
+            
+            // Extract title (first part before time/date indicators)
+            const titleMatch = text.match(/^([^,]+?)(?:\s+(?:at|on|in|@|tomorrow|today|next|this)\s|$)/i);
+            if (titleMatch) {
+                result.title = titleMatch[1].trim();
+            } else {
+                result.title = text.substring(0, 50).trim();
+            }
+            
+            // Simple time parsing
+            const timeMatch = text.match(/\b(\d{1,2}):?(\d{2})?\s*(am|pm)\b/i) || text.match(/\b(\d{1,2})\s*(am|pm)\b/i);
+            
+            // Simple date parsing
+            const now = new Date();
+            let targetDate = new Date(now);
+            
+            if (/\btomorrow\b/i.test(text)) {
+                targetDate.setDate(now.getDate() + 1);
+            }
+            
+            // Set time if found
+            if (timeMatch) {
+                let hours = parseInt(timeMatch[1]);
+                const minutes = timeMatch[2] ? parseInt(timeMatch[2]) : 0;
+                const ampm = timeMatch[3];
+                
+                if (ampm && ampm.toLowerCase() === 'pm' && hours !== 12) {
+                    hours += 12;
+                } else if (ampm && ampm.toLowerCase() === 'am' && hours === 12) {
+                    hours = 0;
+                }
+                
+                targetDate.setHours(hours, minutes, 0, 0);
+                result.start_datetime = targetDate.toISOString();
+                
+                const endDate = new Date(targetDate);
+                endDate.setHours(endDate.getHours() + 1);
+                result.end_datetime = endDate.toISOString();
+            }
+            
+            // Simple location extraction
+            const locationMatch = text.match(/\b(?:at|in|@)\s+([^,\n]+?)(?:\s+(?:at|on|from|to)\s|\s*$)/i);
+            if (locationMatch) {
+                result.location = locationMatch[1].trim();
+            }
+            
+            return result;
+        }
+        
+        // Build Google Calendar URL
+        function buildGoogleCalendarUrl(parseResult) {
+            const params = new URLSearchParams();
+            params.set('action', 'TEMPLATE');
+            
+            if (parseResult.title) {
+                params.set('text', parseResult.title);
+            }
+            
+            if (parseResult.start_datetime) {
+                const startDate = new Date(parseResult.start_datetime);
+                const endDate = parseResult.end_datetime ? 
+                    new Date(parseResult.end_datetime) : 
+                    new Date(startDate.getTime() + 60 * 60 * 1000);
+                
+                if (parseResult.all_day) {
+                    const nextDay = new Date(startDate);
+                    nextDay.setDate(nextDay.getDate() + 1);
+                    params.set('dates', `${formatDateForGoogle(startDate)}/${formatDateForGoogle(nextDay)}`);
+                } else {
+                    params.set('dates', `${formatDateTimeForGoogle(startDate)}/${formatDateTimeForGoogle(endDate)}`);
+                }
+            }
+            
+            if (parseResult.location) {
+                params.set('location', parseResult.location);
+            }
+            
+            if (parseResult.description) {
+                params.set('details', parseResult.description);
+            }
+            
+            return `https://calendar.google.com/calendar/render?${params.toString()}`;
+        }
+        
+        function formatDateForGoogle(date) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}${month}${day}`;
+        }
+        
+        function formatDateTimeForGoogle(date) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            const hours = String(date.getUTCHours()).padStart(2, '0');
+            const minutes = String(date.getUTCMinutes()).padStart(2, '0');
+            const seconds = String(date.getUTCSeconds()).padStart(2, '0');
+            return `${year}${month}${day}T${hours}${minutes}${seconds}Z`;
+        }
+    </script>
+</body>
+</html>
