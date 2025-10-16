@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Error Log Dashboard - Calendar API</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f7;
+            color: #1d1d1f;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+
+        .header h1 {
+            color: #007AFF;
+            margin-bottom: 10px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 2em;
+            font-weight: bold;
+            color: #007AFF;
+        }
+
+        .stat-label {
+            color: #666;
+            margin-top: 5px;
+        }
+
+        .controls {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+
+        .controls-row {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .control-group label {
+            font-weight: 500;
+            color: #333;
+        }
+
+        select, input, button {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        button {
+            background: #007AFF;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-weight: 500;
+        }
+
+        button:hover {
+            background: #0056CC;
+        }
+
+        .danger-btn {
+            background: #FF3B30;
+        }
+
+        .danger-btn:hover {
+            background: #D70015;
+        }
+
+        .logs-container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .logs-header {
+            background: #f8f9fa;
+            padding: 15px 20px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .log-entry {
+            padding: 15px 20px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .log-entry:last-child {
+            border-bottom: none;
+        }
+
+        .log-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .log-level {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .level-error {
+            background: #FFE5E5;
+            color: #D70015;
+        }
+
+        .level-warning {
+            background: #FFF3CD;
+            color: #856404;
+        }
+
+        .level-info {
+            background: #D1ECF1;
+            color: #0C5460;
+        }
+
+        .level-debug {
+            background: #E2E3E5;
+            color: #383D41;
+        }
+
+        .log-timestamp {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .log-component {
+            color: #007AFF;
+            font-weight: 500;
+        }
+
+        .log-message {
+            font-family: 'Monaco', 'Menlo', monospace;
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 6px;
+            margin-top: 8px;
+            word-break: break-word;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+
+        .error {
+            background: #FFE5E5;
+            color: #D70015;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 20px 0;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+
+        @media (max-width: 768px) {
+            .controls-row {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .log-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 8px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚨 Error Log Dashboard</h1>
+            <p>Monitor and manage error logs for the Calendar API system</p>
+        </div>
+
+        <div class="stats-grid" id="statsGrid">
+            <div class="stat-card">
+                <div class="stat-number" id="totalErrors">-</div>
+                <div class="stat-label">Total Errors</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="errors24h">-</div>
+                <div class="stat-label">Last 24 Hours</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="errors1h">-</div>
+                <div class="stat-label">Last Hour</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="errorRate">-</div>
+                <div class="stat-label">Error Rate</div>
+            </div>
+        </div>
+
+        <div class="controls">
+            <div class="controls-row">
+                <div class="control-group">
+                    <label for="levelFilter">Log Level</label>
+                    <select id="levelFilter">
+                        <option value="ERROR">Error</option>
+                        <option value="WARNING">Warning</option>
+                        <option value="INFO">Info</option>
+                        <option value="DEBUG">Debug</option>
+                        <option value="ALL">All Levels</option>
+                    </select>
+                </div>
+                
+                <div class="control-group">
+                    <label for="componentFilter">Component</label>
+                    <select id="componentFilter">
+                        <option value="">All Components</option>
+                        <option value="api">API</option>
+                        <option value="parser">Parser</option>
+                        <option value="llm">LLM</option>
+                        <option value="cache">Cache</option>
+                    </select>
+                </div>
+                
+                <div class="control-group">
+                    <label for="limitFilter">Limit</label>
+                    <select id="limitFilter">
+                        <option value="50">50 entries</option>
+                        <option value="100" selected>100 entries</option>
+                        <option value="200">200 entries</option>
+                        <option value="500">500 entries</option>
+                    </select>
+                </div>
+                
+                <div class="control-group">
+                    <label>&nbsp;</label>
+                    <button onclick="loadLogs()">🔄 Refresh</button>
+                </div>
+                
+                <div class="control-group">
+                    <label>&nbsp;</label>
+                    <button onclick="clearOldLogs()" class="danger-btn">🗑️ Clear Old Logs</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="logs-container">
+            <div class="logs-header">
+                <h3>Error Logs</h3>
+                <span id="logCount">Loading...</span>
+            </div>
+            <div id="logsContent">
+                <div class="loading">Loading error logs...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentLogs = [];
+
+        // Load logs on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            loadSummary();
+            loadLogs();
+            
+            // Auto-refresh every 30 seconds
+            setInterval(() => {
+                loadSummary();
+                loadLogs();
+            }, 30000);
+        });
+
+        async function loadSummary() {
+            try {
+                const response = await fetch('/logs/summary');
+                const data = await response.json();
+                
+                if (data.success) {
+                    const summary = data.summary;
+                    document.getElementById('totalErrors').textContent = summary.total_errors || 0;
+                    document.getElementById('errors24h').textContent = summary.recent_errors_24h || 0;
+                    document.getElementById('errors1h').textContent = summary.recent_errors_1h || 0;
+                    
+                    // Calculate error rate (errors per hour in last 24h)
+                    const errorRate = summary.recent_errors_24h ? (summary.recent_errors_24h / 24).toFixed(1) : '0';
+                    document.getElementById('errorRate').textContent = errorRate + '/hr';
+                }
+            } catch (error) {
+                console.error('Failed to load summary:', error);
+            }
+        }
+
+        async function loadLogs() {
+            const level = document.getElementById('levelFilter').value;
+            const component = document.getElementById('componentFilter').value;
+            const limit = document.getElementById('limitFilter').value;
+            
+            const params = new URLSearchParams({
+                level: level,
+                limit: limit
+            });
+            
+            if (component) {
+                params.append('component', component);
+            }
+            
+            try {
+                const response = await fetch(`/logs/errors?${params}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    currentLogs = data.logs;
+                    displayLogs(data.logs);
+                    document.getElementById('logCount').textContent = `${data.total_count} entries`;
+                } else {
+                    showError('Failed to load logs: ' + (data.error || 'Unknown error'));
+                }
+            } catch (error) {
+                showError('Failed to load logs: ' + error.message);
+            }
+        }
+
+        function displayLogs(logs) {
+            const container = document.getElementById('logsContent');
+            
+            if (logs.length === 0) {
+                container.innerHTML = '<div class="empty-state">No error logs found with current filters.</div>';
+                return;
+            }
+            
+            const logsHtml = logs.map(log => {
+                const timestamp = new Date(log.timestamp).toLocaleString();
+                const levelClass = `level-${log.level.toLowerCase()}`;
+                
+                return `
+                    <div class="log-entry">
+                        <div class="log-header">
+                            <div>
+                                <span class="log-level ${levelClass}">${log.level}</span>
+                                <span class="log-component">${log.component}</span>
+                            </div>
+                            <div class="log-timestamp">${timestamp}</div>
+                        </div>
+                        <div class="log-message">${escapeHtml(log.message)}</div>
+                    </div>
+                `;
+            }).join('');
+            
+            container.innerHTML = logsHtml;
+        }
+
+        async function clearOldLogs() {
+            if (!confirm('Are you sure you want to clear logs older than 7 days? This action cannot be undone.')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch('/logs/errors?older_than_days=7', {
+                    method: 'DELETE'
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert(`Successfully cleared ${data.cleared_count} old log entries.`);
+                    loadSummary();
+                    loadLogs();
+                } else {
+                    showError('Failed to clear logs: ' + (data.error || 'Unknown error'));
+                }
+            } catch (error) {
+                showError('Failed to clear logs: ' + error.message);
+            }
+        }
+
+        function showError(message) {
+            const container = document.getElementById('logsContent');
+            container.innerHTML = `<div class="error">${escapeHtml(message)}</div>`;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>
+</html>

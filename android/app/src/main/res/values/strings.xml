@@ -41,4 +41,68 @@
     
     <!-- Context Menu -->
     <string name="context_menu_create_event">Create calendar event</string>
+    
+    <!-- User Feedback Manager -->
+    <!-- Confidence Warnings -->
+    <string name="confidence_warning_title_low">Low Confidence Detection</string>
+    <string name="confidence_warning_title_medium">Medium Confidence Warning</string>
+    <string name="confidence_warning_title_info">Confidence Information</string>
+    <string name="confidence_warning_proceed">Create Event Anyway</string>
+    <string name="confidence_warning_suggestions">Show Suggestions</string>
+    <string name="confidence_warning_cancel">Cancel</string>
+    
+    <!-- Network Error Dialogs -->
+    <string name="network_error_title">Network Connection Error</string>
+    <string name="network_timeout_title">Request Timeout</string>
+    <string name="rate_limit_title">Service Temporarily Unavailable</string>
+    <string name="server_error_title">Service Error</string>
+    <string name="network_error_retry">Retry</string>
+    <string name="network_error_offline">Create Offline</string>
+    <string name="network_error_cancel">Cancel</string>
+    
+    <!-- Calendar Not Found Dialogs -->
+    <string name="calendar_not_found_title">Calendar App Not Available</string>
+    <string name="calendar_not_found_copy">Copy Event Details</string>
+    <string name="calendar_not_found_web">Open Web Calendar</string>
+    <string name="calendar_not_found_alternatives">Try Other Apps</string>
+    <string name="calendar_not_found_cancel">Cancel</string>
+    
+    <!-- Improvement Suggestions -->
+    <string name="suggestions_title">Suggestions for Better Results</string>
+    <string name="suggestions_got_it">Got It</string>
+    
+    <!-- Alternative Apps -->
+    <string name="alternative_apps_title">Choose Calendar App</string>
+    <string name="alternative_apps_message">Select an alternative calendar app to create your event:</string>
+    
+    <!-- Success Messages -->
+    <string name="success_event_created">Calendar event created successfully</string>
+    <string name="success_copied_to_clipboard">Event details copied to clipboard</string>
+    <string name="success_opened_web_calendar">Opened web calendar</string>
+    
+    <!-- Error Messages for UserFeedbackManager -->
+    <string name="error_copy_clipboard_failed">Failed to copy event details</string>
+    <string name="error_web_calendar_failed">Failed to open web calendar</string>
+    <string name="error_alternative_app_failed">Failed to launch %s</string>
+    <string name="error_alternative_app_not_implemented">Alternative app launch not yet implemented for %s</string>
+    
+    <!-- Field Names for Confidence Display -->
+    <string name="field_title">Title</string>
+    <string name="field_start_datetime">Start Time</string>
+    <string name="field_end_datetime">End Time</string>
+    <string name="field_location">Location</string>
+    <string name="field_description">Description</string>
+    
+    <!-- Confidence Levels -->
+    <string name="confidence_high">High confidence</string>
+    <string name="confidence_medium">Medium confidence</string>
+    <string name="confidence_low">Low confidence</string>
+    <string name="confidence_missing">Missing</string>
+    
+    <!-- Recommendations -->
+    <string name="recommendation_proceed_confidently">The information looks good. You can proceed with confidence.</string>
+    <string name="recommendation_proceed_caution">Review the event details carefully before creating.</string>
+    <string name="recommendation_suggest_improvements">Consider improving the input text for better results.</string>
+    <string name="recommendation_manual_entry">Manual event creation may be more accurate.</string>
+    <string name="recommendation_block_creation">Please provide more information before creating the event.</string>
 </resources>

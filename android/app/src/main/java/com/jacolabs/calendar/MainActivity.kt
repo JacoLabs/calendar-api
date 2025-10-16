@@ -26,15 +26,23 @@ import java.util.*
 
 /**
  * Main activity with text input interface for testing API integration.
+ * Enhanced with comprehensive error handling and fallback mechanisms.
  */
 class MainActivity : ComponentActivity() {
     
     private lateinit var apiService: ApiService
+    private lateinit var errorHandlingManager: ErrorHandlingManager
+    private lateinit var confidenceValidator: ConfidenceValidator
+    private lateinit var userFeedbackManager: UserFeedbackManager
     
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        apiService = ApiService()
+        // Initialize services with error handling integration
+        apiService = ApiService(this)
+        errorHandlingManager = ErrorHandlingManager(this)
+        confidenceValidator = ConfidenceValidator(this)
+        userFeedbackManager = UserFeedbackManager(this)
         
         setContent {
             MaterialTheme {
@@ -42,7 +50,13 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    MainScreen(apiService, lifecycleScope)
+                    MainScreen(
+                        apiService = apiService,
+                        errorHandlingManager = errorHandlingManager,
+                        confidenceValidator = confidenceValidator,
+                        userFeedbackManager = userFeedbackManager,
+                        lifecycleScope = lifecycleScope
+                    )
                 }
             }
         }
@@ -51,13 +65,25 @@ class MainActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MainScreen(apiService: ApiService, lifecycleScope: androidx.lifecycle.LifecycleCoroutineScope) {
+fun MainScreen(
+    apiService: ApiService,
+    errorHandlingManager: ErrorHandlingManager,
+    confidenceValidator: ConfidenceValidator,
+    userFeedbackManager: UserFeedbackManager,
+    lifecycleScope: androidx.lifecycle.LifecycleCoroutineScope
+) {
     var textInput by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
     var parseResult by remember { mutableStateOf<ParseResult?>(null) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var clipboardText by remember { mutableStateOf<String?>(null) }
     var showTimeConfirmBanner by remember { mutableStateOf(false) }
+    var confidenceAssessment by remember { mutableStateOf<ConfidenceValidator.ConfidenceAssessment?>(null) }
+    var showConfidenceWarning by remember { mutableStateOf(false) }
+    var retryCount by remember { mutableStateOf(0) }
+    var isRetrying by remember { mutableStateOf(false) }
+    var fallbackResult by remember { mutableStateOf<ParseResult?>(null) }
+    var showFallbackConfirmation by remember { mutableStateOf(false) }
     val context = LocalContext.current
     
     // Check clipboard content on composition
@@ -129,19 +155,37 @@ fun MainScreen(apiService: ApiService, lifecycleScope: androidx.lifecycle.Lifecy
                 onClick = {
                     textInput = clipboardText!!
                     // Auto-parse clipboard content
-                    parseClipboardContent(
-                        clipboardText!!,
-                        apiService,
-                        lifecycleScope,
-                        context,
-                        onResult = { result ->
+                    parseTextWithErrorHandling(
+                        text = clipboardText!!,
+                        apiService = apiService,
+                        errorHandlingManager = errorHandlingManager,
+                        confidenceValidator = confidenceValidator,
+                        retryCount = 0,
+                        onLoading = { loading -> isLoading = loading },
+                        onRetrying = { retrying -> isRetrying = retrying },
+                        onSuccess = { result, assessment ->
+                            textInput = clipboardText!!
                             parseResult = result
-                            // Check if we applied default times
+                            confidenceAssessment = assessment
                             showTimeConfirmBanner = hasDefaultTimes(result, clipboardText!!)
+                            errorMessage = null
+                            
+                            // Show confidence warning if needed
+                            if (assessment.recommendation == ConfidenceValidator.UserRecommendation.SUGGEST_IMPROVEMENTS ||
+                                assessment.recommendation == ConfidenceValidator.UserRecommendation.PROCEED_WITH_CAUTION) {
+                                showConfidenceWarning = true
+                            }
+                        },
+                        onFallback = { fallback ->
+                            textInput = clipboardText!!
+                            fallbackResult = fallback
+                            showFallbackConfirmation = true
                         },
                         onError = { error ->
+                            textInput = clipboardText!!
                             errorMessage = error
-                        }
+                        },
+                        onRetryCountUpdate = { count -> retryCount = count }
                     )
                 },
                 modifier = Modifier.fillMaxWidth(),
@@ -162,65 +206,137 @@ fun MainScreen(apiService: ApiService, lifecycleScope: androidx.lifecycle.Lifecy
         // Submit button
         Button(
             onClick = {
-                isLoading = true
-                errorMessage = null
-                parseResult = null
-                
                 lifecycleScope.launch {
-                    try {
-                        val timezone = TimeZone.getDefault().id
-                        val locale = Locale.getDefault().toString()
-                        val now = Date()
-                        
-                        val result = apiService.parseText(
-                            text = textInput,
-                            timezone = timezone,
-                            locale = locale,
-                            now = now,
-                            mode = "audit" // Use audit mode for enhanced debugging
-                        )
-                        
-                        // Log enhanced API response data
-                        result.processingTimeMs.let { time ->
-                            if (time > 0) println("Parsing completed in ${time}ms")
-                        }
-                        
-                        result.parsingPath?.let { path ->
-                            println("Parsing method used: $path")
-                        }
-                        
-                        if (result.cacheHit == true) {
-                            println("Result served from cache")
-                        }
-                        
-                        parseResult = result
-                        
-                        // Check if we applied default times and show banner
-                        showTimeConfirmBanner = hasDefaultTimes(result, textInput)
-                        
-                    } catch (e: ApiException) {
-                        errorMessage = handleApiError(e)
-                    } catch (e: Exception) {
-                        errorMessage = "An unexpected error occurred. Please check your internet connection and try again."
-                    } finally {
-                        isLoading = false
-                    }
+                    parseTextWithErrorHandling(
+                        text = textInput,
+                        apiService = apiService,
+                        errorHandlingManager = errorHandlingManager,
+                        confidenceValidator = confidenceValidator,
+                        retryCount = retryCount,
+                        onLoading = { loading -> isLoading = loading },
+                        onRetrying = { retrying -> isRetrying = retrying },
+                        onSuccess = { result, assessment ->
+                            parseResult = result
+                            confidenceAssessment = assessment
+                            showTimeConfirmBanner = hasDefaultTimes(result, textInput)
+                            errorMessage = null
+                            fallbackResult = null
+                            showFallbackConfirmation = false
+                            
+                            // Show confidence warning if needed
+                            if (assessment.recommendation == ConfidenceValidator.UserRecommendation.SUGGEST_IMPROVEMENTS ||
+                                assessment.recommendation == ConfidenceValidator.UserRecommendation.PROCEED_WITH_CAUTION) {
+                                showConfidenceWarning = true
+                            }
+                        },
+                        onFallback = { fallback ->
+                            fallbackResult = fallback
+                            showFallbackConfirmation = true
+                            parseResult = null
+                            confidenceAssessment = null
+                            errorMessage = null
+                        },
+                        onError = { error ->
+                            errorMessage = error
+                            parseResult = null
+                            confidenceAssessment = null
+                            fallbackResult = null
+                            showFallbackConfirmation = false
+                        },
+                        onRetryCountUpdate = { count -> retryCount = count }
+                    )
                 }
             },
             modifier = Modifier.fillMaxWidth(),
-            enabled = textInput.isNotBlank() && !isLoading
+            enabled = textInput.isNotBlank() && !isLoading && !isRetrying
         ) {
-            if (isLoading) {
+            if (isLoading || isRetrying) {
                 CircularProgressIndicator(
                     modifier = Modifier.size(16.dp),
                     color = MaterialTheme.colorScheme.onPrimary
                 )
                 Spacer(modifier = Modifier.width(8.dp))
             }
-            Text(if (isLoading) "Processing..." else "Parse Event")
+            Text(
+                when {
+                    isRetrying -> "Retrying..."
+                    isLoading -> "Processing..."
+                    retryCount > 0 -> "Parse Event (Retry ${retryCount + 1})"
+                    else -> "Parse Event"
+                }
+            )
         }
         
         Spacer(modifier = Modifier.height(24.dp))
+        
+        // Confidence Warning Dialog
+        if (showConfidenceWarning && confidenceAssessment != null) {
+            ConfidenceWarningCard(
+                assessment = confidenceAssessment!!,
+                onProceed = {
+                    showConfidenceWarning = false
+                    // Keep the current result
+                },
+                onImprove = {
+                    showConfidenceWarning = false
+                    // Clear results to encourage user to improve text
+                    parseResult = null
+                    confidenceAssessment = null
+                },
+                onDismiss = {
+                    showConfidenceWarning = false
+                }
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+        
+        // Fallback Confirmation Dialog
+        if (showFallbackConfirmation && fallbackResult != null) {
+            FallbackConfirmationCard(
+                fallbackResult = fallbackResult!!,
+                originalText = textInput,
+                onAccept = {
+                    parseResult = fallbackResult
+                    showFallbackConfirmation = false
+                    fallbackResult = null
+                },
+                onRetry = {
+                    showFallbackConfirmation = false
+                    fallbackResult = null
+                    // Trigger retry with improved text suggestion
+                    lifecycleScope.launch {
+                        parseTextWithErrorHandling(
+                            text = textInput,
+                            apiService = apiService,
+                            errorHandlingManager = errorHandlingManager,
+                            confidenceValidator = confidenceValidator,
+                            retryCount = retryCount,
+                            onLoading = { loading -> isLoading = loading },
+                            onRetrying = { retrying -> isRetrying = retrying },
+                            onSuccess = { result, assessment ->
+                                parseResult = result
+                                confidenceAssessment = assessment
+                                showTimeConfirmBanner = hasDefaultTimes(result, textInput)
+                                errorMessage = null
+                            },
+                            onFallback = { fallback ->
+                                fallbackResult = fallback
+                                showFallbackConfirmation = true
+                            },
+                            onError = { error ->
+                                errorMessage = error
+                            },
+                            onRetryCountUpdate = { count -> retryCount = count }
+                        )
+                    }
+                },
+                onDismiss = {
+                    showFallbackConfirmation = false
+                    fallbackResult = null
+                }
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+        }
         
         // Time confirmation banner
         if (showTimeConfirmBanner) {
@@ -249,104 +365,19 @@ fun MainScreen(apiService: ApiService, lifecycleScope: androidx.lifecycle.Lifecy
             }
         }
         
-        // Display results
+        // Display results with enhanced confidence indicators
         parseResult?.let { result ->
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant
-                )
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp)
-                ) {
-                    Text(
-                        text = "Parsed Event Details",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    
-                    Spacer(modifier = Modifier.height(12.dp))
-                    
-                    result.title?.let { title ->
-                        Text("Title: $title", style = MaterialTheme.typography.bodyMedium)
-                        Spacer(modifier = Modifier.height(4.dp))
-                    }
-                    
-                    result.startDateTime?.let { startDateTime ->
-                        val formattedDate = formatDateTime(startDateTime)
-                        Text("Start: $formattedDate", style = MaterialTheme.typography.bodyMedium)
-                        Spacer(modifier = Modifier.height(4.dp))
-                    }
-                    
-                    result.endDateTime?.let { endDateTime ->
-                        val formattedDate = formatDateTime(endDateTime)
-                        Text("End: $formattedDate", style = MaterialTheme.typography.bodyMedium)
-                        Spacer(modifier = Modifier.height(4.dp))
-                    }
-                    
-                    result.location?.let { location ->
-                        Text("Location: $location", style = MaterialTheme.typography.bodyMedium)
-                        Spacer(modifier = Modifier.height(4.dp))
-                    }
-                    
-                    // Confidence score with color coding
-                    val confidence = (result.confidenceScore * 100).toInt()
-                    val confidenceColor = when {
-                        confidence >= 70 -> MaterialTheme.colorScheme.primary
-                        confidence >= 30 -> MaterialTheme.colorScheme.tertiary
-                        else -> MaterialTheme.colorScheme.error
-                    }
-                    
-                    Text(
-                        "Confidence: $confidence%",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = confidenceColor
-                    )
-                    
-                    // Show warning for low confidence or needs confirmation
-                    if (confidence < 30 || result.needsConfirmation) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            "⚠️ Low confidence - consider rephrasing with clearer date/time",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.error
-                        )
-                    }
-                    
-                    // Show parsing warnings if any
-                    result.warnings?.let { warnings ->
-                        if (warnings.isNotEmpty()) {
-                            Spacer(modifier = Modifier.height(8.dp))
-                            warnings.forEach { warning ->
-                                Text(
-                                    "⚠️ $warning",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.tertiary
-                                )
-                            }
-                        }
-                    }
-                    
-                    Spacer(modifier = Modifier.height(16.dp))
-                    
-                    // Create Calendar Event button
-                    Button(
-                        onClick = {
-                            createCalendarEvent(context, result)
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Event,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Create Calendar Event")
-                    }
+            EnhancedResultCard(
+                result = result,
+                confidenceAssessment = confidenceAssessment,
+                onCreateEvent = { createCalendarEventWithFallback(context, result, errorHandlingManager) },
+                onRetry = {
+                    // Clear results and suggest improvements
+                    parseResult = null
+                    confidenceAssessment = null
+                    errorMessage = "Please try rephrasing with clearer date, time, and event details."
                 }
-            }
+            )
         }
         
         // Display error message
@@ -513,35 +544,659 @@ private fun hasDefaultTimes(result: ParseResult, originalText: String): Boolean 
 }
 
 /**
- * Handle API errors with user-friendly messages and retry suggestions.
+ * Enhanced text parsing with comprehensive error handling and fallback mechanisms
  */
-private fun handleApiError(exception: ApiException): String {
-    val message = exception.message ?: "An error occurred"
+private suspend fun parseTextWithErrorHandling(
+    text: String,
+    apiService: ApiService,
+    errorHandlingManager: ErrorHandlingManager,
+    confidenceValidator: ConfidenceValidator,
+    retryCount: Int,
+    onLoading: (Boolean) -> Unit,
+    onRetrying: (Boolean) -> Unit,
+    onSuccess: (ParseResult, ConfidenceValidator.ConfidenceAssessment) -> Unit,
+    onFallback: (ParseResult) -> Unit,
+    onError: (String) -> Unit,
+    onRetryCountUpdate: (Int) -> Unit
+) {
+    onLoading(true)
     
-    return when {
-        message.contains("network", ignoreCase = true) || 
-        message.contains("connection", ignoreCase = true) -> {
-            "No internet connection. Please check your network settings and try again."
+    try {
+        val timezone = TimeZone.getDefault().id
+        val locale = Locale.getDefault().toString()
+        val now = Date()
+        
+        val result = apiService.parseText(
+            text = text,
+            timezone = timezone,
+            locale = locale,
+            now = now,
+            mode = "audit"
+        )
+        
+        // Assess confidence
+        val assessment = confidenceValidator.assessConfidence(result, text)
+        
+        when (assessment.recommendation) {
+            ConfidenceValidator.UserRecommendation.PROCEED_CONFIDENTLY,
+            ConfidenceValidator.UserRecommendation.PROCEED_WITH_CAUTION -> {
+                onSuccess(result, assessment)
+            }
+            
+            ConfidenceValidator.UserRecommendation.SUGGEST_IMPROVEMENTS -> {
+                if (assessment.shouldProceed) {
+                    onSuccess(result, assessment)
+                } else {
+                    // Handle as low confidence - offer fallback
+                    val errorHandlingResult = errorHandlingManager.handleLowConfidence(
+                        result = result,
+                        originalText = text,
+                        userInteractionAllowed = true
+                    )
+                    
+                    if (errorHandlingResult.success && errorHandlingResult.recoveredResult != null) {
+                        onFallback(errorHandlingResult.recoveredResult)
+                    } else {
+                        onError(errorHandlingResult.userMessage)
+                    }
+                }
+            }
+            
+            ConfidenceValidator.UserRecommendation.RECOMMEND_MANUAL_ENTRY -> {
+                // Create fallback event
+                val errorHandlingResult = errorHandlingManager.handleParsingFailure(text)
+                if (errorHandlingResult.success && errorHandlingResult.recoveredResult != null) {
+                    onFallback(errorHandlingResult.recoveredResult)
+                } else {
+                    onError(errorHandlingResult.userMessage)
+                }
+            }
+            
+            ConfidenceValidator.UserRecommendation.BLOCK_CREATION -> {
+                onError("Unable to extract reliable event information. Please try rephrasing with clearer details.")
+            }
         }
-        message.contains("timeout", ignoreCase = true) -> {
-            "Request timed out. Please check your internet connection and try again."
+        
+    } catch (e: ApiException) {
+        // Handle API exceptions with error handling manager
+        val errorHandlingResult = errorHandlingManager.handleApiException(
+            exception = e,
+            originalText = text,
+            retryCount = retryCount,
+            networkAvailable = isNetworkAvailable()
+        )
+        
+        when (errorHandlingResult.recoveryStrategy) {
+            ErrorHandlingManager.RecoveryStrategy.RETRY_WITH_BACKOFF -> {
+                if (retryCount < 3) {
+                    onRetrying(true)
+                    onRetryCountUpdate(retryCount + 1)
+                    
+                    // Wait for retry delay
+                    kotlinx.coroutines.delay(errorHandlingResult.retryDelayMs)
+                    
+                    onRetrying(false)
+                    
+                    // Retry the request
+                    parseTextWithErrorHandling(
+                        text = text,
+                        apiService = apiService,
+                        errorHandlingManager = errorHandlingManager,
+                        confidenceValidator = confidenceValidator,
+                        retryCount = retryCount + 1,
+                        onLoading = onLoading,
+                        onRetrying = onRetrying,
+                        onSuccess = onSuccess,
+                        onFallback = onFallback,
+                        onError = onError,
+                        onRetryCountUpdate = onRetryCountUpdate
+                    )
+                    return
+                } else {
+                    // Max retries exceeded, try fallback
+                    if (errorHandlingResult.recoveredResult != null) {
+                        onFallback(errorHandlingResult.recoveredResult)
+                    } else {
+                        onError(errorHandlingResult.userMessage)
+                    }
+                }
+            }
+            
+            ErrorHandlingManager.RecoveryStrategy.FALLBACK_EVENT_CREATION,
+            ErrorHandlingManager.RecoveryStrategy.OFFLINE_MODE,
+            ErrorHandlingManager.RecoveryStrategy.GRACEFUL_DEGRADATION -> {
+                if (errorHandlingResult.success && errorHandlingResult.recoveredResult != null) {
+                    onFallback(errorHandlingResult.recoveredResult)
+                } else {
+                    onError(errorHandlingResult.userMessage)
+                }
+            }
+            
+            else -> {
+                onError(errorHandlingResult.userMessage)
+            }
         }
-        message.contains("server", ignoreCase = true) || 
-        message.contains("unavailable", ignoreCase = true) -> {
-            "Service is temporarily unavailable. Please try again in a few minutes."
+        
+    } catch (e: Exception) {
+        // Handle unexpected exceptions
+        val errorHandlingResult = errorHandlingManager.handleError(
+            ErrorHandlingManager.ErrorContext(
+                errorType = errorHandlingManager.categorizeError(e),
+                originalText = text,
+                exception = e,
+                retryCount = retryCount
+            )
+        )
+        
+        if (errorHandlingResult.success && errorHandlingResult.recoveredResult != null) {
+            onFallback(errorHandlingResult.recoveredResult)
+        } else {
+            onError(errorHandlingResult.userMessage)
         }
-        message.contains("rate limit", ignoreCase = true) || 
-        message.contains("too many", ignoreCase = true) -> {
-            "Too many requests. Please wait a moment before trying again."
-        }
-        message.contains("invalid", ignoreCase = true) -> {
-            "Please check your input and try again with clearer event information."
-        }
-        message.contains("confidence", ignoreCase = true) || 
-        message.contains("unclear", ignoreCase = true) -> {
-            "Could not understand the event details. Please try rephrasing with specific date, time, and event information."
-        }
-        else -> message
+        
+    } finally {
+        onLoading(false)
+        onRetrying(false)
     }
 }
 
+/**
+ * Check network availability
+ */
+private fun isNetworkAvailable(): Boolean {
+    return try {
+        val connectivityManager = android.content.Context.CONNECTIVITY_SERVICE
+        true // Simplified for now - in real implementation, check actual network state
+    } catch (e: Exception) {
+        false
+    }
+}
+
+/**
+ * Enhanced calendar event creation with fallback handling
+ */
+private fun createCalendarEventWithFallback(
+    context: android.content.Context, 
+    result: ParseResult,
+    errorHandlingManager: ErrorHandlingManager
+) {
+    try {
+        val calendarHelper = CalendarIntentHelper(context)
+        calendarHelper.createCalendarEvent(result)
+    } catch (e: Exception) {
+        // Handle calendar launch failure
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+            val errorHandlingResult = errorHandlingManager.handleCalendarLaunchFailure(
+                result = result,
+                exception = e
+            )
+            
+            // The CalendarFallbackManager will handle alternative launch strategies
+            // This is a simplified version - the actual implementation would show UI feedback
+        }
+    }
+}{
+    try {
+        val calendarHelper = CalendarIntentHelper(context)
+        calendarHelper.createCalendarEvent(result)
+    } catch (e: Exception) {
+        // Handle calendar launch failure
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+            val errorHandlingResult = errorHandlingManager.handleCalendarLaunchFailure(
+                result = result,
+                exception = e
+            )
+            
+            // The CalendarFallbackManager will handle alternative launch strategies
+            // This is a simplified version - the actual implementation would show UI feedback
+        }
+    }
+}
+
+/**
+ * Handle API errors with enhanced error information and retry suggestions.
+ */
+private fun handleApiError(exception: ApiException): String {
+    val apiError = exception.apiError
+    
+    // Use the structured error information for better user experience
+    val baseMessage = apiError.userMessage
+    val suggestion = apiError.suggestion
+    
+    val enhancedMessage = buildString {
+        append(baseMessage)
+        
+        // Add suggestion if available
+        suggestion?.let { suggestionText ->
+            append("\n\n💡 Suggestion: $suggestionText")
+        }
+        
+        // Add retry information for retryable errors
+        if (apiError.retryable) {
+            apiError.retryAfterSeconds?.let { seconds ->
+                append("\n\n⏱️ You can try again in $seconds seconds.")
+            } ?: run {
+                append("\n\n🔄 You can try again.")
+            }
+        }
+        
+        // Add specific guidance based on error type
+        when (apiError.type) {
+            ApiService.ErrorType.NETWORK_CONNECTIVITY -> {
+                append("\n\n📶 Check your internet connection and try again.")
+            }
+            ApiService.ErrorType.REQUEST_TIMEOUT -> {
+                append("\n\n⏱️ The request took too long. Try again with a shorter text or check your connection.")
+            }
+            ApiService.ErrorType.PARSING_ERROR -> {
+                append("\n\n📝 Try rephrasing with clearer date, time, and event details.")
+            }
+            ApiService.ErrorType.RATE_LIMIT -> {
+                append("\n\n⏳ Please wait before making another request.")
+            }
+            ApiService.ErrorType.VALIDATION_ERROR -> {
+                append("\n\n✏️ Please check your input and try again.")
+            }
+            else -> {
+                // No additional guidance needed
+            }
+        }
+    }
+    
+    return enhancedMessage
+}
+
+
+/**
+ * Confidence Warning Card - shows when confidence is low
+ */
+@Composable
+private fun ConfidenceWarningCard(
+    assessment: ConfidenceValidator.ConfidenceAssessment,
+    onProceed: () -> Unit,
+    onImprove: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = when (assessment.warningSeverity) {
+                ConfidenceValidator.WarningSeverity.WARNING -> MaterialT
+}   }
+    }    
+     }          }
+            }
+                  ")
+    ove"Impr     Text(                 ) {
+              
+        t(1f)r.weighfieifier = Modi     mod             
+      nRetry,onClick = o               
+         on(nedButtli   Out      
+           ) { 50onfidence <    if (c        Int()
+    ).tocore * 100idenceSult.confce = (resconfidenl  va        s
+       ence resultw confidlotton for try bu/ Show re        /         
+              }
+              ")
+   Create Event  Text("               8.dp))
+   .width(fierifier = ModiSpacer(mod                  
+         )            
+ e(18.dp)ifier.sizier = Mod   modif                    null,
+  escription = contentD                     ,
+  efault.Eventns.Dr = IcoeVecto     imag               
+    n(   Ico                  ) {
+              (1f)
+ r.weightfie Modi modifier =             t,
+      onCreateEvenick = nCl        o           
+ utton(       B
+                  ) {
+   p)dBy(8.daceangement.spArrement = ontalArrang       horiz        xWidth(),
+ er.fillMadififier = Moodi          m         Row(
+         ons
+on butt/ Acti   /             
+
+        ))ight(16.dp.he = Modifierierpacer(modif     S             
+          }
+}
+                
+                  }   )
+                            
+   .tertiaryhemeolorScerialTheme.c Mator =       col                 mall,
+    graphy.bodySme.typoMaterialThe = tyle          s                 rning",
+ wa= "⚠️ $      text                    ext(
+            T               rning ->
+forEach { wangs.      warni             8.dp))
+ ier.height(ier = Modif(modif Spacer                  {
+  NotEmpty())rnings.is(waf   i             
+ gs ->let { warninings?.lt.warnsu      reany
+      arnings if g wsinow par// Sh                
+             }
+     
+          )        e.tertiary
+emolorSchlTheme.crialor = Mate      co        
+      dySmall,phy.boheme.typogra= MaterialTtyle           s    
+      ,eason" $rtext = "ℹ️                 
+          Text()
+         .dp)er.height(8fiier = Modiodif  Spacer(m           
+   eason -> ret {Reason?.lllbackfalt.   resue
+         ablon if applicinformatiow fallback       // Sh   
+               }
+         
+          }       ))
+  ht(4.dpier.heigfier = Modif Spacer(modi            
+       dium)y.bodyMetypographalTheme.ri Mate", style =onlocatin: $tiocaLoText("          
+          location ->t { cation?.lesult.lo        re       
+           
+                 }   dp))
+  (4.heightdifier.difier = Mo(moacer     Sp               
+ium)edhy.bodyMme.typograpThe= Material", style ttedDateEnd: $forma    Text("            
+    teTime)eTime(endDamatDat = forteformattedDa       val             ->
+  ndDateTimelet { e?..endDateTimesult         re
+                      }
+                ht(4.dp))
+ ifier.heigifier = Modcer(mod    Spa           m)
+     y.bodyMediu.typographemeerialTh Mate =e", stylmattedDatStart: $for Text("            me)
+       (startDateTiateTimee = formatDDatformatted      val              eTime ->
+  { startDatme?.lettDateTiesult.star    r                 
+             }
+         .dp))
+     er.height(4r = Modifiacer(modifie Sp                  
+ bodyMedium)ography.me.typTherialtele = Male", stye: $tititl"T    Text(              title ->
+  let { title?.    result.     
+       lableence avaiconfidif no field le display imp stolback / Fal    /            {
+ } ?: run             }
+              }
+                     dp))
+(4.heightifier.= Modr fiepacer(modi       S                
+            }            
+ }                      
+              )                    Color
+     field color =                                mall,
+   .labelSographytyplTheme.= Materiatyle            s                  
+       ),cal = 2.dp4.dp, vertiorizontal = adding(hodifier.pdifier = M   mo                               
+  ",nfidence%= "$fieldCoext    t                            t(
+      Tex                        
+       ) {                        all
+    es.extraSmme.shapterialThepe = Ma       sha                       
+  ha = 0.1f),(alpopyColor.cld= fie     color                              Surface(
+                         
+                        
+           )                      
+ht(1f)r.weig = Modifiefier    modi                           um,
+ bodyMediography.typheme. MaterialTyle =      st                      ",
+    Info.value}{fieldlize()}: $.capita${fieldName  text = "                      
+        ext(       T                 
+                                }
+                           rror
+ rScheme.elolTheme.coateria   else -> M                           ry
+  rtia.teolorSchememe.crialThe 30 -> Mateonfidence >=   fieldC                         
+    imaryprScheme.oralTheme.colMateri= 70 -> onfidence >     fieldC                     en {
+      or = whColfield       val                    t()
+  * 100).toIn.confidence ieldInfodence = (ffieldCon     val fi                ) {
+                          h()
+     llMaxWidt.fifierier = Modi      modif              ,
+        llycaenterVertiAlignment.Cnt = calAlignme       verti                       Row(
+             
+         e) {alueldInfo.hasV  if (fi                 o) ->
+ e, fieldInf(fieldNamforEach { onfidences.  fieldC              ->
+ esdenceldConfi?.let { fidConfidencesent?.fieldenceAssessm      confi   
+   vailableif afidence  conelow field-lev  // Sh         
+             p))
+.der.height(12Modifiodifier = r(m       Space          
+  }
+                  }
+              
+   )             
+     fidenceColorcolor = con                        ium,
+y.labelMedographlTheme.typ= Materia    style              
+        4.dp),al =.dp, verticrizontal = 8padding(hoer.difir = Mofiedi      mo                
+  ence%",confidxt = "$ te                       
+     Text(               {
+     )           es.small
+ Theme.shaprialshape = Mate                   0.1f),
+  ha =r.copy(alpenceColor = confid        colo       
+     ace(   Surf               
+      
+               }r
+         Scheme.erroorme.colaterialTheelse -> M                  
+  tiaryercheme.tTheme.colorSateriale >= 30 -> M  confidenc                
+  imarylorScheme.prlTheme.co Materia>= 70 ->onfidence    c       
+           {or = whenidenceColval conf          nt()
+      ).toI* 100ceScore .confiden= (resultidence al conf           vtor
+     e indical confidenc // Overal               
+                 )
+          
+     ceVarianteme.onSurfalorSchalTheme.co= Materir   colo        
+          ium,Medphy.titlegraeme.typoerialThstyle = Mat                  
+  ls",nt Detaised EvePar  text = "             ext(
+          T               ) {
+      h()
+  idtier.fillMaxWdifdifier = Mo          moen,
+      weent.SpaceBet= Arrangemt rangemenzontalArri  ho            cally,
+  CenterVertit.nmen Alignt =mealAlign      vertic               Row(
+ {
+       
+        ).dp)padding(16 = Modifier.odifier        m   lumn(
+     Co  ) {
+         )
+    
+ Variantace.surfemeeme.colorSchalThMaterir = nerColo     contai
+       Colors(cardfaults.Deolors = Card
+        cth(),xWidfillMaifier. Mod  modifier =   
+   Card(   it
+) {
+ () -> Untry:    onReUnit,
+ > () -nt:  onCreateEvesment?,
+   enceAssestor.ConfididenceValida: ConfntAssessmenceconfideesult,
+    : ParseRult  resultCard(
+  cedRes fun Enhanatele
+priv
+@Composab
+ */catorsence indiidith conflt Card wsuanced Re
+ * Enh}
+}
+
+/**   }
+      }
+               }
+               
+ ")ncelCaext("      T     
+            ) {        
+     issck = onDism       onCli             Button(
+       Text           
+               }
+           ")
+    ainTry Ag" Text(                  ) {
+           
+      ght(1f)ifier.weidifier = Mod   mo             etry,
+    = onRck li        onC           utton(
+  OutlinedB               
+               }
+              t")
+   t Even"Accepext(     T            
+     ) {             ight(1f)
+ er.weer = Modifi  modifi               
+   cept,ck = onAcnCli   o         (
+        ton But        ) {
+               
+    dp)By(8.spacedgement. Arranement =lArrangontahoriz               xWidth(),
+ llMafir. = Modifieifier     mod  (
+                  Row   
+       .dp))
+     .height(16= Modifierodifier cer(m Spa          
+                 }
+  
+              )     
+   aryContainere.onTertilorSchemialTheme.coolor = Mater       c          all,
+   aphy.bodySmTheme.typogr Materiale =tyl        s     ",
+       reason️ $ "ℹ  text =              
+    Text(                (4.dp))
+r.heightfie= Modiier modif    Spacer(          ason ->
+  on?.let { reackReasllbfaResult.llback      fa  
+      
+                 }              )
+r
+       ontainenTertiaryCeme.olorSchialTheme.co= Materlor        co         
+    all,bodySmy.raphheme.typog MaterialT  style =                
+  ate",formattedD $"Time:=       text            Text(
+            
+       Time)tDateime(stareTmatDatDate = forormatted       val f      >
+   DateTime -let { startrtDateTime?..stalbackResult      fal           
+   }
+           
+             )       iner
+ ntartiaryCoe.onTeorScheme.colalThemriolor = Mate           c  ,
+       bodySmallaphy.typogrme.alTheaterie = Mstyl                    ",
+ $title = "Title:   text               
+     Text(            
+ le ->et { titult.title?.l fallbackRes         
+  ils detak eventllbacw fa/ Sho    /         
+      
+     ))eight(12.dpModifier.hdifier = r(mo     Space 
+              )
+                yContainer
+rtiarnTeeme.oeme.colorSchterialTh = Ma    color            edium,
+odyMraphy.b.typoglThemee = Materia        styl
+        tion:",able informa with availasic event a b we createdliably, sos rel detail parse al'tuldn co = "We       text   t(
+            Tex
+        
+          8.dp))ht(er.heig= Modifir(modifier pace           S  
+           }
+                 )
+          er
+ ntainTertiaryCoeme.onSchorTheme.colerial = Matcolor         
+           eMedium,.titlypographylTheme.tle = Materiasty              
+      ed",eatEvent Crllback "Faext =  t                xt(
+       Te        )
+    .dp)(8ifier.widthdifier = Modacer(mo Sp                  )
+           ntainer
+  tiaryCo.onTeremeolorSchrialTheme.c = Mateint           t         null,
+iption = tDescrconten                   t.Event,
+ Defaulons. = IcgeVectorma           i
+          Icon(               
+) {          lly
+  rVerticant.Centelignme = AAlignment   vertical        (
+              Row ) {
+   
+       6.dp)dding(1.pa = Modifier  modifier          
+n(olum   C{
+      )      )
+   iner
+   taConry.tertiaemelorSch.coerialTheme = MatnerColorontai  c
+          rs(locardCofaults.ors = CardDe   col    th(),
+ lMaxWidier.filfier = Modif      modi(
+  
+    Card) {it
+-> Unss: () smi
+    onDi -> Unit,()ry: Ret on   Unit,
+) -> pt: (ceg,
+    onAcint: StrTexinal  origResult,
+  rsekResult: Pabac(
+    fallnCardioirmatlbackConfe fun Fale
+privatablosomp*/
+@C
+ s createdack event iwhen fallbws hoion Card - snfirmatllback CoFa * 
+
+/**    }
+}
+
+}
+        }        
+            }      s")
+  is Text("Dism                  
+    ) {            nDismiss
+ lick = o   onC                on(
+    TextButt     
+                               }
+
+         rove Text")ext("Imp           T          ) {
+             1f)
+  eight( Modifier.w =  modifier                 prove,
+ k = onIm   onClic            
+     edButton(lin    Out        
+                          }
+           }
+                 
+  yway")ceed An Text("Pro                          ) {
+               
+  .weight(1f)ierdififier = Mo     mod                 ,
+  ed= onProceick nCl    o                   on(
+  Butt               d) {
+    Proceeouldshent. if (assessm          ) {
+              
+   By(8.dp)ent.spacedgemrran Ant =rangemerizontalAr          ho),
+      Width(er.fillMaxr = Modifi  modifie             w(
+         Ro    
+    
+        ).dp).height(16r = Modifierifiecer(mod   Spa     
+               
+      }  }
+                    )
+                   }
+                         ant
+ rfaceVarirScheme.onSulTheme.coloiaatere -> Mls   e                      iner
+   ntarorCome.onErrScheeme.colo> MaterialThERROR -erity..WarningSevorenceValidatConfid                        er
+    daryContainonSeconcheme.heme.colorSrialTG -> Materity.WARNINngSevearniidator.WonfidenceVal  C                        ) {
+  verityingSent.warnsmeesn (asslor = whe  co                     all,
+ y.bodySmtypographrialTheme.tyle = Mate       s           }",
+      stionon.suggeuggesti "• ${sext =   t                  (
+      Text              ->
+   estion suggEach { orake(3).f.tSuggestionsprovement.immentassess             
+        )      }
+                        eVariant
+ nSurfacScheme.ooralTheme.colateri> Mlse -    e                   ntainer
+ rorCorScheme.onErolorialTheme.c Mateity.ERROR ->Severarningor.WlidatnfidenceVa   Co             er
+        ndaryContainSecoe.oncolorSchemrialTheme. -> Materity.WARNING.WarningSevenceValidator    Confide           
+         erity) {ningSevent.warsmen (assesor = wh  col               ium,
+   abelMedhy.lme.typograpterialThe  style = Ma               ons:",
+   tiest = "💡 Sugg       tex          Text(
+               
+    ))ight(8.dpifier.heifier = ModSpacer(mod            )) {
+    mpty(NotEstions.isgeprovementSugessment.im     if (ass     gestions
+  vement sugproow im       // Sh          
+     
+          }  )
+        
+                    }      ant
+    rfaceVarime.onSulorSchecoalTheme. -> Materi       else               r
+  taine.onErrorConhemee.colorScrialThemMate> ERROR -erity.WarningSevalidator.nfidenceV    Co               er
+     yContaincondarme.onSecherSme.coloalThe -> MateriWARNINGngSeverity.r.WarnitoenceValidaonfid          C          
+    ) {ngSeveritywarniassessment. = when (or col             ,
+      edium.bodyMhypograplTheme.ty Materiastyle =                    
+age, = mess        text          (
+         Text        ge ->
+  { messasage?.letrningMesssment.wa    asse             
+      
+ ight(8.dp)) Modifier.heifier =mod Spacer(                 
+
+            }
+       )              }
+              
+       faceVarianteme.onSurolorScheme.cterialThMa  else ->                     iner
+  ntae.onErrorCoe.colorSchemThemalOR -> Materirity.ERRrningSevelidator.WaceVaConfiden                    
+    ainercondaryContonSeeme.orSch.colialThemeterNG -> Maity.WARNIarningSeverdator.WenceVali Confid                    rity) {
+   ngSevet.warnisessmenr = when (as     colo           ium,
+    hy.titleMedograplTheme.typteria  style = Ma                g",
+  ninnfidence Warxt = "Co        te           Text(
+             
+    p))er.width(8.dier = Modifir(modif  Space          )
+                   }
+               iant
+      aceVaronSurfrScheme.heme.coloerialT-> Matlse          e         er
+      rContainme.onErroScheolor.cialThemeROR -> Materty.ERingSeverirnalidator.WaceV  Confiden               
+       eraryContainnSecondrScheme.oTheme.colo> Material.WARNING -veritySengor.WarniidatonfidenceVal      C                rity) {
+  Sevearningent.wassessm= when (      tint          
+     null,on = ntDescripti     conte              ,
+ nfot.Iefaul = Icons.DimageVector                    on(
+   Ic             ) {
+      
+      rticallynterVeignment.Cent = AlticalAlignme ver         (
+              Row{
+    
+        ) p)g(16.dpaddiner. Modifiifier =     modmn(
+              Colu {
+     )
+    )         }
+ 
+      riantfaceVae.sur.colorSchemalThemese -> Materi    el      
+      ainere.errorContorSchememe.colrialTh> Materity.ERROR -rningSeveor.WaalidatdenceV  Confi       r
+       yContaine.secondarchemeheme.colorS

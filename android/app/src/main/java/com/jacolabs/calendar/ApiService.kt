@@ -1,5 +1,9 @@
 package com.jacolabs.calendar
 
+import android.content.Context
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
+import android.os.Build
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.*
@@ -11,26 +15,74 @@ import java.io.IOException
 import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.TimeUnit
+import kotlin.math.min
+import kotlin.math.pow
 
 /**
- * Service for calling the text-to-calendar API.
+ * Enhanced service for calling the text-to-calendar API with robust error handling and retry logic.
  */
-class ApiService {
+class ApiService(private val context: Context? = null) {
     
     companion object {
         private const val API_BASE_URL = "https://calendar-api-wrxz.onrender.com"
         private const val PARSE_ENDPOINT = "$API_BASE_URL/parse"
-        private const val TIMEOUT_SECONDS = 15L
+        private const val DEFAULT_TIMEOUT_SECONDS = 15L
+        private const val DEFAULT_MAX_RETRIES = 3
+        private const val DEFAULT_BASE_DELAY_MS = 1000L
+        private const val MAX_DELAY_MS = 30000L
+        private const val DNS_TEST_HOST = "8.8.8.8"
+        private const val DNS_TEST_TIMEOUT_MS = 5000
     }
 
+    /**
+     * Configuration for error handling behavior
+     */
+    data class ErrorHandlingConfig(
+        val maxRetryAttempts: Int = DEFAULT_MAX_RETRIES,
+        val baseRetryDelayMs: Long = DEFAULT_BASE_DELAY_MS,
+        val timeoutSeconds: Long = DEFAULT_TIMEOUT_SECONDS,
+        val enableNetworkCheck: Boolean = true,
+        val enableExponentialBackoff: Boolean = true,
+        val maxDelayMs: Long = MAX_DELAY_MS
+    )
+
+    /**
+     * Enumeration of different error types for categorization
+     */
+    enum class ErrorType {
+        NETWORK_CONNECTIVITY,
+        REQUEST_TIMEOUT,
+        SERVER_ERROR,
+        CLIENT_ERROR,
+        PARSING_ERROR,
+        VALIDATION_ERROR,
+        RATE_LIMIT,
+        UNKNOWN_ERROR
+    }
+
+    /**
+     * Structured error information with context
+     */
+    data class ApiError(
+        val type: ErrorType,
+        val code: String,
+        val message: String,
+        val userMessage: String,
+        val suggestion: String? = null,
+        val retryable: Boolean = false,
+        val retryAfterSeconds: Int? = null
+    )
+
+    private val config = ErrorHandlingConfig()
+    
     private val client = OkHttpClient.Builder()
-        .connectTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS)
-        .readTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS)
-        .writeTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        .connectTimeout(config.timeoutSeconds, TimeUnit.SECONDS)
+        .readTimeout(config.timeoutSeconds, TimeUnit.SECONDS)
+        .writeTimeout(config.timeoutSeconds, TimeUnit.SECONDS)
         .build()
 
     /**
-     * Parse text using the enhanced API with audit mode and partial parsing support.
+     * Parse text using the enhanced API with robust error handling and retry logic.
      */
     suspend fun parseText(
         text: String,
@@ -41,23 +93,133 @@ class ApiService {
         fields: List<String>? = null
     ): ParseResult = withContext(Dispatchers.IO) {
         
-        // Check network connectivity first
-        if (!isNetworkAvailable()) {
-            throw ApiException("No internet connection. Please check your network settings and try again.")
+        // Check network connectivity first if enabled
+        if (config.enableNetworkCheck && !isNetworkAvailable()) {
+            throw ApiException(
+                ApiError(
+                    type = ErrorType.NETWORK_CONNECTIVITY,
+                    code = "NO_NETWORK",
+                    message = "No internet connection available",
+                    userMessage = "No internet connection. Please check your network settings and try again.",
+                    retryable = true
+                )
+            )
         }
         
         // Preprocess text to handle common formatting issues
         val preprocessedText = preprocessText(text)
         
         // Validate input
-        if (preprocessedText.isBlank()) {
-            throw ApiException("Please provide text containing event information.")
+        validateInput(preprocessedText)
+        
+        // Build request
+        val request = buildApiRequest(preprocessedText, timezone, locale, now, mode, fields)
+        
+        // Execute request with retry logic
+        return@withContext executeWithRetry(request, preprocessedText)
+    }
+
+    /**
+     * Executes API request with exponential backoff retry logic
+     */
+    private suspend fun executeWithRetry(request: Request, originalText: String): ParseResult {
+        var lastError: ApiError? = null
+        
+        for (attempt in 0..config.maxRetryAttempts) {
+            try {
+                client.newCall(request).execute().use { response ->
+                    val responseBody = response.body?.string() ?: ""
+                    
+                    when (response.code) {
+                        200 -> {
+                            val result = parseApiResponse(responseBody)
+                            logSuccessfulResponse(result)
+                            validateParseResult(result, originalText)
+                            return result
+                        }
+                        in 400..499 -> {
+                            val error = handleClientError(response.code, responseBody)
+                            if (!error.retryable || attempt >= config.maxRetryAttempts) {
+                                throw ApiException(error)
+                            }
+                            lastError = error
+                        }
+                        in 500..599 -> {
+                            val error = handleServerError(response.code, responseBody)
+                            if (attempt >= config.maxRetryAttempts) {
+                                throw ApiException(error)
+                            }
+                            lastError = error
+                        }
+                        else -> {
+                            val error = ApiError(
+                                type = ErrorType.UNKNOWN_ERROR,
+                                code = "HTTP_${response.code}",
+                                message = "Unexpected HTTP status code: ${response.code}",
+                                userMessage = "Request failed with code ${response.code}. Please try again.",
+                                retryable = attempt < config.maxRetryAttempts
+                            )
+                            if (!error.retryable) {
+                                throw ApiException(error)
+                            }
+                            lastError = error
+                        }
+                    }
+                }
+                
+            } catch (e: ApiException) {
+                throw e // Re-throw API exceptions without modification
+            } catch (e: Exception) {
+                val error = categorizeException(e)
+                if (!error.retryable || attempt >= config.maxRetryAttempts) {
+                    throw ApiException(error)
+                }
+                lastError = error
+            }
+            
+            // Apply exponential backoff delay before retry
+            if (attempt < config.maxRetryAttempts) {
+                val delay = calculateRetryDelay(attempt, lastError?.retryAfterSeconds)
+                kotlinx.coroutines.delay(delay)
+            }
         }
         
-        if (preprocessedText.length > 10000) {
-            throw ApiException("Text is too long. Please limit to 10,000 characters.")
+        // If we get here, all retries failed
+        throw ApiException(lastError ?: ApiError(
+            type = ErrorType.UNKNOWN_ERROR,
+            code = "MAX_RETRIES_EXCEEDED",
+            message = "Maximum retry attempts exceeded",
+            userMessage = "Failed to complete request after multiple attempts. Please try again later.",
+            retryable = false
+        ))
+    }
+
+    /**
+     * Calculates retry delay using exponential backoff
+     */
+    private fun calculateRetryDelay(attempt: Int, retryAfterSeconds: Int?): Long {
+        return if (config.enableExponentialBackoff) {
+            // Use server-provided retry-after if available, otherwise exponential backoff
+            val baseDelay = retryAfterSeconds?.let { it * 1000L } 
+                ?: (config.baseRetryDelayMs * 2.0.pow(attempt).toLong())
+            
+            min(baseDelay, config.maxDelayMs)
+        } else {
+            config.baseRetryDelayMs
         }
-        
+    }
+
+    /**
+     * Builds the API request with proper headers and body
+     */
+    private fun buildApiRequest(
+        text: String,
+        timezone: String,
+        locale: String,
+        now: Date,
+        mode: String?,
+        fields: List<String>?
+    ): Request {
         // Build URL with query parameters for enhanced features
         val urlBuilder = PARSE_ENDPOINT.toHttpUrl().newBuilder()
         
@@ -70,7 +232,7 @@ class ApiService {
         
         // Create request body
         val requestBody = JSONObject().apply {
-            put("text", preprocessedText)
+            put("text", text)
             put("timezone", timezone)
             put("locale", locale)
             put("now", formatDateTimeForApi(now))
@@ -80,133 +242,217 @@ class ApiService {
         val mediaType = "application/json; charset=utf-8".toMediaType()
         val body = requestBody.toString().toRequestBody(mediaType)
         
-        val request = Request.Builder()
+        return Request.Builder()
             .url(urlBuilder.build())
             .post(body)
             .addHeader("Content-Type", "application/json")
             .addHeader("Accept", "application/json")
             .addHeader("User-Agent", "CalendarEventApp-Android/2.0")
             .build()
-        
-        var retryCount = 0
-        val maxRetries = 3
-        
-        while (retryCount <= maxRetries) {
-            try {
-                val response = client.newCall(request).execute()
-                
-                response.use { resp ->
-                    val responseBody = resp.body?.string() ?: ""
-                    
-                    when (resp.code) {
-                        200 -> {
-                            val result = parseApiResponse(responseBody)
-                            
-                            // Handle enhanced API response format
-                            result.fieldResults?.let { fieldResults ->
-                                println("Field confidence scores: $fieldResults")
-                            }
-                            
-                            result.parsingPath?.let { path ->
-                                println("Parsing method used: $path")
-                            }
-                            
-                            if (result.cacheHit == true) {
-                                println("Result served from cache")
-                            }
-                            
-                            // Log warnings for debugging
-                            result.warnings?.let { warnings ->
-                                if (warnings.isNotEmpty()) {
-                                    println("Parsing warnings: $warnings")
-                                }
-                            }
-                            
-                            // Validate the parsed result
-                            validateParseResult(result, preprocessedText)
-                            return@withContext result
-                        }
-                        400 -> {
-                            val errorDetails = parseErrorResponse(responseBody)
-                            throw ApiException(errorDetails.userMessage)
-                        }
-                        422 -> {
-                            val errorDetails = parseErrorResponse(responseBody)
-                            throw ApiException(errorDetails.userMessage ?: "The text does not contain valid event information. Please try rephrasing with clearer date, time, and event details.")
-                        }
-                        429 -> {
-                            val errorDetails = parseErrorResponse(responseBody)
-                            val retryAfter = resp.header("Retry-After")?.toIntOrNull() ?: 60
-                            throw ApiException("Too many requests. Please wait ${retryAfter} seconds before trying again.")
-                        }
-                        500, 502, 503, 504 -> {
-                            if (retryCount < maxRetries) {
-                                retryCount++
-                                val delay = (retryCount * 1000L) // Exponential backoff
-                                kotlinx.coroutines.delay(delay)
-                                // Will retry in the next loop iteration
-                            } else {
-                                throw ApiException("Server is temporarily unavailable. Please try again in a few minutes.")
-                            }
-                        }
-                        else -> {
-                            val errorDetails = parseErrorResponse(responseBody)
-                            throw ApiException(errorDetails.userMessage ?: "Request failed with code ${resp.code}. Please try again.")
-                        }
-                    }
-                }
-                
-            } catch (e: java.net.SocketTimeoutException) {
-                if (retryCount < maxRetries) {
-                    retryCount++
-                    // Will retry in the next loop iteration
-                } else {
-                    throw ApiException("Request timed out after multiple attempts. Please check your internet connection and try again.")
-                }
-            } catch (e: java.net.UnknownHostException) {
-                throw ApiException("Unable to connect to the server. Please check your internet connection and try again.")
-            } catch (e: java.net.ConnectException) {
-                if (retryCount < maxRetries) {
-                    retryCount++
-                    val delay = (retryCount * 2000L) // Longer delay for connection issues
-                    kotlinx.coroutines.delay(delay)
-                    // Will retry in the next loop iteration
-                } else {
-                    throw ApiException("Unable to connect to the server. Please check your internet connection and try again later.")
-                }
-            } catch (e: IOException) {
-                when {
-                    e.message?.contains("timeout", ignoreCase = true) == true -> {
-                        if (retryCount < maxRetries) {
-                            retryCount++
-                            // Will retry in the next loop iteration
-                        } else {
-                            throw ApiException("Request timed out. Please check your internet connection and try again.")
-                        }
-                    }
-                    e.message?.contains("network", ignoreCase = true) == true -> 
-                        throw ApiException("Network error occurred. Please check your internet connection and try again.")
-                    else -> 
-                        throw ApiException("Connection error: ${e.message ?: "Unknown network error"}. Please try again.")
-                }
-            } catch (e: ApiException) {
-                throw e // Re-throw API exceptions without modification
-            } catch (e: Exception) {
-                throw ApiException("An unexpected error occurred: ${e.message ?: "Unknown error"}. Please try again.")
-            }
+    }
+
+    /**
+     * Validates input parameters
+     */
+    private fun validateInput(text: String) {
+        if (text.isBlank()) {
+            throw ApiException(
+                ApiError(
+                    type = ErrorType.VALIDATION_ERROR,
+                    code = "EMPTY_TEXT",
+                    message = "Input text is empty or blank",
+                    userMessage = "Please provide text containing event information.",
+                    retryable = false
+                )
+            )
         }
         
-        // This should never be reached, but just in case
-        throw ApiException("Failed to complete request after multiple attempts. Please try again later.")
+        if (text.length > 10000) {
+            throw ApiException(
+                ApiError(
+                    type = ErrorType.VALIDATION_ERROR,
+                    code = "TEXT_TOO_LONG",
+                    message = "Input text exceeds maximum length of 10,000 characters",
+                    userMessage = "Text is too long. Please limit to 10,000 characters.",
+                    retryable = false
+                )
+            )
+        }
+    }
+
+    /**
+     * Handles client errors (4xx status codes)
+     */
+    private fun handleClientError(statusCode: Int, responseBody: String): ApiError {
+        val errorDetails = parseErrorResponse(responseBody)
+        
+        return when (statusCode) {
+            400 -> ApiError(
+                type = ErrorType.CLIENT_ERROR,
+                code = errorDetails.code,
+                message = errorDetails.message,
+                userMessage = errorDetails.userMessage,
+                suggestion = errorDetails.suggestion,
+                retryable = false
+            )
+            422 -> ApiError(
+                type = ErrorType.PARSING_ERROR,
+                code = errorDetails.code,
+                message = errorDetails.message,
+                userMessage = errorDetails.userMessage ?: "The text does not contain valid event information. Please try rephrasing with clearer date, time, and event details.",
+                suggestion = errorDetails.suggestion,
+                retryable = false
+            )
+            429 -> {
+                val retryAfter = extractRetryAfterFromResponse(responseBody)
+                ApiError(
+                    type = ErrorType.RATE_LIMIT,
+                    code = errorDetails.code,
+                    message = errorDetails.message,
+                    userMessage = "Too many requests. Please wait ${retryAfter ?: 60} seconds before trying again.",
+                    retryable = true,
+                    retryAfterSeconds = retryAfter
+                )
+            }
+            else -> ApiError(
+                type = ErrorType.CLIENT_ERROR,
+                code = "HTTP_$statusCode",
+                message = "Client error: $statusCode",
+                userMessage = errorDetails.userMessage ?: "Request failed with code $statusCode. Please try again.",
+                retryable = false
+            )
+        }
+    }
+
+    /**
+     * Handles server errors (5xx status codes)
+     */
+    private fun handleServerError(statusCode: Int, responseBody: String): ApiError {
+        val errorDetails = parseErrorResponse(responseBody)
+        
+        return ApiError(
+            type = ErrorType.SERVER_ERROR,
+            code = "HTTP_$statusCode",
+            message = "Server error: $statusCode",
+            userMessage = when (statusCode) {
+                500 -> "Server is experiencing issues. Please try again in a few minutes."
+                502 -> "Server is temporarily unavailable. Please try again shortly."
+                503 -> "Service is temporarily unavailable. Please try again later."
+                504 -> "Request timed out on the server. Please try again."
+                else -> "Server error occurred. Please try again later."
+            },
+            retryable = true
+        )
+    }
+
+    /**
+     * Categorizes exceptions into appropriate error types
+     */
+    private fun categorizeException(exception: Exception): ApiError {
+        return when (exception) {
+            is java.net.SocketTimeoutException -> ApiError(
+                type = ErrorType.REQUEST_TIMEOUT,
+                code = "SOCKET_TIMEOUT",
+                message = "Request timed out",
+                userMessage = "Request timed out. Please check your internet connection and try again.",
+                retryable = true
+            )
+            is java.net.UnknownHostException -> ApiError(
+                type = ErrorType.NETWORK_CONNECTIVITY,
+                code = "UNKNOWN_HOST",
+                message = "Unable to resolve server hostname",
+                userMessage = "Unable to connect to the server. Please check your internet connection and try again.",
+                retryable = true
+            )
+            is java.net.ConnectException -> ApiError(
+                type = ErrorType.NETWORK_CONNECTIVITY,
+                code = "CONNECTION_FAILED",
+                message = "Failed to establish connection",
+                userMessage = "Unable to connect to the server. Please check your internet connection and try again later.",
+                retryable = true
+            )
+            is IOException -> {
+                when {
+                    exception.message?.contains("timeout", ignoreCase = true) == true -> ApiError(
+                        type = ErrorType.REQUEST_TIMEOUT,
+                        code = "IO_TIMEOUT",
+                        message = "I/O operation timed out",
+                        userMessage = "Request timed out. Please check your internet connection and try again.",
+                        retryable = true
+                    )
+                    exception.message?.contains("network", ignoreCase = true) == true -> ApiError(
+                        type = ErrorType.NETWORK_CONNECTIVITY,
+                        code = "NETWORK_ERROR",
+                        message = "Network I/O error",
+                        userMessage = "Network error occurred. Please check your internet connection and try again.",
+                        retryable = true
+                    )
+                    else -> ApiError(
+                        type = ErrorType.NETWORK_CONNECTIVITY,
+                        code = "IO_ERROR",
+                        message = "I/O error: ${exception.message}",
+                        userMessage = "Connection error: ${exception.message ?: "Unknown network error"}. Please try again.",
+                        retryable = true
+                    )
+                }
+            }
+            else -> ApiError(
+                type = ErrorType.UNKNOWN_ERROR,
+                code = "UNEXPECTED_ERROR",
+                message = "Unexpected error: ${exception.message}",
+                userMessage = "An unexpected error occurred: ${exception.message ?: "Unknown error"}. Please try again.",
+                retryable = false
+            )
+        }
+    }
+
+    /**
+     * Logs successful response details for debugging
+     */
+    private fun logSuccessfulResponse(result: ParseResult) {
+        result.fieldResults?.let { fieldResults ->
+            println("Field confidence scores: $fieldResults")
+        }
+        
+        result.parsingPath?.let { path ->
+            println("Parsing method used: $path")
+        }
+        
+        if (result.cacheHit == true) {
+            println("Result served from cache")
+        }
+        
+        result.warnings?.let { warnings ->
+            if (warnings.isNotEmpty()) {
+                println("Parsing warnings: $warnings")
+            }
+        }
     }
     
     /**
-     * Check if network is available (basic check).
+     * Enhanced network connectivity check using multiple methods
      */
     private fun isNetworkAvailable(): Boolean {
+        // Method 1: Check system connectivity manager (requires context)
+        context?.let { ctx ->
+            val connectivityManager = ctx.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+            connectivityManager?.let { cm ->
+                return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    val network = cm.activeNetwork ?: return false
+                    val capabilities = cm.getNetworkCapabilities(network) ?: return false
+                    capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+                    capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+                } else {
+                    @Suppress("DEPRECATION")
+                    val networkInfo = cm.activeNetworkInfo
+                    networkInfo?.isConnected == true
+                }
+            }
+        }
+        
+        // Method 2: Fallback DNS resolution test
         return try {
-            // Simple connectivity check - try to resolve a DNS name
-            val address = java.net.InetAddress.getByName("8.8.8.8")
+            val address = java.net.InetAddress.getByName(DNS_TEST_HOST)
             !address.equals("")
         } catch (e: Exception) {
             false
@@ -214,7 +460,7 @@ class ApiService {
     }
     
     /**
-     * Parse error response from API to extract user-friendly messages.
+     * Parse error response from API to extract structured error information.
      */
     private fun parseErrorResponse(responseBody: String): ErrorDetails {
         return try {
@@ -247,6 +493,25 @@ class ApiService {
             }
         } catch (e: Exception) {
             ErrorDetails("PARSE_ERROR", responseBody, "Server returned an error. Please try again.", null)
+        }
+    }
+
+    /**
+     * Extracts retry-after value from error response
+     */
+    private fun extractRetryAfterFromResponse(responseBody: String): Int? {
+        return try {
+            val errorJson = JSONObject(responseBody)
+            if (errorJson.has("retry_after")) {
+                errorJson.getInt("retry_after")
+            } else if (errorJson.has("error")) {
+                val errorObj = errorJson.getJSONObject("error")
+                errorObj.optInt("retry_after", 60)
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            null
         }
     }
     
@@ -407,7 +672,7 @@ class ApiService {
 }
 
 /**
- * Data class representing the enhanced API response.
+ * Data class representing the enhanced API response with error handling metadata.
  */
 data class ParseResult(
     val title: String?,
@@ -424,7 +689,22 @@ data class ParseResult(
     val processingTimeMs: Int = 0,
     val cacheHit: Boolean? = null,
     val warnings: List<String>? = null,
-    val needsConfirmation: Boolean = false
+    val needsConfirmation: Boolean = false,
+    // Error handling fields
+    val fallbackApplied: Boolean = false,
+    val fallbackReason: String? = null,
+    val originalText: String? = null,
+    val errorRecoveryInfo: ErrorRecoveryInfo? = null
+)
+
+/**
+ * Information about error recovery applied to the result
+ */
+data class ErrorRecoveryInfo(
+    val recoveryMethod: String,
+    val confidenceBeforeRecovery: Double,
+    val dataSourcesUsed: List<String>,
+    val userInterventionRequired: Boolean
 )
 
 /**
@@ -439,6 +719,32 @@ data class FieldResult(
 )
 
 /**
- * Exception for API-related errors.
+ * Enhanced exception for API-related errors with structured error information.
  */
-class ApiException(message: String) : Exception(message)
+class ApiException : Exception {
+    val apiError: ApiService.ApiError
+    
+    constructor(apiError: ApiService.ApiError) : super(apiError.userMessage) {
+        this.apiError = apiError
+    }
+    
+    constructor(message: String) : super(message) {
+        this.apiError = ApiService.ApiError(
+            type = ApiService.ErrorType.UNKNOWN_ERROR,
+            code = "LEGACY_ERROR",
+            message = message,
+            userMessage = message,
+            retryable = false
+        )
+    }
+    
+    /**
+     * Convenience properties for backward compatibility
+     */
+    val errorType: ApiService.ErrorType get() = apiError.type
+    val errorCode: String get() = apiError.code
+    val userMessage: String get() = apiError.userMessage
+    val isRetryable: Boolean get() = apiError.retryable
+    val suggestion: String? get() = apiError.suggestion
+    val retryAfterSeconds: Int? get() = apiError.retryAfterSeconds
+}

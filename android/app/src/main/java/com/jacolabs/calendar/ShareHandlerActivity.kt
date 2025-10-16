@@ -21,7 +21,7 @@ class ShareHandlerActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        apiService = ApiService()
+        apiService = ApiService(this)
         
         // Handle the shared text
         when (intent.action) {

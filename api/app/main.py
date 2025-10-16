@@ -1163,6 +1163,404 @@ async def api_status():
     }
 
 
+@app.get("/logs/errors")
+async def get_error_logs(
+    limit: int = 100,
+    level: str = "ERROR",
+    since: Optional[str] = None,
+    component: Optional[str] = None
+):
+    """
+    Get error logs from the system with filtering options.
+    
+    ## Query Parameters
+    - **limit**: Maximum number of log entries to return (default: 100, max: 1000)
+    - **level**: Log level filter (ERROR, WARNING, INFO, DEBUG) (default: ERROR)
+    - **since**: ISO 8601 datetime to filter logs from (optional)
+    - **component**: Filter by component name (api, parser, llm, cache) (optional)
+    
+    ## Response
+    Returns structured error logs with timestamps, levels, messages, and metadata.
+    """
+    try:
+        # Validate parameters
+        if limit > 1000:
+            limit = 1000
+        
+        valid_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+        if level.upper() not in valid_levels:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid log level. Must be one of: {', '.join(valid_levels)}"
+            )
+        
+        # Parse since parameter
+        since_datetime = None
+        if since:
+            try:
+                since_datetime = datetime.fromisoformat(since.replace('Z', '+00:00'))
+            except ValueError:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Invalid datetime format for 'since' parameter. Use ISO 8601 format."
+                )
+        
+        # Get logs from files
+        logs = await _get_error_logs_from_files(
+            limit=limit,
+            level=level.upper(),
+            since=since_datetime,
+            component=component
+        )
+        
+        return {
+            "success": True,
+            "logs": logs,
+            "total_count": len(logs),
+            "filters": {
+                "level": level.upper(),
+                "since": since,
+                "component": component,
+                "limit": limit
+            },
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error retrieving logs: {e}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve error logs")
+
+
+@app.get("/logs/summary")
+async def get_error_summary():
+    """
+    Get error log summary and statistics.
+    
+    Returns aggregated error statistics including:
+    - Error counts by level
+    - Recent error trends
+    - Top error types
+    - Component error breakdown
+    """
+    try:
+        summary = await _get_error_log_summary()
+        
+        return {
+            "success": True,
+            "summary": summary,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error generating log summary: {e}")
+        raise HTTPException(status_code=500, detail="Failed to generate error summary")
+
+
+@app.delete("/logs/errors")
+async def clear_error_logs(
+    older_than_days: int = 7,
+    level: Optional[str] = None
+):
+    """
+    Clear old error logs to manage disk space.
+    
+    ## Query Parameters
+    - **older_than_days**: Clear logs older than this many days (default: 7, min: 1)
+    - **level**: Only clear logs of this level (optional)
+    
+    ## Response
+    Returns count of cleared log entries and remaining log statistics.
+    """
+    try:
+        # Validate parameters
+        if older_than_days < 1:
+            raise HTTPException(
+                status_code=400,
+                detail="older_than_days must be at least 1"
+            )
+        
+        if level and level.upper() not in ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid log level"
+            )
+        
+        # Clear logs
+        cleared_count = await _clear_old_logs(
+            older_than_days=older_than_days,
+            level=level.upper() if level else None
+        )
+        
+        return {
+            "success": True,
+            "cleared_count": cleared_count,
+            "older_than_days": older_than_days,
+            "level_filter": level,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error clearing logs: {e}")
+        raise HTTPException(status_code=500, detail="Failed to clear error logs")
+
+
+async def _get_error_logs_from_files(
+    limit: int = 100,
+    level: str = "ERROR",
+    since: Optional[datetime] = None,
+    component: Optional[str] = None
+) -> List[Dict[str, Any]]:
+    """Read and parse error logs from log files."""
+    import re
+    from collections import defaultdict
+    
+    logs = []
+    log_files = [
+        "api/logs/calendar-api-errors.log",
+        "api/logs/calendar-api.log",
+        "logs/calendar-api-errors.log",
+        "logs/calendar-api.log"
+    ]
+    
+    # Log pattern to match typical Python logging format
+    log_pattern = re.compile(
+        r'(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3}) - (\w+) - (\w+) - (.+)'
+    )
+    
+    for log_file in log_files:
+        if not os.path.exists(log_file):
+            continue
+            
+        try:
+            with open(log_file, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+                
+            for line in lines:
+                line = line.strip()
+                if not line:
+                    continue
+                    
+                match = log_pattern.match(line)
+                if not match:
+                    continue
+                    
+                timestamp_str, log_level, logger_name, message = match.groups()
+                
+                # Filter by level
+                if log_level != level and level != "ALL":
+                    continue
+                
+                # Parse timestamp
+                try:
+                    log_timestamp = datetime.strptime(timestamp_str, "%Y-%m-%d %H:%M:%S,%f")
+                except ValueError:
+                    continue
+                
+                # Filter by since datetime
+                if since and log_timestamp < since:
+                    continue
+                
+                # Filter by component
+                if component and component.lower() not in logger_name.lower():
+                    continue
+                
+                log_entry = {
+                    "timestamp": log_timestamp.isoformat(),
+                    "level": log_level,
+                    "component": logger_name,
+                    "message": message,
+                    "source_file": log_file
+                }
+                
+                logs.append(log_entry)
+                
+        except Exception as e:
+            logger.warning(f"Error reading log file {log_file}: {e}")
+            continue
+    
+    # Sort by timestamp (newest first) and limit
+    logs.sort(key=lambda x: x["timestamp"], reverse=True)
+    return logs[:limit]
+
+
+async def _get_error_log_summary() -> Dict[str, Any]:
+    """Generate error log summary statistics."""
+    import re
+    from collections import defaultdict, Counter
+    from datetime import timedelta
+    
+    summary = {
+        "total_errors": 0,
+        "errors_by_level": defaultdict(int),
+        "errors_by_component": defaultdict(int),
+        "recent_errors_24h": 0,
+        "recent_errors_1h": 0,
+        "top_error_messages": [],
+        "error_trends": {
+            "last_24_hours": [],
+            "last_7_days": []
+        }
+    }
+    
+    now = datetime.utcnow()
+    last_24h = now - timedelta(hours=24)
+    last_1h = now - timedelta(hours=1)
+    last_7d = now - timedelta(days=7)
+    
+    # Get all error logs
+    all_logs = await _get_error_logs_from_files(limit=10000, level="ALL")
+    
+    error_messages = []
+    hourly_counts = defaultdict(int)
+    daily_counts = defaultdict(int)
+    
+    for log_entry in all_logs:
+        log_time = datetime.fromisoformat(log_entry["timestamp"])
+        level = log_entry["level"]
+        component = log_entry["component"]
+        message = log_entry["message"]
+        
+        # Count by level
+        summary["errors_by_level"][level] += 1
+        summary["total_errors"] += 1
+        
+        # Count by component
+        summary["errors_by_component"][component] += 1
+        
+        # Count recent errors
+        if log_time >= last_24h:
+            summary["recent_errors_24h"] += 1
+        if log_time >= last_1h:
+            summary["recent_errors_1h"] += 1
+        
+        # Collect error messages for top errors
+        if level in ["ERROR", "CRITICAL"]:
+            # Extract first part of error message for grouping
+            error_key = message.split(':')[0] if ':' in message else message[:100]
+            error_messages.append(error_key)
+        
+        # Count for trends (only last 7 days)
+        if log_time >= last_7d:
+            hour_key = log_time.strftime("%Y-%m-%d %H:00")
+            day_key = log_time.strftime("%Y-%m-%d")
+            hourly_counts[hour_key] += 1
+            daily_counts[day_key] += 1
+    
+    # Get top error messages
+    error_counter = Counter(error_messages)
+    summary["top_error_messages"] = [
+        {"message": msg, "count": count}
+        for msg, count in error_counter.most_common(10)
+    ]
+    
+    # Generate trend data
+    summary["error_trends"]["last_24_hours"] = [
+        {
+            "hour": hour,
+            "count": hourly_counts.get(hour, 0)
+        }
+        for hour in [
+            (now - timedelta(hours=i)).strftime("%Y-%m-%d %H:00")
+            for i in range(24, 0, -1)
+        ]
+    ]
+    
+    summary["error_trends"]["last_7_days"] = [
+        {
+            "date": day,
+            "count": daily_counts.get(day, 0)
+        }
+        for day in [
+            (now - timedelta(days=i)).strftime("%Y-%m-%d")
+            for i in range(7, 0, -1)
+        ]
+    ]
+    
+    return dict(summary)
+
+
+async def _clear_old_logs(older_than_days: int, level: Optional[str] = None) -> int:
+    """Clear old log entries from log files."""
+    import re
+    from datetime import timedelta
+    
+    cutoff_date = datetime.utcnow() - timedelta(days=older_than_days)
+    cleared_count = 0
+    
+    log_files = [
+        "api/logs/calendar-api-errors.log",
+        "api/logs/calendar-api.log",
+        "logs/calendar-api-errors.log", 
+        "logs/calendar-api.log"
+    ]
+    
+    log_pattern = re.compile(
+        r'(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3}) - (\w+) - (\w+) - (.+)'
+    )
+    
+    for log_file in log_files:
+        if not os.path.exists(log_file):
+            continue
+            
+        try:
+            # Read all lines
+            with open(log_file, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+            
+            # Filter lines to keep
+            kept_lines = []
+            
+            for line in lines:
+                line_stripped = line.strip()
+                if not line_stripped:
+                    kept_lines.append(line)
+                    continue
+                
+                match = log_pattern.match(line_stripped)
+                if not match:
+                    kept_lines.append(line)
+                    continue
+                
+                timestamp_str, log_level, logger_name, message = match.groups()
+                
+                # Parse timestamp
+                try:
+                    log_timestamp = datetime.strptime(timestamp_str, "%Y-%m-%d %H:%M:%S,%f")
+                except ValueError:
+                    kept_lines.append(line)
+                    continue
+                
+                # Check if we should keep this line
+                should_keep = True
+                
+                # Check age
+                if log_timestamp < cutoff_date:
+                    should_keep = False
+                
+                # Check level filter
+                if level and log_level == level:
+                    should_keep = False
+                
+                if should_keep:
+                    kept_lines.append(line)
+                else:
+                    cleared_count += 1
+            
+            # Write back the filtered lines
+            with open(log_file, 'w', encoding='utf-8') as f:
+                f.writelines(kept_lines)
+                
+        except Exception as e:
+            logger.warning(f"Error processing log file {log_file}: {e}")
+            continue
+    
+    return cleared_count
+
+
 if __name__ == "__main__":
     # Development server
     uvicorn.run(
