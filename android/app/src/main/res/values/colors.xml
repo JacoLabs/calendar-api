@@ -1,4 +1,25 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="ic_launcher_background">#3DDC84</color>
+    
+    <!-- Confidence indicator colors -->
+    <color name="confidence_high">#4CAF50</color>
+    <color name="confidence_medium">#FF9800</color>
+    <color name="confidence_low">#F44336</color>
+    
+    <!-- Status indicator colors -->
+    <color name="status_online">#4CAF50</color>
+    <color name="status_offline">#F44336</color>
+    <color name="status_reconnecting">#FF9800</color>
+    
+    <!-- Error handling colors -->
+    <color name="error_background">#FFEBEE</color>
+    <color name="warning_background">#FFF3E0</color>
+    <color name="success_background">#E8F5E8</color>
+    <color name="info_background">#E3F2FD</color>
+    
+    <!-- Progress indicator colors -->
+    <color name="progress_primary">#2196F3</color>
+    <color name="progress_secondary">#FF9800</color>
+    <color name="progress_background">#E0E0E0</color>
 </resources>

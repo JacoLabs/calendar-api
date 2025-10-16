@@ -239,6 +239,8 @@ class DataValidationDemo(private val context: Context) {
                 title = "Good Meeting",
                 startDateTime = "2024-12-15T14:00:00+00:00",
                 endDateTime = "2024-12-15T15:00:00+00:00",
+                location = "Conference Room",
+                description = "Good meeting description",
                 confidenceScore = 0.9,
                 allDay = false,
                 timezone = "UTC"
@@ -247,6 +249,8 @@ class DataValidationDemo(private val context: Context) {
                 title = "Uncertain Event",
                 startDateTime = "2024-12-15T14:00:00+00:00",
                 endDateTime = "2024-12-15T15:00:00+00:00",
+                location = null,
+                description = "Uncertain event description",
                 confidenceScore = 0.4,
                 allDay = false,
                 timezone = "UTC"
@@ -255,6 +259,8 @@ class DataValidationDemo(private val context: Context) {
                 title = null,
                 startDateTime = null,
                 endDateTime = null,
+                location = null,
+                description = null,
                 confidenceScore = 0.1,
                 allDay = false,
                 timezone = "UTC"

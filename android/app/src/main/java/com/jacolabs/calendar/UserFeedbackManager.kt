@@ -28,6 +28,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.Pair
 
 /**
  * UserFeedbackManager provides contextual user feedback and guidance for error handling scenarios.
@@ -193,7 +194,8 @@ class UserFeedbackManager(
             kotlinx.coroutines.delay(100)
         }
         
-        return@withContext userDecision
+        val finalDecision = userDecision
+        return@withContext finalDecision ?: false
     }
     
     /**
@@ -703,6 +705,7 @@ class UserFeedbackManager(
     /**
      * Composable function to render feedback dialogs
      */
+    @OptIn(ExperimentalMaterial3Api::class)
     @Composable
     fun FeedbackDialogRenderer() {
         val dialogState by currentDialogState
@@ -722,6 +725,7 @@ class UserFeedbackManager(
     /**
      * Individual feedback dialog composable
      */
+    @OptIn(ExperimentalMaterial3Api::class)
     @Composable
     private fun FeedbackDialog(
         message: FeedbackMessage,

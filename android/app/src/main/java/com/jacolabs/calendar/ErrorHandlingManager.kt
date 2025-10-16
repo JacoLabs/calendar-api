@@ -1,10 +1,12 @@
 package com.jacolabs.calendar
 
 import android.content.Context
+import android.content.Intent
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
 import kotlin.math.min
@@ -21,6 +23,11 @@ class ErrorHandlingManager(
     
     // Initialize the FallbackEventGenerator for intelligent event creation
     private val fallbackEventGenerator = FallbackEventGenerator(context)
+    
+    // Initialize comprehensive logging and diagnostics components
+    private val errorLoggingManager = ErrorLoggingManager(context, configManager.getConfig())
+    private val diagnosticReporter = DiagnosticReporter(context, errorLoggingManager)
+    private val failurePatternAnalyzer = FailurePatternAnalyzer(context, configManager.getConfig())
     
     companion object {
         private const val TAG = "ErrorHandlingManager"
@@ -131,7 +138,37 @@ class ErrorHandlingManager(
      */
     suspend fun handleError(errorContext: ErrorContext): ErrorHandlingResult = withContext(Dispatchers.Default) {
         
-        // Log error with privacy protection
+        val startTime = System.currentTimeMillis()
+        
+        // Comprehensive error logging (Requirement 7.1, 7.2, 7.3, 7.4)
+        val errorCode = errorLoggingManager.logError(
+            errorType = errorContext.errorType.name,
+            message = "Error handling initiated: ${errorContext.errorType}",
+            exception = errorContext.exception,
+            originalText = errorContext.originalText,
+            apiResponse = errorContext.apiResponse,
+            processingTimeMs = errorContext.processingTimeMs,
+            retryCount = errorContext.retryCount,
+            severity = mapErrorTypeToSeverity(errorContext.errorType)
+        )
+        
+        // Analyze failure patterns for learning (Requirement 9.1, 9.2)
+        if (errorContext.originalText.isNotBlank()) {
+            failurePatternAnalyzer.analyzeFailure(
+                originalText = errorContext.originalText,
+                errorType = errorContext.errorType.name,
+                errorSubtype = errorContext.exception?.javaClass?.simpleName,
+                confidence = errorContext.confidenceScore ?: 0.0,
+                processingTimeMs = errorContext.processingTimeMs,
+                contextFactors = listOf(
+                    "network_available:${errorContext.networkAvailable}",
+                    "retry_count:${errorContext.retryCount}",
+                    "user_interaction:${errorContext.userInteractionAllowed}"
+                )
+            )
+        }
+        
+        // Log error with privacy protection (legacy method for compatibility)
         logErrorWithContext(errorContext)
         
         // Categorize error if not already categorized
@@ -147,10 +184,19 @@ class ErrorHandlingManager(
         // Execute recovery strategy
         val result = executeRecoveryStrategy(recoveryStrategy, errorContext)
         
-        // Collect analytics data
-        collectErrorAnalytics(finalErrorType, errorContext, recoveryStrategy, result.success)
+        // Enhanced result with error code for support (Requirement 7.3)
+        val enhancedResult = result.copy(
+            analyticsData = result.analyticsData + mapOf(
+                "error_code" to errorCode,
+                "total_processing_time_ms" to (System.currentTimeMillis() - startTime),
+                "diagnostic_available" to true
+            )
+        )
         
-        result
+        // Collect analytics data (legacy method for compatibility)
+        collectErrorAnalytics(finalErrorType, errorContext, recoveryStrategy, enhancedResult.success)
+        
+        enhancedResult
     }
     
     /**
@@ -820,5 +866,159 @@ class ErrorHandlingManager(
         )
         
         return handleError(errorContext)
+    }
+    
+    /**
+     * Records a user correction for learning purposes
+     * Requirement 9.3: Note corrections for future reference
+     */
+    suspend fun recordUserCorrection(
+        originalText: String,
+        fieldCorrected: String,
+        originalValue: String?,
+        correctedValue: String,
+        originalConfidence: Double = 0.0,
+        processingTimeMs: Long = 0,
+        userInteractionTime: Long = 0
+    ) {
+        failurePatternAnalyzer.recordUserCorrection(
+            originalText = originalText,
+            fieldCorrected = fieldCorrected,
+            originalValue = originalValue,
+            correctedValue = correctedValue,
+            originalConfidence = originalConfidence,
+            processingTimeMs = processingTimeMs,
+            userInteractionTime = userInteractionTime
+        )
+        
+        // Also log the correction event
+        errorLoggingManager.logUserCorrection(
+            originalText = originalText,
+            correctedField = fieldCorrected,
+            originalValue = originalValue,
+            correctedValue = correctedValue
+        )
+    }
+    
+    /**
+     * Gets personalized improvement suggestions based on error patterns
+     * Requirement 9.2: Suggest text preprocessing improvements based on patterns
+     */
+    suspend fun getImprovementSuggestions(originalText: String? = null): List<String> {
+        return if (originalText != null) {
+            failurePatternAnalyzer.getPersonalizedSuggestions(originalText)
+                .map { "${it.title}: ${it.description}" }
+        } else {
+            diagnosticReporter.getPersonalizedImprovementSuggestions()
+        }
+    }
+    
+    /**
+     * Generates a user-friendly error report for support
+     * Requirement 7.3: Provide users with error codes for support purposes
+     */
+    suspend fun generateUserErrorReport(errorCode: String): DiagnosticReporter.UserErrorReport? {
+        return diagnosticReporter.generateUserErrorReport(errorCode)
+    }
+    
+    /**
+     * Creates a support email intent with diagnostic information
+     * Requirement 7.3: Facilitate support contact with error codes
+     */
+    fun createSupportEmailIntent(errorCode: String? = null): Intent {
+        return diagnosticReporter.createSupportEmailIntent(errorCode)
+    }
+    
+    /**
+     * Generates a comprehensive diagnostic report for troubleshooting
+     * Requirement 7.1, 7.2: Detailed error information and context
+     */
+    suspend fun generateDiagnosticReport(): DiagnosticReporter.ComprehensiveDiagnosticReport {
+        return diagnosticReporter.generateComprehensiveDiagnosticReport()
+    }
+    
+    /**
+     * Exports diagnostic data for sharing with support (privacy-compliant)
+     * Requirement 7.4: Respect user privacy in diagnostic reporting
+     */
+    suspend fun exportDiagnosticData(includePersonalData: Boolean = false): File? {
+        return diagnosticReporter.exportDiagnosticReport(includePersonalData)
+    }
+    
+    /**
+     * Gets a quick health check of the error handling system
+     */
+    suspend fun getSystemHealthCheck(): Map<String, String> {
+        return diagnosticReporter.generateQuickHealthCheck()
+    }
+    
+    /**
+     * Checks for known issues that might affect the user
+     */
+    suspend fun checkForKnownIssues(): List<String> {
+        return diagnosticReporter.checkForKnownIssues()
+    }
+    
+    /**
+     * Gets failure pattern statistics for monitoring
+     * Requirement 9.1: Analyze error patterns
+     */
+    suspend fun getPatternStatistics(): Map<String, Any> {
+        return failurePatternAnalyzer.getPatternStatistics()
+    }
+    
+    /**
+     * Analyzes preprocessing effectiveness for continuous improvement
+     * Requirement 9.2: Measure improvement effectiveness
+     */
+    suspend fun analyzePreprocessingEffectiveness(): Map<String, Double> {
+        return failurePatternAnalyzer.analyzePreprocessingEffectiveness()
+    }
+    
+    /**
+     * Clears all diagnostic and pattern analysis data (for privacy compliance)
+     * Requirement 7.4, 9.4: Privacy-compliant data management
+     */
+    suspend fun clearDiagnosticData() {
+        errorLoggingManager.clearDiagnosticData()
+        failurePatternAnalyzer.clearAnalysisData()
+    }
+    
+    /**
+     * Logs a critical error that requires immediate attention
+     * Requirement 7.3: Provide error codes for critical issues
+     */
+    suspend fun logCriticalError(message: String, exception: Exception): String {
+        return errorLoggingManager.logCriticalError(message, exception)
+    }
+    
+    /**
+     * Gets the error logging manager for direct access
+     */
+    fun getErrorLoggingManager(): ErrorLoggingManager = errorLoggingManager
+    
+    /**
+     * Gets the diagnostic reporter for direct access
+     */
+    fun getDiagnosticReporter(): DiagnosticReporter = diagnosticReporter
+    
+    /**
+     * Gets the failure pattern analyzer for direct access
+     */
+    fun getFailurePatternAnalyzer(): FailurePatternAnalyzer = failurePatternAnalyzer
+    
+    // Private helper methods for the enhanced logging system
+    
+    /**
+     * Maps error types to logging severity levels
+     */
+    private fun mapErrorTypeToSeverity(errorType: ErrorType): ErrorLoggingManager.LogSeverity {
+        return when (errorType) {
+            ErrorType.UNKNOWN_ERROR -> ErrorLoggingManager.LogSeverity.CRITICAL
+            ErrorType.PARSING_FAILURE, ErrorType.CALENDAR_LAUNCH_FAILURE -> ErrorLoggingManager.LogSeverity.ERROR
+            ErrorType.NETWORK_ERROR, ErrorType.API_TIMEOUT, ErrorType.VALIDATION_ERROR -> ErrorLoggingManager.LogSeverity.WARN
+            ErrorType.LOW_CONFIDENCE, ErrorType.INSUFFICIENT_DATA -> ErrorLoggingManager.LogSeverity.INFO
+            else -> ErrorLoggingManager.LogSeverity.WARN
+        }
     }
 }
