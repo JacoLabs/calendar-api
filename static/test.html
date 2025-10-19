@@ -359,41 +359,37 @@
             const resultDiv = document.getElementById('result');
             const errorDiv = document.getElementById('error');
             const parseBtn = document.getElementById('parseBtn');
-
+            
             if (!text) {
                 alert('Please enter an event description');
                 return;
             }
-
+            
             // Hide previous results
             resultDiv.style.display = 'none';
             errorDiv.style.display = 'none';
-
+            
             // Disable button
             parseBtn.disabled = true;
             parseBtn.textContent = 'Parsing...';
-
+            
             try {
-                // Get client timezone using Intl API
-                const clientTz = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
-
                 const response = await fetch(`${API_URL}/parse`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'X-Timezone': clientTz
                     },
                     body: JSON.stringify({
                         text: text,
                         now: new Date().toISOString(),
-                        client_tz: clientTz
+                        timezone_offset: -new Date().getTimezoneOffset()
                     })
                 });
-
+                
                 const data = await response.json();
-
+                
                 if (response.ok) {
-                    displayResult(data, clientTz);
+                    displayResult(data);
                 } else {
                     throw new Error(data.message || 'Parsing failed');
                 }
@@ -406,81 +402,54 @@
             }
         }
         
-        function displayResult(data, clientTz) {
+        function displayResult(data) {
             const resultDiv = document.getElementById('result');
             const contentDiv = document.getElementById('resultContent');
-
+            
             const confidence = data.confidence_score || 0;
             const confidencePercent = (confidence * 100).toFixed(0);
-
-            // Format dates nicely with timezone awareness
-            const formatLocalTime = (dateStr, clientTz) => {
+            
+            // Format dates nicely - preserve the timezone from API response
+            const formatDate = (dateStr) => {
                 if (!dateStr) return 'N/A';
-                // Parse the timezone-aware datetime string from API
                 const date = new Date(dateStr);
-                // Display in the SAME timezone as the data, not browser's timezone
-                return date.toLocaleString('en-US', {
-                    timeZone: clientTz,  // Force display in client timezone
+                // Use the user's local timezone for display (what they expect to see)
+                return date.toLocaleString('en-US', { 
                     weekday: 'short',
                     year: 'numeric',
                     month: 'short',
                     day: 'numeric',
                     hour: 'numeric',
                     minute: '2-digit',
-                    hour12: true,
-                    timeZoneName: 'short'
+                    hour12: true
                 });
             };
-
-            const formatUTC = (dateStr) => {
-                if (!dateStr) return 'N/A';
-                const date = new Date(dateStr);
-                return date.toISOString();
-            };
-
-            // Use start_local/end_local if available (from updated API), otherwise fallback to start_datetime/end_datetime
-            const startLocal = data.start_local || data.start_datetime;
-            const endLocal = data.end_local || data.end_datetime;
-            const startUTC = data.start_utc;
-            const endUTC = data.end_utc;
-
+            
             contentDiv.innerHTML = `
                 <div class="result-item">
                     <span class="result-label">Title</span>
                     <span class="result-value">${data.title || 'N/A'}</span>
                 </div>
-
+                
                 <div class="result-item">
-                    <span class="result-label">Start Time (Your Timezone)</span>
-                    <span class="result-value" id="startTimeDisplay">${formatLocalTime(startLocal, clientTz)}</span>
-                    <button onclick="toggleTimeZone('start')" style="margin-top: 8px; padding: 4px 12px; font-size: 0.9em; width: auto;">
-                        Show UTC
-                    </button>
-                    <div id="startUTC" style="display: none; margin-top: 8px; font-size: 0.9em; color: #666;">
-                        UTC: ${startUTC ? formatUTC(startUTC) : formatUTC(startLocal)}
-                    </div>
+                    <span class="result-label">Start Time</span>
+                    <span class="result-value">${formatDate(data.start_datetime)}</span>
                 </div>
-
-                ${endLocal ? `
+                
+                ${data.end_datetime ? `
                 <div class="result-item">
-                    <span class="result-label">End Time (Your Timezone)</span>
-                    <span class="result-value" id="endTimeDisplay">${formatLocalTime(endLocal, clientTz)}</span>
-                    <button onclick="toggleTimeZone('end')" style="margin-top: 8px; padding: 4px 12px; font-size: 0.9em; width: auto;">
-                        Show UTC
-                    </button>
-                    <div id="endUTC" style="display: none; margin-top: 8px; font-size: 0.9em; color: #666;">
-                        UTC: ${endUTC ? formatUTC(endUTC) : formatUTC(endLocal)}
-                    </div>
+                    <span class="result-label">End Time</span>
+                    <span class="result-value">${formatDate(data.end_datetime)}</span>
                 </div>
                 ` : ''}
-
+                
                 ${data.location ? `
                 <div class="result-item">
                     <span class="result-label">Location</span>
                     <span class="result-value">${data.location}</span>
                 </div>
                 ` : ''}
-
+                
                 <div class="result-item">
                     <div class="confidence-container">
                         <div class="confidence-header">
@@ -492,21 +461,21 @@
                         </div>
                     </div>
                 </div>
-
+                
                 <div class="result-item">
                     <span class="result-label">Parsing Method</span>
                     <span class="result-value">${data.parsing_path || 'unknown'}</span>
                 </div>
-
+                
                 <div class="result-item" style="background: #f0f8ff; border-left: 3px solid #007acc;">
-                    <span class="result-label">🌍 Timezone Info</span>
+                    <span class="result-label">🔍 Raw API Response</span>
                     <span class="result-value" style="font-size: 0.9em;">
-                        Your Timezone: ${clientTz}<br>
-                        API Timezone: ${data.timezone || data.client_tz || 'N/A'}<br>
-                        Offset: ${-new Date().getTimezoneOffset()} minutes from UTC
+                        Start: ${data.start_datetime}<br>
+                        Timezone: ${data.timezone || 'N/A'}<br>
+                        Your timezone offset: ${-new Date().getTimezoneOffset()} minutes
                     </span>
                 </div>
-
+                
                 ${data.warnings && data.warnings.length > 0 ? `
                 <div class="result-item" style="background: #fff3cd; border-left: 3px solid #ffc107;">
                     <span class="result-label">⚠️ Warnings</span>
@@ -514,22 +483,9 @@
                 </div>
                 ` : ''}
             `;
-
+            
             resultDiv.style.display = 'block';
             resultDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        }
-
-        function toggleTimeZone(type) {
-            const utcDiv = document.getElementById(`${type}UTC`);
-            const button = event.target;
-
-            if (utcDiv.style.display === 'none') {
-                utcDiv.style.display = 'block';
-                button.textContent = 'Hide UTC';
-            } else {
-                utcDiv.style.display = 'none';
-                button.textContent = 'Show UTC';
-            }
         }
         
         // Check health on load
