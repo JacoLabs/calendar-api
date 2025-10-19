@@ -49,7 +49,7 @@ class ProductionDashboard:
     - System health
     """
     
-    def __init__(self, api_base_url: str = "http://localhost:8000"):
+    def __init__(self, api_base_url: str = "https://calendar-api-wrxz.onrender.com"):
         """Initialize the dashboard."""
         self.api_base_url = api_base_url.rstrip('/')
         
@@ -83,7 +83,7 @@ class ProductionDashboard:
                 health_data = {}
                 try:
                     async with session.get(
-                        f"{self.api_base_url}/healthz",
+                        f"{self.api_base_url}/health",
                         timeout=aiohttp.ClientTimeout(total=10)
                     ) as response:
                         if response.status == 200:
