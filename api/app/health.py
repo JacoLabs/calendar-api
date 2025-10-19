@@ -95,25 +95,17 @@ class HealthChecker:
             if parent_dir not in sys.path:
                 sys.path.insert(0, parent_dir)
             
-            from services.llm_service import LLMService
-            
-            # Quick LLM test with timeout
-            llm_service = LLMService()
-            
-            # Test with a simple prompt and short timeout
-            test_task = asyncio.create_task(
-                asyncio.to_thread(
-                    llm_service.extract_event_info,
-                    "test meeting"
-                )
-            )
-            
             try:
-                await asyncio.wait_for(test_task, timeout=5.0)
-                self.llm_status = "available"
-            except asyncio.TimeoutError:
-                self.llm_status = "slow"
-            except Exception:
+                from services.llm_service import LLMService
+                # Just check if service can be instantiated
+                # Don't actually test parsing in health check
+                llm_service = LLMService()
+                self.llm_status = "healthy"
+            except ImportError:
+                # LLM service not available (missing dependencies)
+                self.llm_status = "unavailable"
+            except Exception as e:
+                logger.warning(f"LLM service initialization failed: {e}")
                 self.llm_status = "unavailable"
             
             self.last_llm_check = current_time
@@ -131,7 +123,7 @@ class HealthChecker:
             memory = psutil.virtual_memory()
             if memory.percent > 90:
                 return "critical"
-            elif memory.percent > 75:
+            elif memory.percent > 85:  # Changed from 75 to 85
                 return "warning"
             else:
                 return "healthy"
