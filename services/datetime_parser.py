@@ -1,4 +1,23 @@
 """
+⚠️  LEGACY CODE - DEPRECATION WARNING ⚠️
+
+This DateTimeParser is LEGACY and has known limitations:
+- Does NOT support "noon" (will fail to parse or return incorrect time)
+- Does NOT support "midnight" properly
+- Less comprehensive than regex_date_extractor.py
+
+🔴 DO NOT USE FOR NEW CODE 🔴
+
+Use instead:
+  - regex_date_extractor.py for datetime parsing
+  - hybrid_event_parser.py for full event parsing
+
+This file is kept only for backward compatibility with EventParser.parse_text()
+which is itself deprecated in favor of EventParser.parse_event_text().
+
+Last known bug: October 19, 2025 - "noon" parsed as midnight (00:00)
+Fixed by switching to hybrid parser in parse_text_enhanced()
+
 DateTime extraction service for parsing dates and times from natural language text.
 Supports various date formats, time representations, and relative date parsing.
 """
