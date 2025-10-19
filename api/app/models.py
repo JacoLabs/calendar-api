@@ -45,33 +45,38 @@ class APIError(BaseModel):
 class ParseRequest(BaseModel):
     """Request model for text parsing."""
     text: str = Field(
-        ..., 
-        description="Natural language text to parse", 
-        min_length=1, 
+        ...,
+        description="Natural language text to parse",
+        min_length=1,
         max_length=10000,
         example="Meeting with John tomorrow at 2pm in Conference Room A"
     )
     clipboard_text: Optional[str] = Field(
-        default=None, 
-        description="Optional clipboard content for smart merging", 
+        default=None,
+        description="Optional clipboard content for smart merging",
         max_length=10000
     )
+    client_tz: Optional[str] = Field(
+        default=None,
+        description="Client timezone (IANA format, e.g., 'America/New_York'). Takes precedence over timezone field.",
+        example="America/New_York"
+    )
     timezone: Optional[str] = Field(
-        default="UTC", 
-        description="Timezone for date interpretation (e.g., 'America/New_York')",
+        default="UTC",
+        description="Timezone for date interpretation (e.g., 'America/New_York'). Deprecated in favor of client_tz.",
         example="America/New_York"
     )
     locale: Optional[str] = Field(
-        default="en_US", 
+        default="en_US",
         description="Locale for date format preferences (e.g., 'en_US', 'en_GB')",
         example="en_US"
     )
     now: Optional[datetime] = Field(
-        default=None, 
+        default=None,
         description="Current datetime for relative date parsing (ISO 8601)"
     )
     use_llm_enhancement: Optional[bool] = Field(
-        default=True, 
+        default=True,
         description="Whether to use LLM enhancement for better parsing"
     )
 
@@ -83,13 +88,35 @@ class ParseResponse(BaseModel):
         description="Extracted event title",
         example="Meeting with John"
     )
+    # Legacy fields (deprecated but maintained for backward compatibility)
     start_datetime: Optional[str] = Field(
-        description="Start datetime in ISO 8601 format with timezone",
+        description="Start datetime in ISO 8601 format with timezone (deprecated, use start_local)",
         example="2024-01-16T14:00:00-05:00"
     )
     end_datetime: Optional[str] = Field(
-        description="End datetime in ISO 8601 format with timezone",
+        description="End datetime in ISO 8601 format with timezone (deprecated, use end_local)",
         example="2024-01-16T15:00:00-05:00"
+    )
+    # New timezone-aware fields
+    start_local: Optional[str] = Field(
+        default=None,
+        description="Start datetime in client timezone (ISO 8601 with offset)",
+        example="2024-01-16T14:00:00-05:00"
+    )
+    end_local: Optional[str] = Field(
+        default=None,
+        description="End datetime in client timezone (ISO 8601 with offset)",
+        example="2024-01-16T15:00:00-05:00"
+    )
+    start_utc: Optional[str] = Field(
+        default=None,
+        description="Start datetime in UTC (ISO 8601 with Z suffix)",
+        example="2024-01-16T19:00:00Z"
+    )
+    end_utc: Optional[str] = Field(
+        default=None,
+        description="End datetime in UTC (ISO 8601 with Z suffix)",
+        example="2024-01-16T20:00:00Z"
     )
     location: Optional[str] = Field(
         description="Extracted location",
@@ -105,11 +132,16 @@ class ParseResponse(BaseModel):
         example=0.85
     )
     all_day: bool = Field(
-        default=False, 
+        default=False,
         description="Whether this is an all-day event"
     )
     timezone: str = Field(
         description="Timezone used for parsing",
+        example="America/New_York"
+    )
+    client_tz: Optional[str] = Field(
+        default=None,
+        description="Client timezone (same as timezone, for clarity)",
         example="America/New_York"
     )
     parsing_metadata: Optional[Dict[str, Any]] = Field(
