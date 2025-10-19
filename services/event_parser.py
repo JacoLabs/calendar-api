@@ -62,9 +62,9 @@ class EventParser:
         # Step 1: Enhance text using LLM and smart merging
         merge_result = self.text_merge_helper.enhance_text_for_parsing(text, clipboard_text)
         enhanced_text = merge_result.final_text
-        
-        # Step 2: Parse the enhanced text using existing logic
-        parsed_event = self.parse_text(enhanced_text, **kwargs)
+
+        # Step 2: Parse the enhanced text using hybrid parsing (uses RegexDateExtractor which handles "noon" correctly)
+        parsed_event = self.parse_event_text(enhanced_text, **kwargs)
         
         # Step 3: Apply safer defaults if needed
         parsed_event = self.text_merge_helper.apply_safer_defaults(parsed_event, enhanced_text)
