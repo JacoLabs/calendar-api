@@ -1,0 +1,14 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 💬 General Discussion
+    url: https://github.com/[YOUR_USERNAME]/[YOUR_REPO]/discussions
+    about: Ask questions, share ideas, or discuss the project
+  - name: 📚 Documentation
+    url: https://github.com/[YOUR_USERNAME]/[YOUR_REPO]/blob/main/BETA_TESTING_GUIDE.md
+    about: Read the beta testing guide and documentation
+  - name: 🚀 Quick Start
+    url: https://calendar-api-wrxz.onrender.com/static/test.html
+    about: Try the web interface for quick testing
+  - name: 📖 API Documentation
+    url: https://calendar-api-wrxz.onrender.com/docs
+    about: Interactive API documentation
