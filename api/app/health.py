@@ -97,15 +97,38 @@ class HealthChecker:
             
             try:
                 from services.llm_service import LLMService
-                # Just check if service can be instantiated
-                # Don't actually test parsing in health check
+                
+                # Initialize LLM service (it will auto-detect provider)
                 llm_service = LLMService()
-                self.llm_status = "healthy"
+                
+                # Check what provider was selected
+                provider = llm_service.provider
+                
+                if provider == "openai":
+                    # OpenAI is available and configured
+                    if llm_service.openai_client:
+                        self.llm_status = "healthy"
+                    else:
+                        self.llm_status = "unavailable"
+                elif provider == "ollama":
+                    # Ollama is available
+                    if llm_service.ollama_available:
+                        self.llm_status = "healthy"
+                    else:
+                        self.llm_status = "unavailable"
+                elif provider == "groq":
+                    # Groq is available
+                    self.llm_status = "healthy"
+                elif provider == "heuristic":
+                    # No LLM provider available, using heuristic fallback
+                    self.llm_status = "unavailable"
+                else:
+                    self.llm_status = "unknown"
+                
             except ImportError:
-                # LLM service not available (missing dependencies)
                 self.llm_status = "unavailable"
             except Exception as e:
-                logger.warning(f"LLM service initialization failed: {e}")
+                logger.warning(f"LLM service check failed: {e}")
                 self.llm_status = "unavailable"
             
             self.last_llm_check = current_time
@@ -160,12 +183,24 @@ class HealthChecker:
             if services.get(service) == "unhealthy":
                 return "unhealthy"
         
-        # Check for degraded services
-        degraded_count = sum(1 for status in services.values() 
-                           if status in ["degraded", "warning", "slow"])
+        # Check for degraded services (but LLM unavailable is OK - uses heuristic fallback)
+        degraded_count = sum(
+            1 for service, status in services.items() 
+            if status in ["degraded", "slow"] and service != "llm"
+        )
+        
+        # Disk/memory warnings are informational, not degraded
+        warning_count = sum(
+            1 for service, status in services.items()
+            if status == "warning" and service in ["disk", "memory"]
+        )
         
         if degraded_count > 0:
             return "degraded"
+        
+        # Warnings are reported but don't make status degraded
+        if warning_count > 0:
+            return "healthy"  # Still healthy, just with warnings
         
         # Check for unknown services
         unknown_count = sum(1 for status in services.values() 
