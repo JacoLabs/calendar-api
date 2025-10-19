@@ -414,11 +414,13 @@
             const confidencePercent = (confidence * 100).toFixed(0);
 
             // Format dates nicely with timezone awareness
-            const formatLocalTime = (dateStr) => {
+            const formatLocalTime = (dateStr, clientTz) => {
                 if (!dateStr) return 'N/A';
                 // Parse the timezone-aware datetime string from API
                 const date = new Date(dateStr);
+                // Display in the SAME timezone as the data, not browser's timezone
                 return date.toLocaleString('en-US', {
+                    timeZone: clientTz,  // Force display in client timezone
                     weekday: 'short',
                     year: 'numeric',
                     month: 'short',
@@ -450,7 +452,7 @@
 
                 <div class="result-item">
                     <span class="result-label">Start Time (Your Timezone)</span>
-                    <span class="result-value" id="startTimeDisplay">${formatLocalTime(startLocal)}</span>
+                    <span class="result-value" id="startTimeDisplay">${formatLocalTime(startLocal, clientTz)}</span>
                     <button onclick="toggleTimeZone('start')" style="margin-top: 8px; padding: 4px 12px; font-size: 0.9em; width: auto;">
                         Show UTC
                     </button>
@@ -462,7 +464,7 @@
                 ${endLocal ? `
                 <div class="result-item">
                     <span class="result-label">End Time (Your Timezone)</span>
-                    <span class="result-value" id="endTimeDisplay">${formatLocalTime(endLocal)}</span>
+                    <span class="result-value" id="endTimeDisplay">${formatLocalTime(endLocal, clientTz)}</span>
                     <button onclick="toggleTimeZone('end')" style="margin-top: 8px; padding: 4px 12px; font-size: 0.9em; width: auto;">
                         Show UTC
                     </button>
