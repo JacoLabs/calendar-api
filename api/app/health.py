@@ -183,32 +183,18 @@ class HealthChecker:
             if services.get(service) == "unhealthy":
                 return "unhealthy"
         
-        # Check for degraded services (but LLM unavailable is OK - uses heuristic fallback)
+        # Count actual degraded services (excluding warnings and LLM unavailable)
+        degraded_statuses = ["degraded", "slow", "critical"]
         degraded_count = sum(
             1 for service, status in services.items() 
-            if status in ["degraded", "slow"] and service != "llm"
-        )
-        
-        # Disk/memory warnings are informational, not degraded
-        warning_count = sum(
-            1 for service, status in services.items()
-            if status == "warning" and service in ["disk", "memory"]
+            if status in degraded_statuses and service != "llm"
         )
         
         if degraded_count > 0:
             return "degraded"
         
-        # Warnings are reported but don't make status degraded
-        if warning_count > 0:
-            return "healthy"  # Still healthy, just with warnings
-        
-        # Check for unknown services
-        unknown_count = sum(1 for status in services.values() 
-                          if status == "unknown")
-        
-        if unknown_count > len(services) // 2:
-            return "unknown"
-        
+        # If we get here, all critical services are healthy
+        # Warnings (disk, memory) and LLM unavailable are acceptable
         return "healthy"
 
 
