@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 """
-Detailed analysis of the degraded status in Calendar API.
+Detailed analysis of the health status in Calendar API.
 """
 
 import requests
 import json
 from datetime import datetime
 
-def analyze_degraded_status():
-    """Analyze the specific causes of degraded status."""
+def analyze_status():
+    """Analyze the current health status."""
     
-    print("🔍 DEGRADED STATUS ANALYSIS")
+    print("🔍 HEALTH STATUS ANALYSIS")
     print("=" * 60)
     
     # Get current health status
@@ -20,7 +20,9 @@ def analyze_degraded_status():
             health_data = response.json()
             
             print("📊 Current Health Status:")
-            print(f"   Overall Status: {health_data.get('status', 'unknown').upper()}")
+            overall_status = health_data.get('status', 'unknown').upper()
+            status_emoji = "🟢" if overall_status == "HEALTHY" else "🟡" if overall_status == "DEGRADED" else "🔴"
+            print(f"   Overall Status: {status_emoji} {overall_status}")
             print(f"   Uptime: {health_data.get('uptime_seconds', 0):.0f} seconds")
             print()
             
@@ -28,16 +30,24 @@ def analyze_degraded_status():
             services = health_data.get('services', {})
             print("🔧 Service Analysis:")
             
+            issues_found = []
+            warnings_found = []
+            
             for service, status in services.items():
                 emoji = "🟢" if status == "healthy" else "🟡" if status == "warning" else "🔴"
                 print(f"   {service}: {emoji} {status}")
                 
-                # Detailed analysis for each problematic service
-                if service == "llm" and status == "unavailable":
-                    print("      ❌ ISSUE: LLMService missing 'extract_event_info' method")
-                    print("      📝 CAUSE: Health check calls llm_service.extract_event_info() but method doesn't exist")
-                    print("      🔧 FIX: The LLMService has 'extract_event' method, not 'extract_event_info'")
-                    print("      💡 IMPACT: LLM functionality works fine, just health check fails")
+                # Detailed analysis for each service
+                if service == "llm":
+                    if status == "healthy":
+                        print("      ✅ WORKING: LLM service (OpenAI) is functioning correctly")
+                    elif status == "unavailable":
+                        print("      ℹ️  INFO: LLM unavailable - using heuristic fallback")
+                        print("      💡 IMPACT: None - parser uses regex and deterministic methods first")
+                        warnings_found.append("LLM unavailable (non-critical - fallback working)")
+                    elif status == "slow":
+                        print("      ⚠️  ISSUE: LLM responding slowly")
+                        issues_found.append("LLM performance")
                     print()
                 
                 elif service == "disk" and status == "warning":
@@ -45,14 +55,19 @@ def analyze_degraded_status():
                     print("      📝 CAUSE: Render container disk space is limited")
                     print("      🔧 FIX: Monitor disk usage, clear logs/cache if needed")
                     print("      💡 IMPACT: May affect performance if disk fills up")
+                    warnings_found.append("Disk usage >80%")
                     print()
                 
                 elif service == "parser" and status == "healthy":
                     print("      ✅ WORKING: Parser service is functioning correctly")
                     print()
                 
-                elif service == "memory" and status == "healthy":
-                    print("      ✅ WORKING: Memory usage is within normal limits")
+                elif service == "memory":
+                    if status == "healthy":
+                        print("      ✅ WORKING: Memory usage is within normal limits")
+                    elif status == "warning":
+                        print("      ⚠️  ISSUE: Memory usage above 85% threshold")
+                        warnings_found.append("Memory usage >85%")
                     print()
             
             print()
@@ -86,9 +101,11 @@ def analyze_degraded_status():
             print(f"   ⏱️  Response Time: {test_response.elapsed.total_seconds() * 1000:.0f}ms")
         else:
             print(f"   ❌ Parse test failed: HTTP {test_response.status_code}")
+            issues_found.append("Parse endpoint failing")
     
     except Exception as e:
         print(f"   ❌ Parse test error: {e}")
+        issues_found.append(f"Parse endpoint error: {e}")
     
     print()
     
@@ -99,49 +116,73 @@ def analyze_degraded_status():
         if cache_response.status_code == 200:
             cache_data = cache_response.json()
             if cache_data.get('status') == 'error':
-                print("   ❌ ISSUE: Cache statistics method missing")
-                print("   📝 CAUSE: CacheManager missing 'get_statistics' method")
-                print("   🔧 FIX: CacheManager has 'get_stats' method, not 'get_statistics'")
-                print("   💡 IMPACT: Cache works fine, just statistics endpoint fails")
+                print("   ❌ Cache statistics endpoint error")
+                issues_found.append("Cache stats endpoint")
             else:
                 print("   ✅ Cache statistics working")
+                if 'hit_ratio' in cache_data:
+                    print(f"   📊 Hit Ratio: {cache_data['hit_ratio'] * 100:.1f}%")
+                if 'entries_count' in cache_data:
+                    print(f"   📝 Entries: {cache_data['entries_count']}")
         else:
             print(f"   ❌ Cache stats failed: HTTP {cache_response.status_code}")
+            issues_found.append("Cache stats endpoint")
     
     except Exception as e:
         print(f"   ❌ Cache stats error: {e}")
+        issues_found.append(f"Cache stats error: {e}")
     
     print()
     
-    # Summary and recommendations
+    # Summary
     print("📋 SUMMARY:")
-    print("   🎯 CORE FUNCTIONALITY: 100% Working")
-    print("   📊 USER IMPACT: None - all features work perfectly")
-    print("   🚨 STATUS REASON: Health check method name mismatches")
+    if overall_status == "HEALTHY":
+        print("   🎯 SYSTEM STATUS: ✅ HEALTHY")
+        print("   📊 USER IMPACT: None - all features work perfectly")
+        print("   🚀 PRODUCTION READY: Yes")
+    elif overall_status == "DEGRADED":
+        print("   🎯 SYSTEM STATUS: ⚠️ DEGRADED")
+        print("   📊 USER IMPACT: Minimal - core functionality works")
+        print("   🔧 ACTION NEEDED: Review issues below")
+    else:
+        print("   🎯 SYSTEM STATUS: ❌ UNHEALTHY")
+        print("   📊 USER IMPACT: High - service may not be functioning")
+        print("   🚨 ACTION NEEDED: Immediate attention required")
+    
     print()
     
-    print("🔧 SPECIFIC FIXES NEEDED:")
-    print("   1. In api/app/health.py line 106:")
-    print("      Change: llm_service.extract_event_info")
-    print("      To:     llm_service.extract_event")
-    print()
-    print("   2. In api/app/main.py line 618:")
-    print("      Change: get_cache_manager().get_statistics()")
-    print("      To:     get_cache_manager().get_stats().to_dict()")
-    print()
+    # Issues and recommendations
+    if issues_found:
+        print("🔧 ISSUES FOUND:")
+        for issue in issues_found:
+            print(f"   • {issue}")
+        print()
     
-    print("💡 WHY IT'S DEGRADED (Not Critical):")
-    print("   • Health checks fail due to method name mismatches")
-    print("   • Disk usage is at warning level (80%+)")
-    print("   • These don't affect actual API functionality")
-    print("   • Users can parse events with high confidence")
-    print("   • All core features work perfectly")
-    print()
+    if warnings_found:
+        print("⚠️  WARNINGS (Non-Critical):")
+        for warning in warnings_found:
+            print(f"   • {warning}")
+        print()
     
+    if not issues_found and not warnings_found:
+        print("✨ NO ISSUES FOUND")
+        print("   Everything is working as expected!")
+        print()
+    
+    # Priority assessment
     print("🎯 PRIORITY ASSESSMENT:")
-    print("   🟢 LOW PRIORITY: API works perfectly for users")
-    print("   🟡 MEDIUM PRIORITY: Fix health checks for monitoring")
-    print("   🔴 HIGH PRIORITY: Monitor disk usage to prevent issues")
+    if overall_status == "HEALTHY" and not issues_found:
+        print("   🟢 STATUS: Excellent - no action needed")
+        print("   💡 RECOMMENDATION: Monitor disk usage periodically")
+    elif overall_status == "HEALTHY" and warnings_found:
+        print("   🟡 STATUS: Good with minor warnings")
+        print("   💡 RECOMMENDATION: Address warnings when convenient")
+    elif overall_status == "DEGRADED":
+        print("   🟡 STATUS: Degraded but functional")
+        print("   💡 RECOMMENDATION: Investigate and fix issues")
+    else:
+        print("   🔴 STATUS: Critical attention needed")
+        print("   💡 RECOMMENDATION: Immediate action required")
 
 if __name__ == "__main__":
-    analyze_degraded_status()
+    analyze_status()

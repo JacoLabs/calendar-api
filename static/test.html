@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calendar API Tester</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+        
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 1.1em;
+        }
+        
+        .status {
+            padding: 15px 20px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-weight: 500;
+        }
+        
+        .status.healthy {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .status.checking {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .input-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 600;
+            font-size: 0.95em;
+        }
+        
+        input, textarea {
+            width: 100%;
+            padding: 14px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 16px;
+            font-family: inherit;
+            transition: all 0.3s;
+        }
+        
+        input:focus, textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        textarea {
+            resize: vertical;
+            min-height: 120px;
+            line-height: 1.5;
+        }
+        
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 16px 32px;
+            font-size: 16px;
+            font-weight: 600;
+            border-radius: 10px;
+            cursor: pointer;
+            width: 100%;
+            transition: all 0.3s;
+            margin-top: 10px;
+        }
+        
+        button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
+        }
+        
+        button:active:not(:disabled) {
+            transform: translateY(0);
+        }
+        
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        
+        .result {
+            margin-top: 30px;
+            padding: 25px;
+            background: #f8f9fa;
+            border-radius: 12px;
+            border-left: 5px solid #667eea;
+        }
+        
+        .result h3 {
+            margin-bottom: 20px;
+            color: #333;
+            font-size: 1.3em;
+        }
+        
+        .result-item {
+            padding: 14px;
+            margin-bottom: 12px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        
+        .result-label {
+            font-weight: 600;
+            color: #666;
+            font-size: 0.9em;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 6px;
+            display: block;
+        }
+        
+        .result-value {
+            color: #333;
+            font-family: 'SF Mono', 'Monaco', 'Courier New', monospace;
+            font-size: 1.05em;
+        }
+        
+        .confidence-container {
+            width: 100%;
+        }
+        
+        .confidence-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        
+        .confidence-bar {
+            height: 10px;
+            background: #e9ecef;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+        
+        .confidence-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            transition: width 0.5s ease;
+            border-radius: 5px;
+        }
+        
+        .examples {
+            margin-top: 35px;
+            padding: 25px;
+            background: #f8f9fa;
+            border-radius: 12px;
+        }
+        
+        .examples h3 {
+            margin-bottom: 18px;
+            color: #333;
+            font-size: 1.2em;
+        }
+        
+        .example-chip {
+            display: inline-block;
+            padding: 10px 18px;
+            margin: 6px;
+            background: white;
+            border-radius: 25px;
+            cursor: pointer;
+            border: 2px solid #e0e0e0;
+            transition: all 0.2s;
+            font-size: 14px;
+        }
+        
+        .example-chip:hover {
+            border-color: #667eea;
+            background: #f0f4ff;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+        }
+        
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 16px 20px;
+            border-radius: 10px;
+            margin-top: 20px;
+            border: 1px solid #f5c6cb;
+            font-weight: 500;
+        }
+        
+        .footer {
+            margin-top: 35px;
+            padding-top: 25px;
+            border-top: 2px solid #e9ecef;
+            text-align: center;
+            color: #666;
+            font-size: 0.9em;
+        }
+        
+        .footer a {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 600;
+        }
+        
+        .footer a:hover {
+            text-decoration: underline;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .result, .error {
+            animation: fadeIn 0.3s ease;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🗓️ Calendar API Tester</h1>
+        <p class="subtitle">Test natural language calendar event parsing</p>
+        
+        <div id="status" class="status checking">
+            <span>🔍</span>
+            <span>Checking API status...</span>
+        </div>
+        
+        <div class="input-group">
+            <label for="eventText">Enter Event Description</label>
+            <textarea 
+                id="eventText" 
+                placeholder="Try: 'Team meeting tomorrow at 2pm in Conference Room A'&#10;Or: 'Lunch with Sarah next Friday at noon'&#10;Or: 'Doctor appointment October 25th at 3pm'"
+            ></textarea>
+            <small style="color: #666; display: block; margin-top: 8px;">
+                💡 Tip: Press Ctrl+Enter to parse
+            </small>
+        </div>
+        
+        <button id="parseBtn" onclick="parseEvent()">Parse Event</button>
+        
+        <div id="result" style="display: none;" class="result">
+            <h3>📋 Parsed Result</h3>
+            <div id="resultContent"></div>
+        </div>
+        
+        <div id="error" style="display: none;" class="error"></div>
+        
+        <div class="examples">
+            <h3>💡 Try These Examples</h3>
+            <div class="example-chip" onclick="useExample('Team standup tomorrow at 9am')">
+                Team standup tomorrow at 9am
+            </div>
+            <div class="example-chip" onclick="useExample('Lunch with Sarah next Friday at noon')">
+                Lunch with Sarah next Friday at noon
+            </div>
+            <div class="example-chip" onclick="useExample('Doctor appointment October 25th at 3pm')">
+                Doctor appointment October 25th at 3pm
+            </div>
+            <div class="example-chip" onclick="useExample('Meeting in Conference Room A for 2 hours')">
+                Meeting in Conference Room A for 2 hours
+            </div>
+            <div class="example-chip" onclick="useExample('Quarterly planning meeting Monday 10am to discuss Q4 goals')">
+                Quarterly planning Monday 10am
+            </div>
+            <div class="example-chip" onclick="useExample('Call mom tonight at 7pm')">
+                Call mom tonight at 7pm
+            </div>
+        </div>
+        
+        <div class="footer">
+            <p>
+                Found a bug? <a href="https://github.com/JacoLabs/calendar-api/issues" target="_blank">Report it on GitHub</a>
+                <br>
+                <a href="https://github.com/JacoLabs/calendar-api/blob/main/TESTING.md" target="_blank">Full Testing Guide</a> | 
+                <a href="https://github.com/JacoLabs/calendar-api/blob/main/QUICKSTART.md" target="_blank">Quick Start</a>
+            </p>
+        </div>
+    </div>
+    
+    <script>
+        const API_URL = 'https://calendar-api-wrxz.onrender.com';
+        
+        // Check API health on load
+        async function checkHealth() {
+            try {
+                const response = await fetch(`${API_URL}/health`);
+                const data = await response.json();
+                const statusDiv = document.getElementById('status');
+                
+                if (data.status === 'healthy') {
+                    statusDiv.className = 'status healthy';
+                    statusDiv.innerHTML = '<span>✅</span><span>API is healthy and ready</span>';
+                } else {
+                    statusDiv.className = 'status checking';
+                    statusDiv.innerHTML = '<span>⚠️</span><span>API is responding but degraded</span>';
+                }
+            } catch (error) {
+                const statusDiv = document.getElementById('status');
+                statusDiv.className = 'status error';
+                statusDiv.innerHTML = '<span>❌</span><span>API is not responding - Please try again later</span>';
+            }
+        }
+        
+        function useExample(text) {
+            document.getElementById('eventText').value = text;
+            document.getElementById('eventText').focus();
+        }
+        
+        async function parseEvent() {
+            const text = document.getElementById('eventText').value.trim();
+            const resultDiv = document.getElementById('result');
+            const errorDiv = document.getElementById('error');
+            const parseBtn = document.getElementById('parseBtn');
+            
+            if (!text) {
+                alert('Please enter an event description');
+                return;
+            }
+            
+            // Hide previous results
+            resultDiv.style.display = 'none';
+            errorDiv.style.display = 'none';
+            
+            // Disable button
+            parseBtn.disabled = true;
+            parseBtn.textContent = 'Parsing...';
+            
+            try {
+                const response = await fetch(`${API_URL}/parse`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        text: text,
+                        now: new Date().toISOString(),
+                        timezone_offset: new Date().getTimezoneOffset()
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    displayResult(data);
+                } else {
+                    throw new Error(data.message || 'Parsing failed');
+                }
+            } catch (error) {
+                errorDiv.textContent = `❌ Error: ${error.message}`;
+                errorDiv.style.display = 'block';
+            } finally {
+                parseBtn.disabled = false;
+                parseBtn.textContent = 'Parse Event';
+            }
+        }
+        
+        function displayResult(data) {
+            const resultDiv = document.getElementById('result');
+            const contentDiv = document.getElementById('resultContent');
+            
+            const confidence = data.confidence_score || 0;
+            const confidencePercent = (confidence * 100).toFixed(0);
+            
+            // Format dates nicely
+            const formatDate = (dateStr) => {
+                if (!dateStr) return 'N/A';
+                const date = new Date(dateStr);
+                return date.toLocaleString('en-US', { 
+                    weekday: 'short',
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
+                    hour: 'numeric',
+                    minute: '2-digit',
+                    hour12: true
+                });
+            };
+            
+            contentDiv.innerHTML = `
+                <div class="result-item">
+                    <span class="result-label">Title</span>
+                    <span class="result-value">${data.title || 'N/A'}</span>
+                </div>
+                
+                <div class="result-item">
+                    <span class="result-label">Start Time</span>
+                    <span class="result-value">${formatDate(data.start_datetime)}</span>
+                </div>
+                
+                ${data.end_datetime ? `
+                <div class="result-item">
+                    <span class="result-label">End Time</span>
+                    <span class="result-value">${formatDate(data.end_datetime)}</span>
+                </div>
+                ` : ''}
+                
+                ${data.location ? `
+                <div class="result-item">
+                    <span class="result-label">Location</span>
+                    <span class="result-value">${data.location}</span>
+                </div>
+                ` : ''}
+                
+                <div class="result-item">
+                    <div class="confidence-container">
+                        <div class="confidence-header">
+                            <span class="result-label">Confidence Score</span>
+                            <span class="result-value">${confidencePercent}%</span>
+                        </div>
+                        <div class="confidence-bar">
+                            <div class="confidence-fill" style="width: ${confidencePercent}%"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="result-item">
+                    <span class="result-label">Parsing Method</span>
+                    <span class="result-value">${data.parsing_path || 'unknown'}</span>
+                </div>
+                
+                ${data.warnings && data.warnings.length > 0 ? `
+                <div class="result-item" style="background: #fff3cd; border-left: 3px solid #ffc107;">
+                    <span class="result-label">⚠️ Warnings</span>
+                    <span class="result-value">${data.warnings.join(', ')}</span>
+                </div>
+                ` : ''}
+            `;
+            
+            resultDiv.style.display = 'block';
+            resultDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+        
+        // Check health on load
+        checkHealth();
+        
+        // Allow Ctrl+Enter to submit in textarea
+        document.getElementById('eventText').addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && e.ctrlKey) {
+                parseEvent();
+            }
+        });
+    </script>
+</body>
+</html>

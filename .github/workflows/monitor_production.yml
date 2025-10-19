@@ -1,0 +1,213 @@
+name: Production Monitoring
+
+on:
+  # Run every 15 minutes
+  schedule:
+    - cron: '*/15 * * * *'
+  
+  # Allow manual triggers
+  workflow_dispatch:
+  
+  # Run on push to main (deployment validation)
+  push:
+    branches:
+      - main
+
+jobs:
+  health-check:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          pip install requests
+      
+      - name: Run health check
+        id: health
+        run: |
+          python scripts/monitor_production.py > health_output.txt 2>&1
+          cat health_output.txt
+        continue-on-error: true
+      
+      - name: Run comprehensive analysis
+        id: analysis
+        run: |
+          python scripts/degraded_status_analysis.py > analysis_output.txt 2>&1
+          cat analysis_output.txt
+          
+          # Check if "HEALTHY" appears in output
+          if grep -q "HEALTHY" analysis_output.txt; then
+            echo "status=healthy" >> $GITHUB_OUTPUT
+            exit 0
+          else
+            echo "status=degraded" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+        continue-on-error: true
+      
+      - name: Test parse functionality
+        id: parse
+        run: |
+          python -c "
+          import requests
+          import sys
+          
+          try:
+              response = requests.post(
+                  'https://calendar-api-wrxz.onrender.com/parse',
+                  json={'text': 'Meeting tomorrow at 2pm', 'timezone_offset': -480},
+                  timeout=10
+              )
+              
+              if response.status_code == 200:
+                  data = response.json()
+                  confidence = data.get('confidence_score', 0)
+                  print(f'✅ Parse test passed - Confidence: {confidence}')
+                  
+                  if confidence < 0.5:
+                      print('⚠️  Warning: Low confidence score')
+                      sys.exit(1)
+              else:
+                  print(f'❌ Parse test failed: HTTP {response.status_code}')
+                  sys.exit(1)
+          except Exception as e:
+              print(f'❌ Parse test error: {e}')
+              sys.exit(1)
+          "
+        continue-on-error: true
+      
+      - name: Check response times
+        id: performance
+        run: |
+          python -c "
+          import requests
+          import time
+          
+          url = 'https://calendar-api-wrxz.onrender.com/health'
+          
+          # Test 3 times
+          times = []
+          for i in range(3):
+              start = time.time()
+              r = requests.get(url, timeout=10)
+              elapsed = (time.time() - start) * 1000
+              times.append(elapsed)
+              print(f'Request {i+1}: {elapsed:.0f}ms - Status: {r.status_code}')
+          
+          avg = sum(times) / len(times)
+          print(f'Average response time: {avg:.0f}ms')
+          
+          # Alert if too slow
+          if avg > 3000:
+              print('⚠️  WARNING: Response times are slow')
+              exit(1)
+          else:
+              print('✅ Response times are good')
+          "
+        continue-on-error: true
+      
+      - name: Report status
+        if: always()
+        run: |
+          echo "📊 Monitoring Summary"
+          echo "===================="
+          echo "Health Check: ${{ steps.health.outcome }}"
+          echo "Analysis: ${{ steps.analysis.outcome }}"
+          echo "Parse Test: ${{ steps.parse.outcome }}"
+          echo "Performance: ${{ steps.performance.outcome }}"
+      
+      - name: Create issue on failure
+        if: steps.analysis.outcome == 'failure' || steps.parse.outcome == 'failure'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = '🚨 Production Health Check Failed';
+            const body = `Production monitoring detected an issue at ${new Date().toISOString()}
+            
+            **Status:**
+            - Health Check: ${{ steps.health.outcome }}
+            - Analysis: ${{ steps.analysis.outcome }} 
+            - Parse Test: ${{ steps.parse.outcome }}
+            - Performance: ${{ steps.performance.outcome }}
+            
+            **Details:**
+            Check the [workflow run](${context.payload.repository.html_url}/actions/runs/${context.runId}) for full logs.
+            
+            **Actions:**
+            - [ ] Investigate the issue
+            - [ ] Check Render logs
+            - [ ] Verify API is responding
+            - [ ] Update this issue with findings
+            `;
+            
+            // Check if there's already an open issue
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'automated-monitoring'
+            });
+            
+            const existingIssue = issues.data.find(issue => issue.title === title);
+            
+            if (!existingIssue) {
+              // Create new issue
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: title,
+                body: body,
+                labels: ['automated-monitoring', 'production', 'alert']
+              });
+            } else {
+              // Comment on existing issue
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existingIssue.number,
+                body: `Another failure detected at ${new Date().toISOString()}\n\n${body}`
+              });
+            }
+      
+      - name: Close issue on recovery
+        if: steps.analysis.outcome == 'success' && steps.parse.outcome == 'success'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = '🚨 Production Health Check Failed';
+            
+            // Find open monitoring issues
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'automated-monitoring'
+            });
+            
+            const monitoringIssue = issues.data.find(issue => issue.title === title);
+            
+            if (monitoringIssue) {
+              // Close the issue
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: monitoringIssue.number,
+                state: 'closed'
+              });
+              
+              // Add recovery comment
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: monitoringIssue.number,
+                body: `✅ **System Recovered**\n\nProduction health checks are passing again as of ${new Date().toISOString()}\n\nAll systems healthy! 🎉`
+              });
+            }
