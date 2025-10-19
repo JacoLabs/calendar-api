@@ -382,7 +382,7 @@
                     body: JSON.stringify({
                         text: text,
                         now: new Date().toISOString(),
-                        timezone_offset: -new Date().getTimezoneOffset()
+                        timezone_offset: new Date().getTimezoneOffset()
                     })
                 });
                 
@@ -409,11 +409,10 @@
             const confidence = data.confidence_score || 0;
             const confidencePercent = (confidence * 100).toFixed(0);
             
-            // Format dates nicely - preserve the timezone from API response
+            // Format dates nicely
             const formatDate = (dateStr) => {
                 if (!dateStr) return 'N/A';
                 const date = new Date(dateStr);
-                // Use the user's local timezone for display (what they expect to see)
                 return date.toLocaleString('en-US', { 
                     weekday: 'short',
                     year: 'numeric',
@@ -465,15 +464,6 @@
                 <div class="result-item">
                     <span class="result-label">Parsing Method</span>
                     <span class="result-value">${data.parsing_path || 'unknown'}</span>
-                </div>
-                
-                <div class="result-item" style="background: #f0f8ff; border-left: 3px solid #007acc;">
-                    <span class="result-label">🔍 Raw API Response</span>
-                    <span class="result-value" style="font-size: 0.9em;">
-                        Start: ${data.start_datetime}<br>
-                        Timezone: ${data.timezone || 'N/A'}<br>
-                        Your timezone offset: ${-new Date().getTimezoneOffset()} minutes
-                    </span>
                 </div>
                 
                 ${data.warnings && data.warnings.length > 0 ? `
