@@ -615,7 +615,7 @@ def _get_cache_statistics() -> Dict[str, Any]:
     """Get cache performance statistics."""
     try:
         # Get real statistics from cache manager
-        return get_cache_manager().get_statistics()
+        return get_cache_manager().get_stats().to_dict()
         
     except Exception as e:
         logger.warning(f"Cache statistics error: {e}")
@@ -1018,7 +1018,7 @@ async def cache_statistics():
     - Performance metrics
     """
     try:
-        stats = cache_manager.get_statistics()
+        stats = cache_manager.get_stats().to_dict()
         return {
             "success": True,
             "cache_statistics": stats,
