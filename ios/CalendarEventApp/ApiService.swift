@@ -259,7 +259,7 @@ struct ErrorDetails {
     let userMessage: String
     let suggestion: String?
 }
-}
+
 
 enum ApiError: LocalizedError {
     case invalidURL

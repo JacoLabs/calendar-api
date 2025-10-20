@@ -16,18 +16,18 @@ struct ParsedEvent: Codable {
     let cacheHit: Bool?
     let warnings: [String]?
     let needsConfirmation: Bool?
-    
+
     enum CodingKeys: String, CodingKey {
         case title
         case startDatetime = "start_datetime"
-        case endDatetime = "end_datetime"
+        case endDatetime   = "end_datetime"
         case location
         case description
         case confidenceScore = "confidence_score"
         case allDay = "all_day"
         case timezone
         case fieldResults = "field_results"
-        case parsingPath = "parsing_path"
+        case parsingPath  = "parsing_path"
         case processingTimeMs = "processing_time_ms"
         case cacheHit = "cache_hit"
         case warnings
@@ -35,108 +35,85 @@ struct ParsedEvent: Codable {
     }
 }
 
+// Keep FieldResult as-is
 struct FieldResult: Codable {
     let value: AnyCodable?
     let source: String
     let confidence: Double
     let span: [Int]?
     let processingTimeMs: Int?
-    
+
     enum CodingKeys: String, CodingKey {
-        case value
-        case source
-        case confidence
-        case span
+        case value, source, confidence, span
         case processingTimeMs = "processing_time_ms"
     }
 }
 
-// Helper struct to handle Any type in Codable
+// Tiny wrapper for heterogenous JSON values (String/Int/Double/Bool)
 struct AnyCodable: Codable {
     let value: Any
-    
-    init(_ value: Any) {
-        self.value = value
-    }
-    
+
+    init(_ value: Any) { self.value = value }
+
     init(from decoder: Decoder) throws {
-        let container = try decoder.singleValueContainer()
-        
-        if let string = try? container.decode(String.self) {
-            value = string
-        } else if let int = try? container.decode(Int.self) {
-            value = int
-        } else if let double = try? container.decode(Double.self) {
-            value = double
-        } else if let bool = try? container.decode(Bool.self) {
-            value = bool
-        } else {
-            value = ""
-        }
+        let c = try decoder.singleValueContainer()
+        if let s = try? c.decode(String.self) { value = s }
+        else if let i = try? c.decode(Int.self) { value = i }
+        else if let d = try? c.decode(Double.self) { value = d }
+        else if let b = try? c.decode(Bool.self) { value = b }
+        else { value = NSNull() }
     }
-    
+
     func encode(to encoder: Encoder) throws {
-        var container = encoder.singleValueContainer()
-        
-        if let string = value as? String {
-            try container.encode(string)
-        } else if let int = value as? Int {
-            try container.encode(int)
-        } else if let double = value as? Double {
-            try container.encode(double)
-        } else if let bool = value as? Bool {
-            try container.encode(bool)
+        var c = encoder.singleValueContainer()
+        switch value {
+        case let s as String: try c.encode(s)
+        case let i as Int:    try c.encode(i)
+        case let d as Double: try c.encode(d)
+        case let b as Bool:   try c.encode(b)
+        default: try c.encodeNil()
         }
-    }
-    
-    // Default values for optional properties
-    var isAllDay: Bool {
-        return allDay ?? false
-    }
-    
-    var eventTimezone: String {
-        return timezone ?? TimeZone.current.identifier
-    }
-    
-    var displayTitle: String {
-        return title ?? "Untitled Event"
-    }
-    
-    var displayLocation: String {
-        return location ?? "No location specified"
-    }
-    
-    var displayDescription: String {
-        return description ?? "No description"
-    }
-    
-    var formattedStartDate: String {
-        guard let startDatetime = startDatetime else { return "No date specified" }
-        
-        let formatter = ISO8601DateFormatter()
-        
-        if let date = formatter.date(from: startDatetime) {
-            let displayFormatter = DateFormatter()
-            displayFormatter.dateStyle = .medium
-            displayFormatter.timeStyle = .short
-            return displayFormatter.string(from: date)
-        }
-        
-        return startDatetime
-    }
-    
-    var formattedEndDate: String {
-        guard let endDatetime = endDatetime else { return "No end time" }
-        
-        let formatter = ISO8601DateFormatter()
-        
-        if let date = formatter.date(from: endDatetime) {
-            let displayFormatter = DateFormatter()
-            displayFormatter.timeStyle = .short
-            return displayFormatter.string(from: date)
-        }
-        
-        return endDatetime
     }
 }
 
+// MARK: - Convenience accessors belong to ParsedEvent
+extension ParsedEvent {
+
+    var isAllDay: Bool { allDay ?? false }
+
+    var eventTimezone: String { timezone ?? TimeZone.current.identifier }
+
+    var displayTitle: String { title ?? "Untitled Event" }
+
+    var displayLocation: String { location ?? "No location specified" }
+
+    var displayDescription: String { description ?? "No description" }
+
+    var formattedStartDate: String {
+        guard let s = startDatetime else { return "No date specified" }
+        let iso = ISO8601DateFormatter()
+        iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = iso.date(from: s) {
+            let out = DateFormatter()
+            out.dateStyle = .medium
+            out.timeStyle = isAllDay ? .none : .short
+            out.timeZone  = TimeZone(identifier: eventTimezone)
+            return out.string(from: date)
+        }
+        return s
+    }
+
+    var formattedEndDate: String {
+        guard let e = endDatetime else { return "No end time" }
+        let iso = ISO8601DateFormatter()
+        iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = iso.date(from: e) {
+            let out = DateFormatter()
+            out.dateStyle = isAllDay ? .none : .none
+            out.timeStyle = .short
+            out.timeZone  = TimeZone(identifier: eventTimezone)
+            return out.string(from: date)
+        }
+        return e
+    }
+}

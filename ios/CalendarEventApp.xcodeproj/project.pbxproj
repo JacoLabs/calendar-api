@@ -458,7 +458,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = CalendarEventExtension/Info.plist;
+				INFOPLIST_FILE = "$(PROJECT_DIR)/CalendarEventExtension/Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "Create Calendar Event";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
@@ -483,7 +483,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = CalendarEventExtension/Info.plist;
+				INFOPLIST_FILE = "$(PROJECT_DIR)/CalendarEventExtension/Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "Create Calendar Event";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
