@@ -47,15 +47,15 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		A1000021 /* CalendarEventApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CalendarEventApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A1000002 /* CalendarEventApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarEventApp.swift; sourceTree = "<group>"; };
 		A1000004 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		A1000006 /* EventResultView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventResultView.swift; sourceTree = "<group>"; };
 		A1000008 /* ApiService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApiService.swift; sourceTree = "<group>"; };
 		A1000010 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
-		A1000016 /* CalendarEventExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = CalendarEventExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		A1000012 /* ActionViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionViewController.swift; sourceTree = "<group>"; };
 		A1000014 /* ApiService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApiService.swift; sourceTree = "<group>"; };
+		A1000016 /* CalendarEventExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = CalendarEventExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		A1000021 /* CalendarEventApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CalendarEventApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A1000022 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A1000023 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A1000054 /* EventKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = EventKit.framework; path = System/Library/Frameworks/EventKit.framework; sourceTree = SDKROOT; };
@@ -140,6 +140,23 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		A1000019 /* CalendarEventExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A1000035 /* Build configuration list for PBXNativeTarget "CalendarEventExtension" */;
+			buildPhases = (
+				A1000036 /* Sources */,
+				A1000025 /* Frameworks */,
+				A1000037 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = CalendarEventExtension;
+			productName = CalendarEventExtension;
+			productReference = A1000016 /* CalendarEventExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		A1000030 /* CalendarEventApp */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = A1000031 /* Build configuration list for PBXNativeTarget "CalendarEventApp" */;
@@ -159,23 +176,6 @@
 			productReference = A1000021 /* CalendarEventApp.app */;
 			productType = "com.apple.product-type.application";
 		};
-		A1000019 /* CalendarEventExtension */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = A1000035 /* Build configuration list for PBXNativeTarget "CalendarEventExtension" */;
-			buildPhases = (
-				A1000036 /* Sources */,
-				A1000025 /* Frameworks */,
-				A1000037 /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-			);
-			name = CalendarEventExtension;
-			productName = CalendarEventExtension;
-			productReference = A1000016 /* CalendarEventExtension.appex */;
-			productType = "com.apple.product-type.app-extension";
-		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -186,13 +186,11 @@
 				LastSwiftUpdateCheck = 1500;
 				LastUpgradeCheck = 1500;
 				TargetAttributes = {
-					A1000030 = {
-						CreatedOnToolsVersion = 15.0;
-						DevelopmentTeam = "";
-					};
 					A1000019 = {
 						CreatedOnToolsVersion = 15.0;
-						DevelopmentTeam = "";
+					};
+					A1000030 = {
+						CreatedOnToolsVersion = 15.0;
 					};
 				};
 			};
@@ -392,7 +390,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = GC9ZFV3MZA;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = CalendarEventApp/Info.plist;
@@ -423,7 +421,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = GC9ZFV3MZA;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = CalendarEventApp/Info.plist;
@@ -452,7 +450,7 @@
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = GC9ZFV3MZA;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = CalendarEventExtension/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Create Calendar Event";
@@ -478,7 +476,7 @@
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = GC9ZFV3MZA;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = CalendarEventExtension/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Create Calendar Event";

@@ -88,7 +88,7 @@ class ActionViewController: UIViewController {
         }
     }
     
-    private func presentEventEditor(with parseResult: ParseResult, originalText: String) {
+    private func presentEventEditor(with parseResult: ApiService.ParseResult, originalText: String) {
         // Request calendar access
         eventStore.requestAccess(to: .event) { [weak self] (granted, error) in
             DispatchQueue.main.async {
